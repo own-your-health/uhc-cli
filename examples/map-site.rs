@@ -14,6 +14,12 @@
 //!   session, one request at a time and 1.5 s apart, printed as its shape:
 //!   keys and types only, never a value (`uhc::shape`).
 //!
+//! Before anything opens it reads the household's names from
+//! `~/.config/uhc/redact-words` (one per line, mode 0600, written by the
+//! owner outside any agent session, never printed): a key or path segment
+//! holding one, in any case, prints as `<key>` or `{id}`. Without the file
+//! it stops (exit 2).
+//!
 //! The session stays in memory and is dropped at exit; nothing is written.
 //! The kept profile (`~/Library/Application Support/piekstra.uhc/browser-profile`)
 //! keeps the site's own cookies, as every family CLI's browser sign-in does.
@@ -27,7 +33,7 @@ use std::time::Duration;
 
 use pk_cli_browser::{Capture, HostRule, Launch, RequestKind, DEFAULT_TIMEOUT};
 use pk_cli_core::CliError;
-use uhc::shape::{redact_path, shape_lines};
+use uhc::shape::Redactor;
 
 const HOST: &str = "member.uhc.com";
 const DOMAIN: &str = "uhc.com";
@@ -67,6 +73,9 @@ fn minutes() -> Result<u64, CliError> {
 
 fn run() -> Result<(), CliError> {
     let minutes = minutes()?;
+    let path = Redactor::default_path().ok_or_else(|| CliError::Usage("no home directory".into()))?;
+    let redact = Redactor::from_file(&path)?;
+    eprintln!("{} deny word(s) read from {}", redact.len(), path.display());
     let capture = Capture::new("UnitedHealthcare", HostRule::exact(HOST)?)
         .expression(SIGNED_IN)
         .cookie_jar(DOMAIN)
@@ -84,7 +93,7 @@ fn run() -> Result<(), CliError> {
         .map(|e| {
             (
                 e.host().to_string(),
-                redact_path(e.path()),
+                redact.redact_path(e.path()),
                 e.method().to_string(),
                 e.kind().as_str(),
                 e.status().map_or("-".into(), |s| s.to_string()),
@@ -118,7 +127,7 @@ fn run() -> Result<(), CliError> {
         if e.method() != "GET" || !api || !json || e.status() != Some(200) || !on_site {
             continue;
         }
-        let shown = format!("{} {}", e.host(), redact_path(e.path()));
+        let shown = format!("{} {}", e.host(), redact.redact_path(e.path()));
         if !read.insert(shown.clone()) {
             continue;
         }
@@ -157,7 +166,7 @@ fn run() -> Result<(), CliError> {
         }
         match answer.json::<serde_json::Value>() {
             Ok(doc) => {
-                for line in shape_lines(&doc) {
+                for line in redact.shape_lines(&doc) {
                     println!("  {line}");
                 }
             }

@@ -5,11 +5,16 @@
 //! This is what mapping the site's API may print (docs/api.md): a session
 //! that maps it must never see a value, so a key or a path segment is
 //! printed only when it reads as a name the API gives a thing. A member
-//! number, a claim number, an id, a person's name (`Alex`, `ALEX`) and
-//! anything with a space in it come out as `{id}` or `<key>`.
+//! number, a claim number, an id, a capitalized name (`Alex`, `ALEX`),
+//! anything with a space in it, a slug of three or more parts
+//! (`jane-doe-md`) and anything holding one of the household's own names
+//! (the [`Redactor`]'s deny words: `alex`, `alexExample`) come out as `{id}`
+//! or `<key>`.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
 
+use pk_cli_core::CliError;
 use serde_json::Value;
 
 /// Lines printed for one document at most.
@@ -64,7 +69,117 @@ const FIELD_WORDS: &[&str] = &[
     "Year",
 ];
 
-/// Whether a key or a path segment is printed as it is.
+/// The household's own names, which no printed key or segment may hold.
+///
+/// Read from a file the owner writes outside any agent session
+/// ([`Redactor::default_path`], one word per line, owner-only), and never
+/// printed: errors name the file, not what is in it.
+#[derive(Debug, Default)]
+pub struct Redactor {
+    words: Vec<String>,
+}
+
+impl Redactor {
+    pub fn new<S: AsRef<str>>(words: impl IntoIterator<Item = S>) -> Self {
+        let mut words: Vec<String> = words
+            .into_iter()
+            .map(|w| w.as_ref().trim().to_lowercase())
+            .filter(|w| !w.is_empty())
+            .collect();
+        words.sort();
+        words.dedup();
+        Redactor { words }
+    }
+
+    /// `$XDG_CONFIG_HOME/uhc/redact-words`, else `~/.config/uhc/redact-words`.
+    pub fn default_path() -> Option<PathBuf> {
+        let base = std::env::var_os("XDG_CONFIG_HOME")
+            .filter(|v| !v.is_empty())
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
+        Some(base.join("uhc").join("redact-words"))
+    }
+
+    /// The deny words in `path`. A missing or empty file, or one that others
+    /// can read, is refused (exit 2), since mapping without it could print a
+    /// name.
+    pub fn from_file(path: &Path) -> Result<Redactor, CliError> {
+        let shown = path.display();
+        let meta = std::fs::symlink_metadata(path).map_err(|_| {
+            CliError::Usage(format!("no deny-word file at {shown}"))
+                .with_remedy("in a terminal outside any agent session, write the household's first and last names there, one per line, mode 0600")
+        })?;
+        if !meta.is_file() {
+            return Err(CliError::Usage(format!("{shown} is not a plain file")));
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if meta.permissions().mode() & 0o077 != 0 {
+                return Err(
+                    CliError::Usage(format!("{shown} is readable by others")).with_remedy(format!("chmod 600 {shown}"))
+                );
+            }
+        }
+        let text =
+            std::fs::read_to_string(path).map_err(|e| CliError::Other(format!("reading {shown}: {}", e.kind())))?;
+        let r = Redactor::new(text.lines());
+        if r.words.is_empty() {
+            return Err(CliError::Usage(format!("{shown} holds no word")));
+        }
+        Ok(r)
+    }
+
+    /// How many deny words there are (a count, never the words).
+    pub fn len(&self) -> usize {
+        self.words.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.words.is_empty()
+    }
+
+    fn denied(&self, s: &str) -> bool {
+        let s = s.to_lowercase();
+        self.words.iter().any(|w| s.contains(w.as_str()))
+    }
+
+    /// Whether a key is printed as it is.
+    pub fn key(&self, s: &str) -> bool {
+        is_word(s) && !self.denied(s)
+    }
+
+    /// Whether a path segment is printed as it is: a key that is not also a
+    /// slug of three or more parts.
+    pub fn segment(&self, s: &str) -> bool {
+        self.key(s) && s.split(['-', '.']).count() <= 2
+    }
+
+    /// An endpoint path with the query cut and every segment that is not
+    /// printed as it is replaced by `{id}`.
+    pub fn redact_path(&self, path: &str) -> String {
+        let path = path.split(['?', '#']).next().unwrap_or("");
+        path.split('/')
+            .map(|seg| {
+                if seg.is_empty() || self.segment(seg) {
+                    seg
+                } else {
+                    "{id}"
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("/")
+    }
+
+    /// One line per path in the document: its types, and for an array how
+    /// many items it held (the least and most, where the path repeats).
+    pub fn shape_lines(&self, v: &Value) -> Vec<String> {
+        shape_lines_with(v, &|k| self.key(k))
+    }
+}
+
+/// Whether a key or a path segment reads as a name an API gives a thing,
+/// before the deny words: [`Redactor::key`] adds those.
 pub fn is_word(s: &str) -> bool {
     if s.is_empty() || s.len() > 40 {
         return false;
@@ -103,16 +218,6 @@ pub fn is_word(s: &str) -> bool {
     true
 }
 
-/// An endpoint path with the query cut and every segment that is not a word
-/// replaced by `{id}`.
-pub fn redact_path(path: &str) -> String {
-    let path = path.split(['?', '#']).next().unwrap_or("");
-    path.split('/')
-        .map(|seg| if seg.is_empty() || is_word(seg) { seg } else { "{id}" })
-        .collect::<Vec<_>>()
-        .join("/")
-}
-
 /// What a string looks like, never what it says.
 fn string_kind(s: &str) -> &'static str {
     let b = s.as_bytes();
@@ -144,7 +249,7 @@ struct Seen {
     lengths: Option<(usize, usize)>,
 }
 
-fn walk(v: &Value, path: String, out: &mut BTreeMap<String, Seen>) {
+fn walk(v: &Value, path: String, out: &mut BTreeMap<String, Seen>, key: &dyn Fn(&str) -> bool) {
     let kind = match v {
         Value::Null => "null",
         Value::Bool(_) => "bool",
@@ -157,7 +262,7 @@ fn walk(v: &Value, path: String, out: &mut BTreeMap<String, Seen>) {
             let n = items.len();
             seen.lengths = Some(seen.lengths.map_or((n, n), |(lo, hi)| (lo.min(n), hi.max(n))));
             for item in items {
-                walk(item, format!("{path}[]"), out);
+                walk(item, format!("{path}[]"), out, key);
             }
             return;
         }
@@ -165,8 +270,8 @@ fn walk(v: &Value, path: String, out: &mut BTreeMap<String, Seen>) {
             let seen = out.entry(path.clone()).or_default();
             seen.kinds.insert("object");
             for (k, item) in map {
-                let key = if is_word(k) { k.as_str() } else { "<key>" };
-                walk(item, format!("{path}.{key}"), out);
+                let shown = if key(k) { k.as_str() } else { "<key>" };
+                walk(item, format!("{path}.{shown}"), out, key);
             }
             return;
         }
@@ -174,11 +279,9 @@ fn walk(v: &Value, path: String, out: &mut BTreeMap<String, Seen>) {
     out.entry(path).or_default().kinds.insert(kind);
 }
 
-/// One line per path in the document: its types, and for an array how many
-/// items it held (the least and most, where the path repeats).
-pub fn shape_lines(v: &Value) -> Vec<String> {
+fn shape_lines_with(v: &Value, key: &dyn Fn(&str) -> bool) -> Vec<String> {
     let mut seen = BTreeMap::new();
-    walk(v, String::new(), &mut seen);
+    walk(v, String::new(), &mut seen, key);
     let mut lines: Vec<String> = seen
         .into_iter()
         .map(|(path, s)| {
@@ -235,13 +338,60 @@ mod tests {
         }
     }
 
+    fn household() -> Redactor {
+        Redactor::new(["Alex", "EXAMPLE", "", "  sam "])
+    }
+
     #[test]
     fn a_path_keeps_its_words_and_loses_its_ids() {
+        let r = household();
         assert_eq!(
-            redact_path("/api/v2/members/SYNM000001/claims/SYNC00000001?from=2026-01-01"),
+            r.redact_path("/api/v2/members/SYNM000001/claims/SYNC00000001?from=2026-01-01"),
             "/api/v2/members/{id}/claims/{id}"
         );
-        assert_eq!(redact_path("/myuhc/claims"), "/myuhc/claims");
+        assert_eq!(r.redact_path("/myuhc/claims"), "/myuhc/claims");
+        assert_eq!(r.redact_path("/api/claims-summary"), "/api/claims-summary");
+    }
+
+    #[test]
+    fn the_households_names_never_print_in_any_case() {
+        let r = household();
+        assert_eq!(r.len(), 3);
+        for name in ["alex", "alexExample", "example_md", "samsClaims", "ALEX"] {
+            assert!(!r.key(name), "{name}");
+        }
+        assert_eq!(r.redact_path("/members/alex.example/claims"), "/members/{id}/claims");
+        // A slug of three or more parts is an id even with no deny word in it.
+        assert_eq!(r.redact_path("/providers/jane-doe-md/visits"), "/providers/{id}/visits");
+        let lines = r
+            .shape_lines(&json!({"alex": {"total": 1}, "alexExample": 2, "count": 3}))
+            .join("\n");
+        assert!(!lines.to_lowercase().contains("alex"), "{lines}");
+        assert!(lines.contains(".<key>.total: int"), "{lines}");
+        assert!(lines.contains(".count: int"), "{lines}");
+    }
+
+    #[test]
+    fn a_deny_file_must_exist_hold_a_word_and_be_the_owners() {
+        let dir = std::env::temp_dir().join(format!("uhc-redact-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("redact-words");
+        assert_eq!(Redactor::from_file(&path).unwrap_err().exit_code(), 2, "missing");
+        std::fs::write(&path, "\n\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+            assert_eq!(Redactor::from_file(&path).unwrap_err().exit_code(), 2, "empty");
+            std::fs::write(&path, "Alex\nExample\n").unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+            let e = Redactor::from_file(&path).unwrap_err();
+            assert_eq!(e.exit_code(), 2, "readable by others");
+            assert!(!e.message().contains("Alex"), "an error never names a word");
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+            assert_eq!(Redactor::from_file(&path).unwrap().len(), 2);
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
@@ -254,7 +404,7 @@ mod tests {
             "byMember": {"SYNM000001": {"total": 3}, "Alex": {"total": 1}},
             "count": 2
         });
-        let lines = shape_lines(&doc);
+        let lines = household().shape_lines(&doc);
         let text = lines.join("\n");
         for value in ["SYNC", "ALEX", "SAM", "150", "77.13", "2026", "SYNM", "Alex"] {
             assert!(!text.contains(value), "{value} in {text}");
