@@ -318,8 +318,8 @@ mod tests {
             "a1b2c3d4e5",
             "deadbeef1",
             "Alex Example",
-            "x@y.com",
-            "4f9c2e10-aaaa-bbbb-cccc-0123456789ab",
+            "someone@example.com",
+            "4f9c2e10-aaaa-bbbb-cccc-feedfacecafe",
         ] {
             assert!(!is_word(value), "{value}");
         }
