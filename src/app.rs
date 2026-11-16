@@ -100,8 +100,8 @@ impl Ctx<'_> {
         let unread = |f: &&StatementFile| f.statement.claims.is_empty() && f.statement.balances.is_empty();
         if !files.is_empty() && files.iter().all(|f| unread(&f)) {
             return Err(CliError::Upstream(format!(
-                "{} PDF(s) look like UnitedHealthcare EOB statements but none could be read; the statement \
-                 layout may have changed (`{BIN} import check`)",
+                "{UNREADABLE}{} PDF(s) look like UnitedHealthcare EOB statements, but no claim or balance came \
+                 out of any; the statement layout may have changed (`{BIN} import check`)",
                 files.len()
             )));
         }
@@ -127,8 +127,25 @@ pub fn main() {
     }
     let cli = <Cli as clap::Parser>::parse();
     if let Err(e) = run(&cli) {
-        std::process::exit(output::fail(&e, cli.common.json));
+        std::process::exit(fail(&e, cli.common.json));
     }
+}
+
+/// How the exit 5 for a folder of unreadable statements begins.
+const UNREADABLE: &str = "the statements could not be read: ";
+
+/// `output::fail`, except for statements that could not be read: cli-common
+/// prints every exit 5 as "network/upstream error: …", and reading a folder
+/// involves no network.
+fn fail(e: &CliError, json: bool) -> i32 {
+    if !(e.exit_code() == 5 && e.message().starts_with(UNREADABLE)) {
+        return output::fail(e, json);
+    }
+    if json {
+        output::json(&serde_json::json!({"error": {"code": e.code(), "message": e.message()}}));
+    }
+    eprintln!("error: {}", e.message());
+    e.exit_code()
 }
 
 pub fn run(cli: &Cli) -> Result<(), CliError> {

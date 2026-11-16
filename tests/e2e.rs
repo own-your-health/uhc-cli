@@ -535,10 +535,15 @@ fn statements_that_cannot_be_read_are_an_upstream_error() {
     std::fs::write(dir.join("s.pdf"), uhc::synth::text_pdf(text)).unwrap();
     let out = uhc(&dir).args(["claims", "list", "--json"]).assert().code(5);
     let e: Value = serde_json::from_slice(&out.get_output().stdout).unwrap();
-    assert!(e["error"]["message"]
-        .as_str()
-        .unwrap()
-        .contains("layout may have changed"));
+    let message = e["error"]["message"].as_str().unwrap();
+    assert!(
+        message.starts_with("the statements could not be read: 1 PDF(s)"),
+        "{message}"
+    );
+    assert!(message.contains("layout may have changed"), "{message}");
+    assert_eq!(e["error"]["code"], "upstream");
+    let stderr = String::from_utf8_lossy(&out.get_output().stderr);
+    assert!(!stderr.contains("network"), "no network is involved: {stderr}");
     // The check and the documents still work: they are how to look into it.
     let v = json_of(uhc(&dir).args(["import", "check"]));
     assert_eq!(v["issues"]["no_claims"], 1);

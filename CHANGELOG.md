@@ -7,6 +7,8 @@
   replaces `records.ndjson`, an incomplete one goes to
   `records.incomplete.ndjson` and the last complete export stays, and a
   failed write leaves nothing behind.
+- A folder whose statements could not be read (exit 5) says so, as
+  "the statements could not be read: …", no longer as a network error.
 
 ## v0.1.0
 
