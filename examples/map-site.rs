@@ -39,22 +39,11 @@ use std::time::Duration;
 use pk_cli_browser::{Capture, HostRule, Launch, RequestKind};
 use pk_cli_core::CliError;
 use uhc::shape::Redactor;
+use uhc::site::{DOMAIN, HINT, HOST, LABEL, SIGNED_IN, START_URL};
 
-const HOST: &str = "member.uhc.com";
-const DOMAIN: &str = "uhc.com";
-const START: &str = "https://member.uhc.com/myuhc";
 /// Re-reads at most, and the pause between two.
 const MAX_READS: usize = 60;
 const PAUSE: Duration = Duration::from_millis(1500);
-
-/// Signed in: the page offers a way to sign out. A signed-out page offers
-/// only a sign-in.
-const SIGNED_IN: &str = r#"(() => {
-  const out = [...document.querySelectorAll('a, button')].some(e =>
-    /^\s*(sign|log)\s?out\s*$/i.test(e.textContent || '') ||
-    /(logout|signout|sign-out|log-out)/i.test(e.getAttribute('href') || ''));
-  return out ? 'signed-in' : null;
-})()"#;
 
 fn main() {
     if let Err(e) = run() {
@@ -108,17 +97,17 @@ fn run() -> Result<(), CliError> {
         "{from_file} deny word(s) from {}, {from_account} from this account's name",
         path.display()
     );
-    let capture = Capture::new("UnitedHealthcare", HostRule::exact(HOST)?)
+    let capture = Capture::new(LABEL, HostRule::exact(HOST)?)
         .expression(SIGNED_IN)
         .cookie_jar(DOMAIN)
         .with_user_agent()
         .request_log(DOMAIN, Duration::from_secs(minutes * 60))
         .hint(format!(
-            "your HealthSafe ID password and code; then, for {minutes} minutes, open Claims, one claim's \
-             details, Benefits, Documents and your ID card until the window closes"
+            "{HINT}; then, for {minutes} minutes, open Claims, one claim's details, Benefits, Documents \
+             and your ID card until the window closes"
         ));
     let timeout = Duration::from_secs((wait + minutes) * 60);
-    let captured = pk_cli_browser::capture(Launch::new("uhc").url(START), &capture, timeout)?;
+    let captured = pk_cli_browser::capture(Launch::new(uhc::cli::BIN).url(START_URL), &capture, timeout)?;
 
     let rereads = match captured.cookie_header() {
         Some(cookies) => reread(&captured, cookies.expose(), &redact)?,

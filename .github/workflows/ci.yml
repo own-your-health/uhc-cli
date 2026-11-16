@@ -7,8 +7,9 @@ on:
   workflow_dispatch:
 
 # Every push and pull request runs on ubuntu only, a free GitHub-hosted
-# runner for this public repository. The suite reads no keychain, so macOS
-# would exercise nothing more; the darwin builds run on a release tag.
+# runner for this public repository. The suite reads only an empty test
+# keychain service, so macOS would exercise nothing more; the darwin builds
+# run on a release tag.
 permissions:
   contents: read
 

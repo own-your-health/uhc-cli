@@ -17,6 +17,8 @@ owns the records stream, the export file and the profile's DTOs. Every
 |---|---|
 | `src/cli.rs` | the clap tree |
 | `src/app.rs` | the commands, argument checks, output |
+| `src/auth.rs` | `auth login`, `status`, `logout`: the session's one keychain item, the profile seams |
+| `src/site.rs` | the member site: the browser capture, the session check (`SESSION_CHECK_URL`, `judge`) |
 | `src/files.rs` | the import folder: which PDFs, `pdftotext` bounded in time and size |
 | `src/eob.rs` | the statement parser (UHC's STD-EOB layout) and its issue codes |
 | `src/cents.rs` | statement amounts as integer cents |
@@ -59,17 +61,27 @@ These come from the household's plan and are not negotiable.
 
 ## Sources
 
-The files source is the only one. The member site source (`auth login
---browser` through `pk-cli-browser`) waits on the household's ruling on
-myuhc.com's terms; `docs/api.md` § Route. When it lands: one keychain item
-per credential set, a `UHC_KEYCHAIN_SERVICE` test-only override, every
-`make` target signs, request logs through `Capture::request_log` (method,
-host, path, status; no bodies or queries), shapes only from real responses.
+The files source is the only one that reads records. The member-site
+sign-in is in place (`auth login --browser` through `pk-cli-browser`, or
+`--stdin`): one keychain item (`piekstra.uhc`, account `session`), the kept
+Chrome profile, a `UHC_KEYCHAIN_SERVICE` test-only override, and every
+`make` target signs. Its session check is not mapped yet:
+`site::SESSION_CHECK_URL` is `None` and `site::judge` answers `NotYet`, so a
+checked sign-in is refused before Chrome opens. A member-site source that
+reads records waits on the household's ruling on myuhc.com's terms;
+`docs/api.md` § Route. For it: request logs through `Capture::request_log`
+(method, host, path, status; no bodies or queries), shapes only from real
+responses.
 
 ## Tests are offline, always
 
-`cargo test` reads no keychain, contacts nothing, and reads no real
-statement:
+`cargo test` reads no real keychain item or browser profile, stores no
+session, contacts nothing beyond loopback, and reads no real statement.
+Every test that runs a credential-reading command sets
+`UHC_KEYCHAIN_SERVICE=piekstra.uhc.hermetic-tests`, a service that holds
+nothing, under which uhc leaves the kept profile alone; unit tests fill the
+profile seams with `profile_exists_in` and `forget_profile_in` under a temp
+dir.
 
 - `tests/cli_surface.rs`: every `--help`, exit codes, JSON errors, argument
   checks before the folder is read, `NO_COLOR`, a per-test `XDG_CONFIG_HOME`.

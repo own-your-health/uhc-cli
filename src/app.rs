@@ -4,7 +4,6 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use clap::CommandFactory;
-use pk_cli_auth::AuthStatus;
 use pk_cli_config::ConfigStore;
 use pk_cli_core::info::{AuthInfo, CliInfo};
 use pk_cli_core::{dates, output, CliError, Paged, RangeArgs};
@@ -180,10 +179,12 @@ pub fn run(cli: &Cli) -> Result<(), CliError> {
                 BIN,
                 env!("CARGO_PKG_VERSION"),
                 &format!("https://github.com/{REPO}"),
+                // The files source needs no sign-in; the member site's is a
+                // browser one.
                 AuthInfo {
                     required: false,
-                    method: "none".into(),
-                    login_hint: None,
+                    method: "browser-session".into(),
+                    login_hint: Some(format!("{BIN} auth login --browser")),
                 },
                 &["patients", "records", "claims", "accumulators", "documents", "import"],
             )
@@ -197,22 +198,11 @@ pub fn run(cli: &Cli) -> Result<(), CliError> {
 // ------------------------------------------------------------------ auth
 
 fn auth(ctx: &Ctx, cmd: &AuthCmd) -> Result<(), CliError> {
+    let quiet = ctx.cli.common.quiet;
     match cmd {
-        AuthCmd::Login => Err(CliError::Usage(format!(
-            "nothing to sign in to: {BIN} reads the EOB statements you download from myuhc.com \
-             (`{BIN} config set import_dir <DIR>`)"
-        ))),
-        AuthCmd::Status => {
-            AuthStatus::not_required().emit(ctx.json());
-            Ok(())
-        }
-        AuthCmd::Logout => {
-            if ctx.json() {
-                output::json(&json!({ "schema": "auth-logout/v1", "signed_out": [] }));
-            }
-            ctx.note("nothing is stored: the files source keeps no credential");
-            Ok(())
-        }
+        AuthCmd::Login(args) => crate::auth::login(args, ctx.json(), quiet),
+        AuthCmd::Status => crate::auth::status(ctx.json(), quiet),
+        AuthCmd::Logout => crate::auth::logout(ctx.json(), quiet),
     }
 }
 
@@ -406,7 +396,7 @@ fn patients(ctx: &Ctx) -> Result<(), CliError> {
 
 // --------------------------------------------------------------- records
 
-fn now_rfc3339() -> String {
+pub(crate) fn now_rfc3339() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)

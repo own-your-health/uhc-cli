@@ -4,6 +4,8 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 use clap_complete::Shell;
+use pk_cli_auth::LoginArgs;
+use pk_cli_browser::BrowserArgs;
 use pk_cli_core::{CommonArgs, RangeArgs};
 use pk_cli_selfupdate::SelfUpdateArgs;
 
@@ -32,7 +34,7 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    /// Sign-in status. The files source needs no sign-in.
+    /// The member-site sign-in (myuhc.com). The files source needs none.
     #[command(subcommand)]
     Auth(AuthCmd),
     /// Non-secret settings (`import_dir`).
@@ -67,12 +69,30 @@ pub enum Command {
 
 #[derive(Subcommand, Debug)]
 pub enum AuthCmd {
-    /// The files source needs no sign-in; this says so.
-    Login,
-    /// Credential state (auth-status/v1).
+    /// Sign in to the member site and keep the session in the OS keychain
+    /// (auth-login/v1).
+    ///
+    /// --browser opens a Chrome window on member.uhc.com, where you sign in;
+    /// --stdin reads the Cookie header of a member.uhc.com request, copied
+    /// from a signed-in browser's DevTools. One member-site read checks the
+    /// session before it is stored, unless --no-verify.
+    Login(LoginCmd),
+    /// Whether a member-site session is stored and when it was captured
+    /// (auth-status/v1). Sends no request.
     Status,
-    /// Nothing is stored for the files source; this says so.
+    /// Remove the stored session, then the browser profile a --browser
+    /// sign-in keeps (auth-logout/v1).
     Logout,
+}
+
+// The family's login flags with `--browser` beside them (DESIGN.md §2.2).
+// A plain comment: a doc comment here would replace `auth login`'s about.
+#[derive(Args, Debug)]
+pub struct LoginCmd {
+    #[command(flatten)]
+    pub login: LoginArgs,
+    #[command(flatten)]
+    pub browser: BrowserArgs,
 }
 
 #[derive(Subcommand, Debug)]

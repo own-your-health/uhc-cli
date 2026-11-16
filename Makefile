@@ -4,8 +4,8 @@ CARGO ?= cargo
 .PHONY: build release test lint fmt fmt-check clean install deps smoke verify dev synth
 
 # Every target that produces a binary signs it (cli-common's dev-sign.sh), so
-# the code identity stays stable between builds. uhc reads no keychain item
-# today; the portal source will, and an ad-hoc signature would then prompt on
+# the code identity stays stable between builds. uhc keeps one keychain item,
+# the member-site session, and an ad-hoc signature would prompt for it on
 # every rebuild.
 build: SIGN_TARGET = target/debug/$(BIN)
 build:
@@ -51,14 +51,19 @@ dev:
 synth:
 	$(CARGO) run -q --example synth-eob -- target/synth
 
-# Offline smoke test: no keychain, no network, no real statement. The
-# round trip over the synthetic PDFs runs where pdftotext is installed.
+# Offline smoke test: no network, no real statement, and never the real
+# keychain or browser profile: UHC_KEYCHAIN_SERVICE names a service that
+# holds nothing, under which uhc leaves the kept profile alone. The round
+# trip over the synthetic PDFs runs where pdftotext is installed.
+HERMETIC := UHC_KEYCHAIN_SERVICE=piekstra.uhc.hermetic-tests XDG_DATA_HOME=$(CURDIR)/target/smoke-data \
+	XDG_CONFIG_HOME=$(CURDIR)/target/smoke-config
 smoke: build
 	@./target/debug/$(BIN) --version >/dev/null
 	@./target/debug/$(BIN) info >/dev/null
 	@./target/debug/$(BIN) completions bash >/dev/null
-	@./target/debug/$(BIN) auth status --json >/dev/null
-	@for c in "patients list" "records export" "claims list" "claims get" accumulators \
+	@$(HERMETIC) ./target/debug/$(BIN) -q auth status --json >/dev/null
+	@for c in "auth login" "auth status" "auth logout" \
+		"patients list" "records export" "claims list" "claims get" accumulators \
 		"documents list" "documents download" "import check"; do \
 		./target/debug/$(BIN) $$c --help >/dev/null || exit 1; done
 	@if command -v pdftotext >/dev/null; then \

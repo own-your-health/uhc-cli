@@ -58,6 +58,7 @@ const GOOD: &[&str] = &[
 fn uhc(dir: &Path) -> Command {
     let mut cmd = Command::cargo_bin("uhc").unwrap();
     cmd.env("XDG_CONFIG_HOME", tmp("cfg"))
+        .env("UHC_KEYCHAIN_SERVICE", "piekstra.uhc.hermetic-tests")
         .env_remove("NO_COLOR")
         .env_remove("UHC_PDFTOTEXT")
         .arg("--dir")

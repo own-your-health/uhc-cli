@@ -24,6 +24,11 @@ pk-cli-config = { git = "https://github.com/piekstra/cli-common", tag = "v0.31.1
 pk-cli-selfupdate = { git = "https://github.com/piekstra/cli-common", tag = "v0.31.1" }
 pk-cli-auth = { git = "https://github.com/piekstra/cli-common", tag = "v0.31.1" }
 pk-cli-documents = { git = "https://github.com/piekstra/cli-common", tag = "v0.31.1" }
+pk-cli-secrets = { git = "https://github.com/piekstra/cli-common", tag = "v0.31.1" }
+# `auth login --browser` (src/auth.rs, src/site.rs) and examples/map-site.rs.
+pk-cli-browser = { git = "https://github.com/piekstra/cli-common", tag = "v0.31.1" }
+pk-cli-http = { git = "https://github.com/piekstra/cli-common", tag = "v0.31.1" }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
 pk-med-records = { git = "https://github.com/piekstra/medical-common", tag = "v0.2.0" }
 clap = { version = "4", features = ["derive", "env"] }
 clap_complete = "4"
@@ -36,10 +41,9 @@ base64 = "0.22"
 libc = "0.2"
 
 [dev-dependencies]
-# examples/map-site.rs only: mapping the member site's API (docs/api.md).
-pk-cli-browser = { git = "https://github.com/piekstra/cli-common", tag = "v0.31.1" }
-pk-cli-http = { git = "https://github.com/piekstra/cli-common", tag = "v0.31.1" }
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+# The unit tests build a `Captured` by hand and move the kept profile to a
+# temp dir. A dev-dependency only, so the binary is built without them.
+pk-cli-browser = { git = "https://github.com/piekstra/cli-common", tag = "v0.31.1", features = ["test-util"] }
 assert_cmd = "2"
 predicates = "3"
 

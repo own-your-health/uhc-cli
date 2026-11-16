@@ -2,6 +2,12 @@
 //! renders help or info, or is refused by argument checks that run before
 //! the import folder is read. The config directory is a temp dir, never
 //! the developer's, and `UHC_IMPORT_DIR` is cleared.
+//!
+//! None reaches the real keychain or browser profile: `UHC_KEYCHAIN_SERVICE`
+//! names a service that holds nothing (a missing item needs no approval),
+//! and under it the binary never touches the kept profile. `XDG_DATA_HOME`,
+//! where Linux keeps that profile, is a temp dir besides. `HOME` stays: on
+//! macOS the keychain is found through it. No test stores a session.
 
 use assert_cmd::Command;
 use predicates::prelude::*;
@@ -20,9 +26,19 @@ fn tmp() -> std::path::PathBuf {
     dir
 }
 
+/// The empty keychain service every test reads instead of `piekstra.uhc`.
+const HERMETIC_SERVICE: &str = "piekstra.uhc.hermetic-tests";
+
+fn hermetic(cmd: &mut Command) -> &mut Command {
+    cmd.env("UHC_KEYCHAIN_SERVICE", HERMETIC_SERVICE)
+        .env("XDG_DATA_HOME", tmp())
+        .env_remove("UHC_CHROME")
+}
+
 fn uhc() -> Command {
     let mut cmd = Command::cargo_bin("uhc").unwrap();
-    cmd.env("XDG_CONFIG_HOME", tmp())
+    hermetic(&mut cmd)
+        .env("XDG_CONFIG_HOME", tmp())
         .env_remove("UHC_IMPORT_DIR")
         .env_remove("NO_COLOR");
     cmd
@@ -85,36 +101,116 @@ fn version_prints() {
 }
 
 #[test]
-fn info_declares_both_profiles_and_no_credential() {
+fn info_declares_both_profiles_and_the_browser_sign_in() {
     let out = uhc().arg("info").assert().success();
     let v: Value = serde_json::from_slice(&out.get_output().stdout).unwrap();
     assert_eq!(v["schema"], "cli-info/v1");
     assert_eq!(v["name"], "uhc");
     assert_eq!(v["spec"], "piekstra-cli/1");
     assert_eq!(v["profiles"], serde_json::json!(["health-records/v1", "documents/v1"]));
+    // The files source needs no sign-in; the member site's is a browser one.
     assert_eq!(v["auth"]["required"], false);
-    assert_eq!(v["auth"]["method"], "none");
+    assert_eq!(v["auth"]["method"], "browser-session");
+    assert_eq!(v["auth"]["login_hint"], "uhc auth login --browser");
 }
 
 #[test]
-fn auth_status_needs_no_credential() {
+fn auth_status_when_nothing_is_stored() {
     let out = uhc().args(["auth", "status", "--json"]).assert().success();
     let v: Value = serde_json::from_slice(&out.get_output().stdout).unwrap();
     assert_eq!(v["schema"], "auth-status/v1");
     assert_eq!(v["required"], false);
-    assert_eq!(v["authenticated"], true);
-    uhc().args(["auth", "status"]).assert().success();
+    assert_eq!(v["authenticated"], false);
+    assert_eq!(v["method"], "browser-session");
+    assert_eq!(v["credential_in_keychain"], false);
+    assert!(v.get("captured_at").is_none(), "{v}");
+    assert!(v.get("verified").is_none(), "{v}");
+    // Under the test service the real profile is not reported.
+    assert!(v.get("browser_profile").is_none(), "{v}");
+    let stderr = String::from_utf8_lossy(&out.get_output().stderr);
+    assert!(stderr.contains("UHC_KEYCHAIN_SERVICE is set"), "{stderr}");
+    uhc()
+        .args(["auth", "status"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Method:        browser-session"))
+        .stdout(predicate::str::contains("Keychain:      empty"));
 }
 
 #[test]
-fn auth_login_says_there_is_nothing_to_sign_in_to() {
-    let out = uhc().args(["auth", "login", "--json"]).assert().code(2);
-    assert_eq!(error_of(&out)["error"]["code"], "usage");
+fn auth_logout_when_nothing_is_stored() {
+    let out = uhc().args(["auth", "logout", "--json"]).assert().success();
+    let v: Value = serde_json::from_slice(&out.get_output().stdout).unwrap();
+    assert_eq!(v["schema"], "auth-logout/v1");
+    assert_eq!(v["session_removed"], false);
+    // The kept profile is left alone under the test service.
+    assert!(v.get("browser_profile_removed").is_none(), "{v}");
     uhc()
-        .args(["auth", "logout", "--json"])
+        .args(["auth", "logout"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("auth-logout/v1"));
+        .stderr(predicate::str::contains("no session was stored"))
+        .stderr(predicate::str::contains("left alone"));
+}
+
+/// The usage rules of DESIGN.md §2.2: one credential source, decided before
+/// any keychain or network work.
+#[test]
+fn auth_login_takes_exactly_one_source() {
+    for args in [
+        vec!["--browser", "--stdin"],
+        vec!["--browser", "--from-env", "UHC_TEST_COOKIE"],
+        vec!["--stdin", "--from-env", "UHC_TEST_COOKIE"],
+        // No source at all.
+        vec![],
+    ] {
+        let out = uhc().args(["auth", "login", "--json"]).args(&args).assert().code(2);
+        assert_eq!(error_of(&out)["error"]["code"], "usage", "{args:?}");
+    }
+    for args in [
+        vec!["--browser", "--op", "op://Example/Login/cookie"],
+        vec!["--fresh-profile"],
+        vec!["--fresh-profile", "--stdin"],
+    ] {
+        uhc().args(["auth", "login"]).args(&args).assert().code(2);
+    }
+}
+
+/// A `--stdin` import checks what it read before anything is stored or
+/// sent. `--no-verify` gets it past the unmapped check; nothing it reads
+/// here is a header, so nothing is stored.
+#[test]
+fn auth_login_stdin_refuses_what_is_not_a_cookie_header() {
+    for input in ["", "\n", "not a cookie header", "dummy_a=1\ndummy_b=2"] {
+        let out = uhc()
+            .args(["auth", "login", "--stdin", "--no-verify", "--json"])
+            .write_stdin(input)
+            .assert()
+            .code(2);
+        let e = error_of(&out);
+        assert_eq!(e["error"]["code"], "usage", "{input:?}");
+        assert!(!e.to_string().contains("dummy"), "{e}");
+    }
+}
+
+/// While the member site's session check is not mapped, a checked sign-in
+/// is refused before the keychain, stdin or Chrome. Once it is mapped this
+/// would send a request, so it stops here.
+#[test]
+fn auth_login_refuses_a_check_that_is_not_mapped() {
+    if uhc::site::SESSION_CHECK_URL.is_some() {
+        return;
+    }
+    for source in ["--browser", "--stdin"] {
+        let out = uhc()
+            .args(["auth", "login", "--json", source])
+            .write_stdin("dummy_a=1")
+            .assert()
+            .code(1);
+        let message = error_of(&out)["error"]["message"].as_str().unwrap().to_string();
+        assert!(message.contains(uhc::site::NOT_MAPPED), "{message}");
+        assert!(message.contains("--no-verify"), "{message}");
+    }
 }
 
 #[test]
@@ -174,7 +270,10 @@ fn config_set_show_unset() {
     let dir = tmp();
     let run = |args: &[&str]| {
         let mut c = Command::cargo_bin("uhc").unwrap();
-        c.env("XDG_CONFIG_HOME", &cfg).env_remove("UHC_IMPORT_DIR").args(args);
+        hermetic(&mut c)
+            .env("XDG_CONFIG_HOME", &cfg)
+            .env_remove("UHC_IMPORT_DIR")
+            .args(args);
         c
     };
     run(&["config", "set", "import_dir", dir.to_str().unwrap()])

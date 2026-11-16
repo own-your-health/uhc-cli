@@ -11,8 +11,22 @@ Report a vulnerability privately through GitHub's "Report a vulnerability"
 - Writes only where asked: `documents download` (owner-only 0600 files,
   never replacing one without `--overwrite`) and `records export -o`
   (synthetic statements only).
-- Contacts no server except GitHub, for `self-update`.
-- Stores no credential. The config file holds the import folder's path.
+- Contacts no server except GitHub, for `self-update`, and member.uhc.com
+  for `auth login`: a Chrome window the owner signs in through, and one read
+  that checks the session before it is stored (not mapped yet, so none is
+  sent today).
+- Stores one credential, the member-site session: one keychain item
+  (service `piekstra.uhc`, account `session`) holding the `Cookie` header,
+  the browser's user agent and the capture time as JSON. It never goes on a
+  command line, into a log or into a file of uhc's.
+- Keeps the Chrome profile `auth login --browser` signs in through, so the
+  site remembers the device: `~/Library/Application Support/piekstra.uhc/browser-profile`
+  (under `$XDG_DATA_HOME` on Linux), owner-only (`0700`, a launch is refused
+  otherwise). It holds the site's cookies, which Chrome encrypts, and its
+  site storage and the window's history, which only the mode protects.
+  `--fresh-profile` signs in without it.
+- `auth logout` removes the keychain item, then the profile.
+- The config file holds the import folder's path.
 
 ## What uhc never does
 
