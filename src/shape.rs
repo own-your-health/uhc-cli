@@ -9,7 +9,9 @@
 //! anything with a space in it, a slug of three or more parts
 //! (`jane-doe-md`) and anything holding one of the household's own names
 //! (the [`Redactor`]'s deny words: `alex`, `alexExample`) come out as `{id}`
-//! or `<key>`.
+//! or `<key>`. The deny words come from an owner-written file when there is
+//! one, and from the name fields of the answers themselves
+//! ([`Redactor::learn_names`]), so no name has to be typed anywhere.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -71,9 +73,15 @@ const FIELD_WORDS: &[&str] = &[
 
 /// The household's own names, which no printed key or segment may hold.
 ///
-/// Read from a file the owner writes outside any agent session
-/// ([`Redactor::default_path`], one word per line, owner-only), and never
-/// printed: errors name the file, not what is in it.
+/// Gathered in memory, never printed (errors name the file, not what is in
+/// it; counts only): an optional file the owner writes
+/// ([`Redactor::default_path`], one word per line, owner-only), names given
+/// as text ([`Redactor::add_names`]), and the person-name fields of the
+/// answers being shaped ([`Redactor::learn_names`]).
+///
+/// A word of three letters or more is denied anywhere in a key, in any
+/// case; a two-letter word only as a whole part of one (`al` in `al_total`,
+/// not in `balance`), since as a substring it would hide most keys.
 #[derive(Debug, Default)]
 pub struct Redactor {
     words: Vec<String>,
@@ -130,6 +138,40 @@ impl Redactor {
         Ok(r)
     }
 
+    /// The deny words in `path` when there is a file there ([`Redactor::from_file`]'s
+    /// rules), else none.
+    pub fn from_file_if_present(path: &Path) -> Result<Redactor, CliError> {
+        match std::fs::symlink_metadata(path) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Redactor::default()),
+            _ => Redactor::from_file(path),
+        }
+    }
+
+    /// Adds each word of `text` (letters only, two or more of them) as a
+    /// deny word, and answers how many were new.
+    pub fn add_names(&mut self, text: &str) -> usize {
+        let before = self.words.len();
+        for token in text.split(|c: char| !c.is_alphabetic()) {
+            let token = token.to_lowercase();
+            if token.chars().count() >= 2 && !NOT_NAMES.contains(&token.as_str()) {
+                self.words.push(token);
+            }
+        }
+        self.words.sort();
+        self.words.dedup();
+        self.words.len() - before
+    }
+
+    /// Adds the words of every person-name field in `doc` (`firstName`,
+    /// `memberLastName`, `given`, or `name` in an object that describes a
+    /// person), and answers how many were new. A field holding an object or
+    /// an array gives every string in it.
+    pub fn learn_names(&mut self, doc: &Value) -> usize {
+        let mut text = String::new();
+        collect_names(doc, &mut text);
+        self.add_names(&text)
+    }
+
     /// How many deny words there are (a count, never the words).
     pub fn len(&self) -> usize {
         self.words.len()
@@ -140,8 +182,15 @@ impl Redactor {
     }
 
     fn denied(&self, s: &str) -> bool {
-        let s = s.to_lowercase();
-        self.words.iter().any(|w| s.contains(w.as_str()))
+        let lower = s.to_lowercase();
+        let parts = parts(s);
+        self.words.iter().any(|w| {
+            if w.chars().count() >= 3 {
+                lower.contains(w.as_str())
+            } else {
+                parts.iter().any(|p| p == w)
+            }
+        })
     }
 
     /// Whether a key is printed as it is.
@@ -176,6 +225,143 @@ impl Redactor {
     pub fn shape_lines(&self, v: &Value) -> Vec<String> {
         shape_lines_with(v, &|k| self.key(k))
     }
+}
+
+/// Words a person-name field holds that are not a name.
+const NOT_NAMES: &[&str] = &[
+    "dr", "jr", "sr", "ii", "iii", "iv", "md", "mr", "mrs", "ms", "the", "and", "of",
+];
+
+/// Person-name fields, lower-cased with separators removed: a key holding
+/// one of these anywhere is one.
+const NAME_FIELDS: &[&str] = &[
+    "firstname",
+    "lastname",
+    "middlename",
+    "givenname",
+    "familyname",
+    "fullname",
+    "preferredname",
+    "nickname",
+    "legalname",
+    "maidenname",
+    "displayname",
+    "surname",
+    "forename",
+    "username",
+];
+
+/// Keys that are a person-name field on their own.
+const NAME_KEYS: &[&str] = &["first", "last", "middle", "given", "family"];
+
+/// Whose name a `<who>name` key holds (`memberName`, `patient_name`).
+const PEOPLE: &[&str] = &[
+    "member",
+    "patient",
+    "subscriber",
+    "dependent",
+    "insured",
+    "person",
+    "holder",
+    "recipient",
+    "beneficiary",
+    "employee",
+    "spouse",
+    "child",
+    "owner",
+    "guarantor",
+    "customer",
+];
+
+/// Keys that make an object a person's, so its `name` is a person's name.
+const PERSON_MARKS: &[&str] = &[
+    "birth",
+    "dob",
+    "gender",
+    "sex",
+    "relationship",
+    "subscriber",
+    "dependent",
+    "patient",
+    "memberid",
+    "personid",
+    "first",
+    "last",
+    "given",
+    "family",
+];
+
+fn squash(key: &str) -> String {
+    key.chars()
+        .filter(|c| c.is_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+fn is_name_field(key: &str) -> bool {
+    let k = squash(key);
+    NAME_FIELDS.iter().any(|f| k.contains(f))
+        || NAME_KEYS.contains(&k.as_str())
+        || k.strip_suffix("name")
+            .is_some_and(|who| PEOPLE.iter().any(|p| who.ends_with(p)))
+}
+
+fn strings_in(v: &Value, text: &mut String) {
+    match v {
+        Value::String(s) => {
+            text.push(' ');
+            text.push_str(s);
+        }
+        Value::Array(items) => items.iter().for_each(|i| strings_in(i, text)),
+        Value::Object(map) => map.values().for_each(|i| strings_in(i, text)),
+        _ => {}
+    }
+}
+
+fn collect_names(v: &Value, text: &mut String) {
+    match v {
+        Value::Array(items) => items.iter().for_each(|i| collect_names(i, text)),
+        Value::Object(map) => {
+            let person = map.keys().any(|k| {
+                let k = squash(k);
+                PERSON_MARKS.iter().any(|m| k.contains(m))
+            });
+            for (k, item) in map {
+                if is_name_field(k) || (person && squash(k) == "name") {
+                    strings_in(item, text);
+                } else {
+                    collect_names(item, text);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The parts of a key, lower-cased: split at every character that is not a
+/// letter or digit, and where a lower-case letter meets an upper-case one.
+fn parts(s: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let mut prev_lower = false;
+    for c in s.chars() {
+        if !c.is_alphanumeric() {
+            if !cur.is_empty() {
+                out.push(std::mem::take(&mut cur));
+            }
+            prev_lower = false;
+            continue;
+        }
+        if c.is_uppercase() && prev_lower && !cur.is_empty() {
+            out.push(std::mem::take(&mut cur));
+        }
+        prev_lower = c.is_lowercase();
+        cur.extend(c.to_lowercase());
+    }
+    if !cur.is_empty() {
+        out.push(cur);
+    }
+    out
 }
 
 /// Whether a key or a path segment reads as a name an API gives a thing,
@@ -392,6 +578,48 @@ mod tests {
             assert_eq!(Redactor::from_file(&path).unwrap().len(), 2);
         }
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn names_are_learned_from_the_answers_own_name_fields() {
+        let mut r = Redactor::default();
+        let doc = json!({
+            "members": [
+                {"memberFirstName": "Robin", "lastName": "EXAMPLE", "relationship": "EE"},
+                {"name": "Kit Example", "dateOfBirth": "2020-02-02"},
+                {"patient_name": {"given": ["Jo"], "family": "Example"}}
+            ],
+            "plan": {"name": "Choice Plus", "groupNumber": "SYNG0001"},
+            "provider": {"providerName": "Example Clinic MD"}
+        });
+        assert_eq!(r.learn_names(&doc), 4, "robin, example, kit, jo");
+        for key in [
+            "robin",
+            "robinClaims",
+            "EXAMPLE_total",
+            "kit",
+            "jo",
+            "jo_claims",
+            "joClaims",
+        ] {
+            assert!(!r.key(key), "{key}");
+        }
+        // A plan's name is not a person's; a two-letter name hides only a
+        // whole part, not every key it is spelled in.
+        for key in ["choice", "plusPlan", "clinicName", "jobs", "majorTotal"] {
+            assert!(r.key(key), "{key}");
+        }
+        assert_eq!(
+            r.add_names("Robin Q. Example, Jr"),
+            0,
+            "known words, an initial and a suffix"
+        );
+    }
+
+    #[test]
+    fn a_missing_deny_file_is_no_words() {
+        let path = std::env::temp_dir().join(format!("uhc-redact-none-{}", std::process::id()));
+        assert!(Redactor::from_file_if_present(&path).unwrap().is_empty());
     }
 
     #[test]
