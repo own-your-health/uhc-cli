@@ -19,7 +19,10 @@ Report a vulnerability privately through GitHub's "Report a vulnerability"
   request is a GraphQL query or a `GET` (uhc sends no mutation), one at a
   time and at least a second apart, with a 30-second limit and no redirect
   followed. Every URL is built from that fixed origin; a document's PDF is
-  asked for by its id and class, never by a link from an answer.
+  asked for by its id and class, never by a link from an answer. `uhc api`
+  is held to the same: a path on that origin, `GET` or a GraphQL document of
+  queries only (no mutation, subscription or persisted query), checked
+  before anything is sent.
 - A cookie the site changes is written back to the profile's session once
   the command has succeeded.
 - Stores one credential per profile, its member-site session: the

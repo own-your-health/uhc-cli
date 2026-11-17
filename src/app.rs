@@ -28,13 +28,8 @@ use crate::model::{Balances, Book, ClaimRecord, Member, StatementFile, ORGANIZAT
 use crate::source;
 
 const REPO: &str = "piekstra/uhc-cli";
-/// `info`'s profiles: health-records/v1 and documents/v1, and login-profiles,
-/// since the member-site commands take `--profile <NAME>`.
-pub const PROFILES: &[&str] = &[
-    pk_med_records::PROFILE,
-    pk_cli_documents::PROFILE,
-    pk_med_records::LOGIN_PROFILES,
-];
+/// `info`'s profiles: health-records/v1 and documents/v1.
+pub const PROFILES: &[&str] = &[pk_med_records::PROFILE, pk_cli_documents::PROFILE];
 /// Where the statements come from; the stream's `organization.fhir_base`.
 pub const SITE_BASE: &str = "https://member.uhc.com/myuhc";
 /// `Skip.code` (an open set) for a statement read with issues.
@@ -252,6 +247,7 @@ pub fn run(cli: &Cli) -> Result<(), CliError> {
             Ok(ctx) => documents_download(&ctx, args),
             Err(profile) => site_exit(cli, &profile),
         },
+        Command::Api(_) => site_exit(cli, &source::site_profile(cli, &profiles()?)?),
         Command::Import(ImportCmd::Check) => {
             source::no_profile(cli, "import check")?;
             import_check(&ctx(cli.dir.clone()))
@@ -277,10 +273,10 @@ pub fn run(cli: &Cli) -> Result<(), CliError> {
                 BIN,
                 env!("CARGO_PKG_VERSION"),
                 &format!("https://github.com/{REPO}"),
-                // The files source needs no sign-in; the member site's is a
-                // browser one.
+                // Without --files, every record command signs in (DESIGN.md
+                // §1.1 of medical-common), so a records store passes --profile.
                 AuthInfo {
-                    required: false,
+                    required: true,
                     method: "browser-session".into(),
                     login_hint: Some(format!("{BIN} auth login --browser --profile <NAME>")),
                 },
@@ -292,6 +288,10 @@ pub fn run(cli: &Cli) -> Result<(), CliError> {
                     "accumulators",
                     "documents",
                     "import",
+                    "api",
+                    // The login commands, records export among them, take
+                    // --profile.
+                    pk_med_records::LOGIN_PROFILES,
                 ],
             )
             .with_profiles(PROFILES);

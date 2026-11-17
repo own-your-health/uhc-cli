@@ -45,7 +45,16 @@ uhc --profile adult1 documents list             # EOBs, health statements, lette
 uhc --profile adult1 documents download --all -o ~/Archive/UHC
 
 uhc --profile adult1 records export --patient <id> --ndjson | medrec import --from uhc
+
+# One read of the site, printed as the JSON it answers (docs/api.md lists them):
+uhc --profile adult1 api POST '/ce-claims-aggregate-api/graphql?q=getSpendingOverview' \
+  --data '{"query": "query getSpendingOverview { spendingOverviews { __typename } }"}'
 ```
+
+`api` is read-only too: it sends a `GET`, or a GraphQL request of queries
+only `POST`ed to a `/graphql` path, on `https://member.uhc.com` only. Any
+other method, host or operation (a `mutation`, a persisted query by hash)
+is exit 2 before a request is sent, and so is a sign-out path.
 
 uhc reads the site one request at a time, a second apart, and only with
 queries: nothing it does writes to UHC. A session that has expired is exit
@@ -92,9 +101,10 @@ it is a usage error, exit 2).
 | `accumulators` | `accumulator-list/v1` |
 | `documents list` / `download` | `document-list/v1` / `document-download/v1`, `document-download-batch/v1` |
 | `import check` | `import-check/v1` |
+| `api` | the site's own JSON answer |
 | `auth login` / `status` / `logout` / `reset` | `auth-login/v1` / `auth-status/v1` / `auth-logout/v1` / `auth-reset/v1` |
 | `profiles list` / `add` / `remove` | `profile-list/v1` / `profile-add/v1` / `profile-remove/v1` |
-| `info` | `cli-info/v1`, profiles `health-records/v1`, `documents/v1` and `login-profiles` |
+| `info` | `cli-info/v1`: profiles `health-records/v1` and `documents/v1`; capability `login-profiles`; `auth.required` true (without `--files`, a record command signs in) |
 
 Exit codes: 0 ok, 1 other (pdftotext missing), 2 usage, 3 sign-in not
 finished or session refused, 4 not found, 5 the statements could not be

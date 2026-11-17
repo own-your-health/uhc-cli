@@ -22,7 +22,7 @@ owns the records stream, the export file and the profile's DTOs. Every
 | `src/session.rs` | `SessionStore`: get, put and delete a profile's session in the vault; the only code that knows where it lives |
 | `src/source.rs` | which source a command reads (`--files` or `--profile`), and as which configured profile (`resolve_profile`) |
 | `src/site.rs` | the member site's sign-in: the browser capture, the session check (`SESSION_CHECK_URL`, `judge`) |
-| `src/client.rs` | the member-site reads: the queries (`src/site/queries/`), pacing, the cookie jar, `judge` (answers to data or exit codes) |
+| `src/client.rs` | the member-site reads: the queries (`src/site/queries/`), pacing, the cookie jar, `judge` (answers to data or exit codes), and `api_request` / `read_only_graphql`, which check an `api` request is a read before it is sent |
 | `src/portal.rs` | the site's answers into the model, with the files source's ids; `Site`, which writes the session back |
 | `src/site_cmd.rs` | the commands on the site (`Env`: where sessions are kept and which site is read) |
 | `src/files.rs` | the import folder: which PDFs, `pdftotext` bounded in time and size |

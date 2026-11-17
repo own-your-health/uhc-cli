@@ -8,7 +8,8 @@
 //! - It follows no redirect (the site sends a visitor to its sign-in) and is
 //!   bounded in time: 30 s for the whole answer, 10 s to connect.
 //! - One request at a time, at least [`PACE`] after the last answer.
-//! - Only `query` operations and `GET`s: nothing writes to UHC.
+//! - Only `query` operations and `GET`s: nothing writes to UHC. `uhc api`'s
+//!   requests are checked for that before one is sent ([`api_request`]).
 //! - [`judge`] turns an answer into data or an error: a 401 or a redirect is
 //!   a refused session (exit 3), a 403 page from the edge, a 429, a 5xx and a
 //!   GraphQL answer of errors without data are exit 5.
@@ -295,6 +296,46 @@ impl Client {
         Ok(answer.body)
     }
 
+    /// `uhc api`'s request, which [`api_request`] checked: the JSON answer
+    /// as it came, GraphQL errors included, after the refusals every read
+    /// gets. A path under `/rest/oneportal/` carries the documents token
+    /// the site's pages send there, when the session has one.
+    pub fn api(&self, request: &ApiRequest) -> Result<Value, CliError> {
+        let mut extra = HeaderMap::new();
+        extra.insert(ACCEPT, HeaderValue::from_static("application/json"));
+        let (method, path) = match request {
+            ApiRequest::Get(path) => ("GET", path),
+            ApiRequest::Query(path, _) => ("POST", path),
+        };
+        if path.starts_with("/rest/oneportal/") {
+            if let Some(token) = xsrf_token(&self.jar.borrow()) {
+                if let Ok(v) = HeaderValue::from_str(&token) {
+                    extra.insert("XSRF-TOKEN", v);
+                    extra.insert("RP-Token-Suffix", HeaderValue::from_static("MU"));
+                }
+            }
+        }
+        let builder = match request {
+            ApiRequest::Get(_) => self.http.get(self.url(path)).headers(extra),
+            ApiRequest::Query(_, body) => {
+                extra.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+                self.http.post(self.url(path)).headers(extra).body(body.to_string())
+            }
+        };
+        let answer = self.send(method, path, builder, MAX_JSON)?;
+        refuse(&answer, &self.profile)?;
+        let what = &answer.what;
+        if !answer.content_type.as_deref().is_some_and(|t| t.contains("json")) {
+            return Err(CliError::Upstream(format!(
+                "{what} answered HTTP {} with {}, not JSON; `{BIN} documents download` saves a document's PDF",
+                answer.status,
+                answer.content_type.as_deref().unwrap_or("no content type")
+            )));
+        }
+        serde_json::from_slice(&answer.body)
+            .map_err(|_| CliError::Upstream(format!("{what} answered JSON that does not parse")))
+    }
+
     /// The session's cookie header as the answers left it, when one changed it.
     pub fn updated_cookie_header(&self) -> Option<Secret> {
         let jar = self.jar.borrow();
@@ -374,6 +415,175 @@ impl Client {
             body,
         })
     }
+}
+
+/// What `uhc api` may send, checked by [`api_request`] before any request.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ApiRequest {
+    /// `GET` a path on [`BASE`].
+    Get(String),
+    /// `POST` a GraphQL request of queries only to a `/graphql` path.
+    Query(String, Value),
+}
+
+const READ_ONLY: &str = "uhc is read-only: `api` sends a GET, or a GraphQL query POSTed to a /graphql path";
+
+/// `uhc api`'s arguments as a request on [`BASE`], or exit 2: another host,
+/// a method other than `GET` and `POST`, a `POST` that is not a GraphQL
+/// document of queries only (no extensions, so no persisted query by hash),
+/// or a sign-out path. Nothing is sent before this passes.
+pub fn api_request(method: &str, path: &str, data: Option<&str>) -> Result<ApiRequest, CliError> {
+    if path.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err(CliError::Usage("the path holds a space or a control character".into()));
+    }
+    let path = match path.strip_prefix("https://") {
+        Some(rest) => {
+            let (host, tail) = rest.split_at(rest.find(['/', '?', '#']).unwrap_or(rest.len()));
+            if !host.eq_ignore_ascii_case("member.uhc.com") {
+                return Err(CliError::Usage(format!(
+                    "the session goes to {BASE} only; give a path on it, such as /ce-claims-aggregate-api/graphql"
+                )));
+            }
+            match tail {
+                "" => "/".to_string(),
+                t if t.starts_with('/') => t.to_string(),
+                t => format!("/{t}"),
+            }
+        }
+        None if path.starts_with('/') => path.to_string(),
+        None => {
+            return Err(CliError::Usage(format!(
+                "give a path on {BASE} (leading /), or a URL on it"
+            )))
+        }
+    };
+    let lower = path.to_ascii_lowercase();
+    let route = lower.split(['?', '#']).next().unwrap_or_default();
+    if ["logout", "logoff", "log-out", "signout", "sign-out", "sign_out"]
+        .iter()
+        .any(|w| lower.contains(w))
+    {
+        return Err(CliError::Usage(format!(
+            "`api` does not sign out of the site; `{BIN} auth logout --profile <NAME>` removes the stored session"
+        )));
+    }
+    match method.to_ascii_uppercase().as_str() {
+        "GET" if data.is_some() => Err(CliError::Usage("a GET takes no --data".into())),
+        "GET" if route.contains("graphql") => Err(CliError::Usage(format!(
+            "{READ_ONLY}; POST the query: `{BIN} api POST {path} --data '{{\"query\": \"query ...\"}}'`"
+        ))),
+        "GET" => Ok(ApiRequest::Get(path)),
+        "POST" if !route.ends_with("/graphql") => Err(CliError::Usage(READ_ONLY.into())),
+        "POST" => {
+            let data = data.ok_or_else(|| {
+                CliError::Usage("a POST needs --data, the GraphQL request: {\"query\": \"query ...\"}".into())
+            })?;
+            let body: Value =
+                serde_json::from_str(data).map_err(|e| CliError::Usage(format!("--data is not JSON: {e}")))?;
+            let known = |k: &String| ["query", "variables", "operationName"].contains(&k.as_str());
+            let Some(fields) = body.as_object().filter(|o| o.keys().all(known)) else {
+                return Err(CliError::Usage(
+                    "--data is one GraphQL request: an object of `query`, `variables` and `operationName`".into(),
+                ));
+            };
+            match fields.get("query").and_then(Value::as_str) {
+                Some(text) if read_only_graphql(text) => Ok(ApiRequest::Query(path, body)),
+                Some(_) => Err(CliError::Usage(format!(
+                    "{READ_ONLY}; this document holds an operation other than a query, or does not read"
+                ))),
+                None => Err(CliError::Usage("--data needs `query`, the GraphQL document".into())),
+            }
+        }
+        other => Err(CliError::Usage(format!("{READ_ONLY}, not {other}"))),
+    }
+}
+
+/// Whether a GraphQL document holds queries only: every definition a
+/// `query`, a `{ ... }` shorthand query or a `fragment`. Comments and strings
+/// are skipped, so no operation hides in one, and a document this cannot
+/// read (an unclosed string or brace) is not read-only.
+pub fn read_only_graphql(doc: &str) -> bool {
+    let b = doc.as_bytes();
+    let (mut i, mut depth, mut open, mut definitions) = (0, 0usize, true, 0);
+    while i < b.len() {
+        let c = b[i];
+        match c {
+            b'#' => {
+                while i < b.len() && b[i] != b'\n' {
+                    i += 1;
+                }
+                continue;
+            }
+            b'"' if b[i..].starts_with(b"\"\"\"") => {
+                i += 3;
+                loop {
+                    if i >= b.len() {
+                        return false;
+                    }
+                    if b[i..].starts_with(b"\\\"\"\"") {
+                        i += 4;
+                    } else if b[i..].starts_with(b"\"\"\"") {
+                        i += 3;
+                        break;
+                    } else {
+                        i += 1;
+                    }
+                }
+                continue;
+            }
+            b'"' => {
+                i += 1;
+                loop {
+                    match b.get(i) {
+                        None | Some(b'\n') => return false,
+                        Some(b'\\') => i += 2,
+                        Some(b'"') => {
+                            i += 1;
+                            break;
+                        }
+                        Some(_) => i += 1,
+                    }
+                }
+                continue;
+            }
+            b'{' | b'(' | b'[' => {
+                if depth == 0 && open {
+                    if c != b'{' {
+                        return false;
+                    }
+                    open = false;
+                    definitions += 1;
+                }
+                depth += 1;
+            }
+            b'}' | b')' | b']' => {
+                let Some(d) = depth.checked_sub(1) else {
+                    return false;
+                };
+                depth = d;
+                if depth == 0 && c == b'}' {
+                    open = true;
+                }
+            }
+            c if c.is_ascii_alphabetic() || c == b'_' => {
+                let start = i;
+                while i < b.len() && (b[i].is_ascii_alphanumeric() || b[i] == b'_') {
+                    i += 1;
+                }
+                if depth == 0 && open {
+                    if !matches!(&doc[start..i], "query" | "fragment") {
+                        return false;
+                    }
+                    open = false;
+                    definitions += 1;
+                }
+                continue;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    depth == 0 && open && definitions > 0
 }
 
 /// An answer, read whole.
@@ -492,6 +702,100 @@ mod tests {
     }
 
     const JSON: &str = "application/json";
+
+    /// The read-only check passes every query uhc sends and refuses any
+    /// other operation, wherever it hides.
+    #[test]
+    fn only_queries_are_read_only() {
+        for q in QUERIES {
+            assert!(read_only_graphql(q.text), "{}", q.operation);
+        }
+        for ok in [
+            "query { a }",
+            "{ a { b } }",
+            "query A($d: String = \"mutation { x }\") { a(d: $d) { mutation } }",
+            "# mutation { x }\nquery A { a }",
+            "query A { a(t: \"\"\"mutation \\\"\"\" { x }\"\"\") }",
+            "query A { ...F } fragment F on T { b }",
+            "query A @cached(ttl: 1) { a }",
+        ] {
+            assert!(read_only_graphql(ok), "{ok}");
+        }
+        for refused in [
+            "mutation { a }",
+            "subscription { a }",
+            "query A { a } mutation B { b }",
+            "query A { a }\n# x\nmutation { b }",
+            "Mutation { a }",
+            "query A { a ",
+            "query A { a } }",
+            "query A { a(t: \"unclosed) }",
+            "query A { a(t: \"\"\"unclosed) }",
+            "",
+            "# only a comment",
+            "(x) { a }",
+        ] {
+            assert!(!read_only_graphql(refused), "{refused}");
+        }
+    }
+
+    #[test]
+    fn api_requests_are_reads_on_the_member_site() {
+        let query = r#"{"query":"query A { a }","variables":{},"operationName":"A"}"#;
+        assert_eq!(
+            api_request("get", "/rest/x?y=1", None).unwrap(),
+            ApiRequest::Get("/rest/x?y=1".into())
+        );
+        assert_eq!(
+            api_request("GET", "https://member.uhc.com/a/b", None).unwrap(),
+            ApiRequest::Get("/a/b".into())
+        );
+        assert_eq!(
+            api_request("GET", "https://MEMBER.uhc.com?x", None).unwrap(),
+            ApiRequest::Get("/?x".into())
+        );
+        match api_request("POST", "/ce-claims-aggregate-api/graphql?q=x", Some(query)).unwrap() {
+            ApiRequest::Query(path, body) => {
+                assert_eq!(path, "/ce-claims-aggregate-api/graphql?q=x");
+                assert_eq!(body["operationName"], "A");
+            }
+            other => panic!("{other:?}"),
+        }
+        let refused = |method: &str, path: &str, data: Option<&str>| {
+            let e = api_request(method, path, data)
+                .err()
+                .unwrap_or_else(|| panic!("{method} {path}"));
+            assert_eq!(e.exit_code(), 2, "{method} {path}: {e}");
+            e.to_string()
+        };
+        // Another host, plain http, a relative path, a host hidden in userinfo.
+        refused("GET", "https://example.com/x", None);
+        refused("GET", "http://member.uhc.com/x", None);
+        refused("GET", "x/y", None);
+        // Built here: the personal-data scan reads user-at-host as an address.
+        refused("GET", &format!("https://member.uhc.com{}example.com/x", '@'), None);
+        refused("GET", "https://member.uhc.com:8443/x", None);
+        refused("GET", "/a b", None);
+        // Writes, and reads that are not plain.
+        for m in ["PUT", "DELETE", "PATCH", "HEAD"] {
+            assert!(refused(m, "/x", None).contains("read-only"));
+        }
+        refused("GET", "/x/graphql?query=mutation", None);
+        refused("GET", "/x", Some("{}"));
+        refused("POST", "/x/rest", Some(query));
+        refused("POST", "/x/graphql", None);
+        refused("POST", "/x/graphql", Some("not json"));
+        refused("POST", "/x/graphql", Some(r#"{"query":"mutation { a }"}"#));
+        refused("POST", "/x/graphql", Some(r#"[{"query":"query { a }"}]"#));
+        refused("POST", "/x/graphql", Some(r#"{"variables":{}}"#));
+        refused(
+            "POST",
+            "/x/graphql",
+            Some(r#"{"query":"query { a }","extensions":{"persistedQuery":{"sha256Hash":"x"}}}"#),
+        );
+        assert!(refused("GET", "/content/myuhc/logout", None).contains("auth logout"));
+        refused("GET", "/x?next=SignOut", None);
+    }
 
     #[test]
     fn every_read_is_a_query() {

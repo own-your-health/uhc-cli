@@ -51,8 +51,16 @@ sessions live in an encrypted vault.
   `piekstra.uhc`), so a new build asks the keychain once for every profile.
   `auth reset` removes every session and the key (asks; `--force` without a
   terminal, exit 6 without).
-- `info` lists the `login-profiles` capability beside `health-records/v1`
+- `info` lists `login-profiles` among its capabilities, where a records
+  store looks for it (medical-common DESIGN.md §1.1), and `auth.required`
+  is true, in `auth status` too: without `--files`, a record command signs
+  in, so medrec passes `--profile`. Its profiles stay `health-records/v1`
   and `documents/v1`.
+- `uhc --profile <NAME> api GET <PATH>` and `api POST <PATH> --data
+  '{"query": ...}'`: one read of the member site, printed as the JSON it
+  answers. Read-only: another method or host, a GraphQL document with any
+  operation but a query, a persisted query or a sign-out path is exit 2
+  before anything is sent.
 - A statement's claim block holding several claims, each opening with its
   own "Provider:" line, is read as that many claims (UHC's layout). Before,
   a second claim in a block was folded into the first. A continued page

@@ -92,7 +92,7 @@ pub fn source(cli: &Cli, configured: &Profiles) -> Result<Source, CliError> {
 }
 
 /// The profile of a command that only the member site has (`auth login`,
-/// `status`, `logout`).
+/// `status`, `logout`, `api`).
 pub fn site_profile(cli: &Cli, configured: &Profiles) -> Result<ProfileName, CliError> {
     if cli.given.dir_flag {
         return Err(CliError::Usage(

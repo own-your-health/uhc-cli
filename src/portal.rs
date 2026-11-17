@@ -1079,6 +1079,11 @@ impl<'a> Site<'a> {
 
     /// Write the session back when the answers updated its cookies: once,
     /// after the command read what it needed. Whether it was written.
+    /// `uhc api`'s checked request ([`crate::client::api_request`]).
+    pub fn api(&self, request: &crate::client::ApiRequest) -> Result<Value, CliError> {
+        self.client.api(request)
+    }
+
     pub fn finish(&self) -> Result<bool, CliError> {
         match self.client.updated_cookie_header() {
             Some(header) => {

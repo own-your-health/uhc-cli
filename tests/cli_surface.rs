@@ -134,12 +134,14 @@ fn info_declares_both_profiles_and_the_browser_sign_in() {
     assert_eq!(v["schema"], "cli-info/v1");
     assert_eq!(v["name"], "uhc");
     assert_eq!(v["spec"], "piekstra-cli/1");
-    assert_eq!(
-        v["profiles"],
-        serde_json::json!(["health-records/v1", "documents/v1", "login-profiles"])
-    );
-    // The files source needs no sign-in; the member site's is a browser one.
-    assert_eq!(v["auth"]["required"], false);
+    assert_eq!(v["profiles"], serde_json::json!(["health-records/v1", "documents/v1"]));
+    // medrec passes --profile to a provider listing login-profiles among its
+    // capabilities (medical-common DESIGN.md §1.1), and a sign-in is
+    // required: without --files, every record command reads the site.
+    let capabilities = v["capabilities"].as_array().unwrap();
+    assert!(capabilities.contains(&serde_json::json!("login-profiles")), "{v}");
+    assert!(capabilities.contains(&serde_json::json!("api")), "{v}");
+    assert_eq!(v["auth"]["required"], true);
     assert_eq!(v["auth"]["method"], "browser-session");
     assert_eq!(v["auth"]["login_hint"], "uhc auth login --browser --profile <NAME>");
 }
@@ -152,7 +154,7 @@ fn auth_status_when_nothing_is_stored() {
         .success();
     let v: Value = serde_json::from_slice(&out.get_output().stdout).unwrap();
     assert_eq!(v["schema"], "auth-status/v1");
-    assert_eq!(v["required"], false);
+    assert_eq!(v["required"], true);
     assert_eq!(v["authenticated"], false);
     assert_eq!(v["method"], "browser-session");
     assert_eq!(v["credential_in_keychain"], false);

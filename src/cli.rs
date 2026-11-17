@@ -83,12 +83,31 @@ pub enum Command {
     /// read and what could not be. Counts only, never a value.
     #[command(subcommand)]
     Import(ImportCmd),
+    /// One read of the member site as --profile <NAME>, printed as the JSON
+    /// it answers: `GET <PATH>`, or `POST <PATH> --data '{"query": "query
+    /// ..."}'` to a /graphql path. Read-only: any other request is refused
+    /// before one is sent.
+    Api(ApiArgs),
     /// Update to the latest release from GitHub.
     SelfUpdate(SelfUpdateArgs),
     /// Print a shell completion script.
     Completions { shell: Shell },
     /// Machine-readable capability discovery (cli-info/v1).
     Info,
+}
+
+/// `uhc api <METHOD> <PATH> [--data JSON]`, read-only: cli-common's
+/// `ApiArgs` offers PUT and DELETE.
+#[derive(Args, Debug, Clone)]
+pub struct ApiArgs {
+    /// GET, or POST for a GraphQL query.
+    pub method: String,
+    /// A path on https://member.uhc.com (leading /), or a URL on it.
+    pub path: String,
+    /// For POST: the GraphQL request as JSON, {"query": "query ...",
+    /// "variables": {...}}. Only query operations are sent.
+    #[arg(long)]
+    pub data: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]

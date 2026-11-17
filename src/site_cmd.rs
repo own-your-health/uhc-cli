@@ -116,6 +116,15 @@ pub fn run(cli: &Cli, env: &Env, profile: &ProfileName, out: &mut dyn Write) -> 
             )));
         }
     }
+    // Checked before the session is read, so a refused request reads nothing.
+    let api = match &cli.command {
+        Command::Api(args) => Some(crate::client::api_request(
+            &args.method,
+            &args.path,
+            args.data.as_deref(),
+        )?),
+        _ => None,
+    };
     let site = Site::open(&env.sessions, profile, &env.base, env.pace)?;
     let ctx = Ctx { cli, site };
     let code = match &cli.command {
@@ -126,6 +135,10 @@ pub fn run(cli: &Cli, env: &Env, profile: &ProfileName, out: &mut dyn Write) -> 
         Command::Documents(DocumentsCmd::List(range)) => documents_list(&ctx, range, out).map(|()| 0),
         Command::Documents(DocumentsCmd::Download(args)) => documents_download(&ctx, args, out).map(|()| 0),
         Command::Records(RecordsCmd::Export(args)) => export(&ctx, args, out),
+        Command::Api(_) => match &api {
+            Some(request) => ctx.site.api(request).and_then(|doc| put(out, &doc)).map(|()| 0),
+            None => Err(CliError::Other("the api request was not checked".into())),
+        },
         _ => Err(CliError::Other("not a member-site command".into())),
     }?;
     // Only after the command did what it was asked: an export that ended

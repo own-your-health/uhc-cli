@@ -761,3 +761,75 @@ fn records_export_to_a_file_is_refused_before_any_request() {
     assert_eq!(e.exit_code(), 2);
     assert!(h.server.seen().is_empty());
 }
+
+/// `api` sends one checked read with the session and the browser's user
+/// agent, prints the JSON answer as it came, and sends nothing for a
+/// request that is not a read.
+#[test]
+fn api_reads_the_site_and_refuses_anything_else() {
+    let h = Household::new();
+    let query = r#"{"query":"query spending { spendingOverviews { __typename } }","variables":{}}"#;
+    let (code, out) = h
+        .run(&[
+            "api",
+            "POST",
+            "/ce-claims-aggregate-api/graphql?q=spending",
+            "--data",
+            query,
+        ])
+        .unwrap();
+    assert_eq!(code, 0);
+    let doc: Value = serde_json::from_slice(&out).unwrap();
+    assert!(doc["data"]["spendingOverviews"].is_object(), "{doc}");
+    {
+        let seen = h.server.seen.lock().unwrap();
+        assert_eq!(seen.len(), 1);
+        assert_eq!(seen[0].method, "POST");
+        assert_eq!(seen[0].headers["user-agent"], AGENT);
+        assert!(seen[0].headers["cookie"].contains("dummy_session=abc"));
+        assert_eq!(
+            serde_json::from_str::<Value>(&seen[0].body).unwrap(),
+            serde_json::from_str::<Value>(query).unwrap()
+        );
+    }
+
+    // The documents service's token goes where the site's pages send it.
+    let documents = r#"{"query":"query GetAllDocumentTypes { multiDocTypeListSummary { __typename } }"}"#;
+    let (code, out) = h
+        .run(&[
+            "api",
+            "POST",
+            "/rest/oneportal/web/documents-aggregate-api/v1/graphql",
+            "--data",
+            documents,
+        ])
+        .unwrap();
+    assert_eq!(code, 0);
+    assert!(serde_json::from_slice::<Value>(&out).unwrap()["data"].is_object());
+
+    let pdf = "/oneportal/view/documents-aggregate-api/v1/v2/doc360/content/id/0000-aaaa?documentClass=u_mber_eob";
+    let e = h.run(&["api", "GET", pdf]).err().unwrap();
+    assert_eq!(e.exit_code(), 5);
+    assert!(e.to_string().contains("documents download"), "{e}");
+
+    let sent = h.server.seen.lock().unwrap().len();
+    for args in [
+        vec![
+            "api",
+            "POST",
+            "/ce-claims-aggregate-api/graphql",
+            "--data",
+            r#"{"query":"mutation { a }"}"#,
+        ],
+        vec!["api", "DELETE", "/rest/x"],
+        vec!["api", "GET", "https://example.com/x"],
+    ] {
+        let e = h.run(&args).err().unwrap();
+        assert_eq!(e.exit_code(), 2, "{args:?}");
+    }
+    assert_eq!(
+        h.server.seen.lock().unwrap().len(),
+        sent,
+        "a refused request sends nothing"
+    );
+}
