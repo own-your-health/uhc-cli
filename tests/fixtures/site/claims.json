@@ -118,7 +118,7 @@
           {
             "claimId": "SYNC000000-06",
             "claimIdSuffix": "06",
-            "claimKey": "U1lOLWNsYWltLWtleS001",
+            "claimKey": "SYN-claim-key-001",
             "claimType": "MEDICAL",
             "claimStatus": "PROCESSED",
             "serviceRecipient": {
@@ -166,7 +166,7 @@
           {
             "claimId": "SYNC000000",
             "claimIdSuffix": "08",
-            "claimKey": "U1lOLWNsYWltLWtleS002",
+            "claimKey": "SYN-claim-key-002",
             "claimType": "MEDICAL",
             "claimStatus": "PROCESSED",
             "serviceRecipient": {
@@ -214,7 +214,7 @@
           {
             "claimId": "000000000000000009",
             "claimIdSuffix": null,
-            "claimKey": "U1lOLWNsYWltLWtleS003",
+            "claimKey": "SYN-claim-key-003",
             "claimType": "RX",
             "claimStatus": "PROCESSED",
             "serviceRecipient": {
@@ -259,7 +259,7 @@
           {
             "claimId": "SYNC000000-09",
             "claimIdSuffix": "09",
-            "claimKey": "U1lOLWNsYWltLWtleS004",
+            "claimKey": "SYN-claim-key-004",
             "claimType": "MEDICAL",
             "claimStatus": "PROCESSED",
             "serviceRecipient": {
@@ -307,7 +307,7 @@
           {
             "claimId": "555000000000000002",
             "claimIdSuffix": null,
-            "claimKey": "U1lOLWNsYWltLWtleS005",
+            "claimKey": "SYN-claim-key-005",
             "claimType": "RX",
             "claimStatus": "PROCESSED",
             "serviceRecipient": {
@@ -352,7 +352,7 @@
           {
             "claimId": "555000000000000002",
             "claimIdSuffix": null,
-            "claimKey": "U1lOLWNsYWltLWtleS006",
+            "claimKey": "SYN-claim-key-006",
             "claimType": "RX",
             "claimStatus": "PROCESSED",
             "serviceRecipient": {
@@ -397,7 +397,7 @@
           {
             "claimId": "000000000003",
             "claimIdSuffix": null,
-            "claimKey": "U1lOLWNsYWltLWtleS007",
+            "claimKey": "SYN-claim-key-007",
             "claimType": "DENTAL",
             "claimStatus": "PROCESSED",
             "serviceRecipient": {
@@ -439,7 +439,7 @@
           {
             "claimId": "SYNC11111111",
             "claimIdSuffix": null,
-            "claimKey": "U1lOLWNsYWltLWtleS008",
+            "claimKey": "SYN-claim-key-008",
             "claimType": "MEDICAL",
             "claimStatus": "IN_PROCESS",
             "serviceRecipient": {
@@ -472,7 +472,7 @@
           {
             "claimId": "SYNC222222-22",
             "claimIdSuffix": "22",
-            "claimKey": "U1lOLWNsYWltLWtleS009",
+            "claimKey": "SYN-claim-key-009",
             "claimType": "MEDICAL",
             "claimStatus": "PROCESSED",
             "serviceRecipient": {
@@ -520,7 +520,7 @@
           {
             "claimId": "SYNC222222-22",
             "claimIdSuffix": "22",
-            "claimKey": "U1lOLWNsYWltLWtleS010",
+            "claimKey": "SYN-claim-key-010",
             "claimType": "MEDICAL",
             "claimStatus": "PROCESSED",
             "serviceRecipient": {
@@ -568,7 +568,7 @@
           {
             "claimId": "SYNC333333-33",
             "claimIdSuffix": "33",
-            "claimKey": "U1lOLWNsYWltLWtleS011",
+            "claimKey": "SYN-claim-key-011",
             "claimType": "MEDICAL",
             "claimStatus": "PROVIDER_DENIED",
             "serviceRecipient": {

@@ -57,6 +57,6 @@ not a captured answer.
 | `memberId.id`, `groupNumber` | `SYNM` + 6 digits, `SYNG` + 4 digits |
 | A medical `claimId` | `SYNC` + digits, with `-NN` when the suffix is in the id |
 | A pharmacy or dental `claimId`, `prescriptionNumber` | zeros then one digit, or `555…` |
-| `claimKey` | `U1lO…` |
+| `claimKey` | `SYN-claim-key-…` (low entropy, so a secret scanner has nothing to flag; uhc never decodes it) |
 | `documentId` | `00000000-0000-4000-8000-0000000000NN` |
 | `providerName` | `EXAMPLE …` |

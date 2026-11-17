@@ -4,7 +4,7 @@
       "healthCareClaimDetails": {
         "claimId": "SYNC333333-33",
         "claimIdSuffix": "33",
-        "claimKey": "U1lOLWNsYWltLWtleS011",
+        "claimKey": "SYN-claim-key-011",
         "claimType": "MEDICAL",
         "claimStatus": "PROVIDER_DENIED",
         "claimNetworkStatus": "IN_NETWORK",

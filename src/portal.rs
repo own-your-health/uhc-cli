@@ -1202,7 +1202,7 @@ mod tests {
         let reprocessed = claim(&h, "cSYNC22222222");
         assert_eq!(reprocessed.versions, 2);
         assert_eq!(reprocessed.processed.as_deref(), Some("2026-10-15"));
-        assert_eq!(h.keys["cSYNC22222222"].claim_key, "U1lOLWNsYWltLWtleS010");
+        assert_eq!(h.keys["cSYNC22222222"].claim_key, "SYN-claim-key-010");
         let pending = claim(&h, "cSYNC11111111");
         assert_eq!(pending.status.as_deref(), Some("in_process"));
         assert_eq!(pending.processed, None);

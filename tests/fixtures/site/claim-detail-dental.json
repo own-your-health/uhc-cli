@@ -4,7 +4,7 @@
       "healthCareClaimDetails": {
         "claimId": "000000000003",
         "claimIdSuffix": null,
-        "claimKey": "U1lOLWNsYWltLWtleS007",
+        "claimKey": "SYN-claim-key-007",
         "claimType": "DENTAL",
         "claimStatus": "PROCESSED",
         "claimNetworkStatus": "OUT_OF_NETWORK",
