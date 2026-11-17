@@ -248,7 +248,7 @@ fn identity_fields_in_site_fixtures_use_dummy_values() {
                     }
                     "prescriptionNumber" => s.bytes().all(|b| b.is_ascii_digit()) && is_dummy_number(s),
                     "documentId" => s.starts_with("00000000-0000-4000-8000-0000000000"),
-                    "claimKey" => s.starts_with("SYN-claim-key-"),
+                    "claimKey" => s.starts_with("SYNK-"),
                     "correlationId" => s.starts_with("example-"),
                     _ => return,
                 };

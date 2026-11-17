@@ -4,7 +4,7 @@
       "healthCareClaimDetails": {
         "claimId": "SYNC222222-22",
         "claimIdSuffix": "22",
-        "claimKey": "SYN-claim-key-010",
+        "claimKey": "SYNK-010",
         "claimType": "MEDICAL",
         "claimStatus": "PROCESSED",
         "claimNetworkStatus": "IN_NETWORK",
