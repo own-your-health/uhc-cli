@@ -1,0 +1,117 @@
+{
+  "data": {
+    "claimDetailsAggregate": {
+      "healthCareClaimDetails": {
+        "claimId": "SYNC000000-06",
+        "claimIdSuffix": "06",
+        "claimKey": "U1lOLWNsYWltLWtleS001",
+        "claimType": "MEDICAL",
+        "claimStatus": "PROCESSED",
+        "claimNetworkStatus": "IN_NETWORK",
+        "providerName": "EXAMPLE CLINIC",
+        "claimDates": {
+          "dateProcessed": "2026-08-15",
+          "serviceStartDate": "2026-08-03",
+          "lastServiceDate": "2026-08-03"
+        },
+        "balance": {
+          "totalBilledAmount": {
+            "value": "200.00",
+            "iso4217": "USD"
+          },
+          "healthPlanDiscount": {
+            "value": "80.00",
+            "iso4217": "USD"
+          },
+          "healthPlanPay": {
+            "value": "85.00",
+            "iso4217": "USD"
+          },
+          "deductible": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "copay": {
+            "value": "35.00",
+            "iso4217": "USD"
+          },
+          "claimCoinsurance": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "claimMemberNotCovered": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "patientResponsibility": {
+            "value": "35.00",
+            "iso4217": "USD"
+          }
+        },
+        "serviceLines": [
+          {
+            "serviceDate": "2026-08-03",
+            "lastServiceDate": "2026-08-03",
+            "procedures": [
+              {
+                "code": "99213",
+                "description": "Office or other outpatient visit, established patient"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "99213",
+              "description": "Office or other outpatient visit, established patient"
+            },
+            "providedServiceInfo": {
+              "code": "99213",
+              "description": "Office visit, est patient"
+            },
+            "serviceRemarks": [
+              {
+                "code": "D1",
+                "description": "You have received a discount for using a health care professional in your plan's network."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "200.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "80.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "85.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "35.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "35.00",
+                "iso4217": "USD"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

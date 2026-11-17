@@ -1,0 +1,93 @@
+{
+  "data": {
+    "multiDocTypeListSummary": {
+      "documents": [
+        {
+          "memberName": "SAM EXAMPLE",
+          "claimType": "MEDICAL",
+          "documentType": "Explanation of Benefits",
+          "documentClass": "u_mber_eob",
+          "documentId": "00000000-0000-4000-8000-000000000001",
+          "documentName": "Explanation of Benefits",
+          "dateCreated": "2026-08-16",
+          "claimIDs": [
+            "SYNC000000"
+          ],
+          "claimKey": "U1lOLWNsYWltLWtleS001"
+        },
+        {
+          "memberName": "SAM EXAMPLE",
+          "claimType": "MEDICAL",
+          "documentType": "Explanation of Benefits",
+          "documentClass": "u_mber_eob",
+          "documentId": "00000000-0000-4000-8000-000000000001",
+          "documentName": "Explanation of Benefits",
+          "dateCreated": "2026-08-16",
+          "claimIDs": [
+            "SYNC000000"
+          ],
+          "claimKey": "U1lOLWNsYWltLWtleS002"
+        },
+        {
+          "memberName": "SAM EXAMPLE",
+          "claimType": "MEDICAL",
+          "documentType": "Health Statement",
+          "documentClass": "u_mthly_health_stmt",
+          "documentId": "00000000-0000-4000-8000-000000000002",
+          "documentName": "Health Statement",
+          "dateCreated": "2026-08-20",
+          "claimIDs": [],
+          "claimKey": ""
+        },
+        {
+          "memberName": "SAM EXAMPLE",
+          "claimType": "RX",
+          "documentType": "Explanation of Benefits",
+          "documentClass": "u_mber_eob",
+          "documentId": "00000000-0000-4000-8000-000000000003",
+          "documentName": "Explanation of Benefits",
+          "dateCreated": "2026-08-06",
+          "claimIDs": [
+            "000000000000000009"
+          ],
+          "claimKey": "U1lOLWNsYWltLWtleS003"
+        },
+        {
+          "memberName": "ALEX EXAMPLE",
+          "claimType": "DENTAL",
+          "documentType": "Explanation of Benefits",
+          "documentClass": "u_sb_dental_elec",
+          "documentId": "00000000-0000-4000-8000-000000000004",
+          "documentName": "Explanation of Benefits",
+          "dateCreated": "2026-06-11",
+          "claimIDs": [
+            "000000000003"
+          ],
+          "claimKey": "U1lOLWNsYWltLWtleS007"
+        },
+        {
+          "memberName": "JORDAN EXAMPLE",
+          "claimType": "RX",
+          "documentType": "Prior Authorization Letters",
+          "documentClass": "u_prior_auth_doc",
+          "documentId": "00000000-0000-4000-8000-000000000005",
+          "documentName": "Prior Authorization Approval",
+          "dateCreated": "2026-09-02",
+          "claimIDs": [],
+          "claimKey": ""
+        },
+        {
+          "memberName": "",
+          "claimType": "",
+          "documentType": "Other Forms",
+          "documentClass": "Proof of Coverage",
+          "documentId": "00000000-0000-4000-8000-000000000006",
+          "documentName": "Proof of Coverage",
+          "dateCreated": "",
+          "claimIDs": [],
+          "claimKey": ""
+        }
+      ]
+    }
+  }
+}

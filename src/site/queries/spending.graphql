@@ -1,0 +1,89 @@
+query spending {
+  spendingOverviews {
+    profileV1 {
+      currentUser {
+        ...Member
+      }
+      dependents {
+        ...Member
+      }
+    }
+    benefits {
+      depSeqNbr
+      benefitsResponses {
+        dependentSeqNum
+        benefits {
+          coverageType
+          benefitsPeriodIndicator
+          maxes {
+            inNetwork {
+              type
+              amount {
+                value
+                iso4217
+              }
+            }
+            outOfNetwork {
+              type
+              amount {
+                value
+                iso4217
+              }
+            }
+          }
+        }
+      }
+    }
+    accumulators {
+      depSeqNbr
+      accumulatorSummaries {
+        benefits {
+          coverageType
+          benefitsPeriodIndicator
+          accumulators {
+            inNetwork {
+              accumulatorType
+              type
+              amount {
+                value
+                iso4217
+              }
+            }
+            outOfNetwork {
+              accumulatorType
+              type
+              amount {
+                value
+                iso4217
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+fragment Member on MemberObjectV2 {
+  userInfo {
+    firstName
+    lastName
+    dob
+    gender
+  }
+  dependentSeqNum
+  relationshipType
+  planCoverages {
+    coverageType
+    groupNumber
+    groupName
+    memberId {
+      id
+    }
+    planPeriod {
+      startDate
+      endDate
+      status
+    }
+  }
+}

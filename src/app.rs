@@ -39,6 +39,27 @@ pub const SITE_BASE: &str = "https://member.uhc.com/myuhc";
 /// `Skip.code` (an open set) for a statement read with issues.
 const STATEMENT_ISSUES: &str = "statement_issues";
 const CONFIG_KEYS: &str = "import_dir";
+pub(crate) const CLAIM_COLUMNS: &[&str] = &[
+    "service_start",
+    "label",
+    "provider",
+    "billed",
+    "plan_paid",
+    "you_owe",
+    "claim_number",
+];
+pub(crate) const BALANCE_COLUMNS: &[&str] = &[
+    "plan_year",
+    "label",
+    "network",
+    "limit",
+    "used",
+    "maximum",
+    "remaining",
+    "met",
+    "as_of",
+];
+pub(crate) const PATIENT_COLUMNS: &[&str] = &["label", "id", "member_role", "claims", "latest_statement"];
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Config {
@@ -200,35 +221,35 @@ pub fn run(cli: &Cli) -> Result<(), CliError> {
         }
         Command::Patients(PatientsCmd::List) => match files()? {
             Ok(ctx) => patients(&ctx),
-            Err(profile) => site_pending(&profile),
+            Err(profile) => site_exit(cli, &profile),
         },
         Command::Records(RecordsCmd::Export(args)) => {
             // Its own checks come first, whichever the source.
             export_args(cli, args)?;
             match files()? {
                 Ok(ctx) => export(&ctx, args),
-                Err(profile) => site_pending(&profile),
+                Err(profile) => site_exit(cli, &profile),
             }
         }
         Command::Claims(ClaimsCmd::List(args)) => match files()? {
             Ok(ctx) => claims_list(&ctx, args),
-            Err(profile) => site_pending(&profile),
+            Err(profile) => site_exit(cli, &profile),
         },
         Command::Claims(ClaimsCmd::Get { claim }) => match files()? {
             Ok(ctx) => claims_get(&ctx, claim),
-            Err(profile) => site_pending(&profile),
+            Err(profile) => site_exit(cli, &profile),
         },
         Command::Accumulators(args) => match files()? {
             Ok(ctx) => accumulators(&ctx, args),
-            Err(profile) => site_pending(&profile),
+            Err(profile) => site_exit(cli, &profile),
         },
         Command::Documents(DocumentsCmd::List(range)) => match files()? {
             Ok(ctx) => documents_list(&ctx, range),
-            Err(profile) => site_pending(&profile),
+            Err(profile) => site_exit(cli, &profile),
         },
         Command::Documents(DocumentsCmd::Download(args)) => match files()? {
             Ok(ctx) => documents_download(&ctx, args),
-            Err(profile) => site_pending(&profile),
+            Err(profile) => site_exit(cli, &profile),
         },
         Command::Import(ImportCmd::Check) => {
             source::no_profile(cli, "import check")?;
@@ -438,7 +459,7 @@ fn config(ctx: &Ctx, cmd: &ConfigCmd) -> Result<(), CliError> {
 
 /// A member by id, or by first name when only one member has it. The
 /// errors name ids only, never another member's name.
-fn find_member<'a>(members: &'a [Member], q: &str) -> Result<&'a Member, CliError> {
+pub(crate) fn find_member<'a>(members: &'a [Member], q: &str) -> Result<&'a Member, CliError> {
     if members.is_empty() {
         return Err(CliError::NotFound(
             "no member: the import folder holds no UnitedHealthcare EOB statement (`uhc import check`)".into(),
@@ -468,24 +489,25 @@ fn find_member<'a>(members: &'a [Member], q: &str) -> Result<&'a Member, CliErro
 /// A `patient-list/v1` item: the profile's `PatientContext`, and what the
 /// statements say about the member's plan.
 #[derive(Serialize)]
-struct PatientRow {
+pub(crate) struct PatientRow {
     #[serde(flatten)]
-    context: PatientContext,
-    member_id: String,
+    pub(crate) context: PatientContext,
+    pub(crate) member_id: String,
     /// Coverage's relationship to the subscriber: self, spouse, common, child.
     #[serde(skip_serializing_if = "Option::is_none")]
-    coverage_relationship: Option<String>,
+    pub(crate) coverage_relationship: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    group_number: Option<String>,
+    pub(crate) group_number: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    group_name: Option<String>,
-    claims: u64,
-    statements: u64,
+    pub(crate) group_name: Option<String>,
+    pub(crate) claims: u64,
+    /// EOB statements naming the member.
+    pub(crate) statements: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
-    latest_statement: Option<String>,
+    pub(crate) latest_statement: Option<String>,
 }
 
-fn organization() -> Organization {
+pub(crate) fn organization() -> Organization {
     Organization {
         id: ORGANIZATION.into(),
         name: ORGANIZATION_NAME.into(),
@@ -498,7 +520,7 @@ fn organization() -> Organization {
 
 /// The member's role on the plan, from the relationship code the statements
 /// addressed to them print; none for a member no statement is addressed to.
-fn role(m: &Member) -> Option<&'static str> {
+pub(crate) fn role(m: &Member) -> Option<&'static str> {
     match m.relationship.as_deref() {
         Some("self") => Some(member_role::SUBSCRIBER),
         Some(_) => Some(member_role::DEPENDENT),
@@ -506,7 +528,7 @@ fn role(m: &Member) -> Option<&'static str> {
     }
 }
 
-fn context(m: &Member, name: Option<String>) -> PatientContext {
+pub(crate) fn context(m: &Member, name: Option<String>) -> PatientContext {
     let role = role(m);
     PatientContext {
         id: m.id.clone(),
@@ -551,10 +573,7 @@ fn patients(ctx: &Ctx) -> Result<(), CliError> {
             .iter()
             .map(|r| serde_json::to_value(r).unwrap_or_default())
             .collect();
-        output::table(&output::table_view(
-            &items,
-            &["label", "id", "member_role", "claims", "latest_statement"],
-        ));
+        output::table(&output::table_view(&items, PATIENT_COLUMNS));
     }
     Ok(())
 }
@@ -569,7 +588,7 @@ pub(crate) fn now_rfc3339() -> String {
     dates::fmt_rfc3339(secs)
 }
 
-fn header(m: &Member, since: Option<&str>) -> Header {
+pub(crate) fn header(m: &Member, since: Option<&str>) -> Header {
     let mut h = Header::new(
         Source::new(BIN, env!("CARGO_PKG_VERSION")),
         organization(),
@@ -586,12 +605,12 @@ fn header(m: &Member, since: Option<&str>) -> Header {
 }
 
 /// The exit code of a stream that ended incomplete: its error's.
-fn incomplete_exit(trailer: &Trailer) -> i32 {
+pub(crate) fn incomplete_exit(trailer: &Trailer) -> i32 {
     trailer.error.as_ref().and_then(|e| e.exit_code).unwrap_or(1)
 }
 
 /// A `YYYY-MM-DD` date, zero-padded, so it compares as a string.
-fn iso(d: &str) -> Result<String, CliError> {
+pub(crate) fn iso(d: &str) -> Result<String, CliError> {
     Ok(dates::fmt_iso(dates::parse_iso(d.trim())?))
 }
 
@@ -640,12 +659,16 @@ pub fn select<'a>(book: &'a Book, m: &Member, since: Option<&str>) -> Selection<
 pub fn member_resources(book: &Book, m: &Member, sel: &Selection) -> Result<Vec<Value>, CliError> {
     let coverage = fhir::coverage_id(m);
     let mut out = vec![
-        fhir::organization(),
+        fhir::organization(crate::model::Origin::Statements),
         fhir::patient(m, book.full_name(&m.id).as_deref()),
         fhir::coverage(m),
     ];
     for c in &sel.claims {
-        let balances = book.balances_in(&c.document, &c.claim.patient);
+        let balances = c
+            .document
+            .as_deref()
+            .map(|d| book.balances_in(d, &c.claim.patient))
+            .unwrap_or_default();
         let refs: Vec<&Balances> = balances.iter().collect();
         out.push(fhir::explanation_of_benefit(c, &coverage, &refs));
     }
@@ -659,7 +682,7 @@ pub fn member_resources(book: &Book, m: &Member, sel: &Selection) -> Result<Vec<
 }
 
 /// `records export`'s argument checks, before any source is read.
-fn export_args(cli: &Cli, args: &ExportArgs) -> Result<(), CliError> {
+pub(crate) fn export_args(cli: &Cli, args: &ExportArgs) -> Result<(), CliError> {
     if args.ndjson && cli.common.json {
         return Err(CliError::Usage("--ndjson is the output; drop --json".into()));
     }
@@ -672,11 +695,15 @@ fn export_args(cli: &Cli, args: &ExportArgs) -> Result<(), CliError> {
     Ok(())
 }
 
-/// Until the member-site source is in place.
-fn site_pending(profile: &ProfileName) -> Result<(), CliError> {
-    Err(CliError::Other(format!(
-        "the member-site source (profile `{profile}`) is not built yet; pass --files <DIR>"
-    )))
+/// A member-site command run as the binary: its exit code is the process's.
+fn site_exit(cli: &Cli, profile: &ProfileName) -> Result<(), CliError> {
+    let env = crate::site_cmd::Env::for_binary()?;
+    let stdout = std::io::stdout();
+    let code = crate::site_cmd::run(cli, &env, profile, &mut stdout.lock())?;
+    if code != 0 {
+        std::process::exit(code);
+    }
+    Ok(())
 }
 
 fn export(ctx: &Ctx, args: &ExportArgs) -> Result<(), CliError> {
@@ -783,7 +810,7 @@ fn amounts_json(a: &crate::eob::Amounts) -> Map<String, Value> {
         .collect()
 }
 
-fn claim_json(c: &ClaimRecord, detail: bool) -> Value {
+pub(crate) fn claim_json(c: &ClaimRecord, detail: bool) -> Value {
     let mut v = Map::new();
     v.insert("id".into(), c.id.clone().into());
     if let Some(n) = &c.claim_number {
@@ -807,7 +834,19 @@ fn claim_json(c: &ClaimRecord, detail: bool) -> Value {
     if let Some(d) = &c.statement_date {
         v.insert("statement_date".into(), d.clone().into());
     }
-    v.insert("document".into(), c.document.clone().into());
+    if let Some(d) = &c.processed {
+        v.insert("processed".into(), d.clone().into());
+    }
+    v.insert("type".into(), c.kind.code().into());
+    if let Some(s) = &c.status {
+        v.insert("status".into(), s.clone().into());
+    }
+    if c.reversed {
+        v.insert("reversed".into(), true.into());
+    }
+    if let Some(d) = &c.document {
+        v.insert("document".into(), d.clone().into());
+    }
     v.insert("versions".into(), c.versions.into());
     if detail {
         if let Some(a) = &c.claim.account_number {
@@ -829,6 +868,16 @@ fn claim_json(c: &ClaimRecord, detail: bool) -> Value {
                 if !l.codes.is_empty() {
                     lv.insert("codes".into(), json!(l.codes));
                 }
+                let coded = |c: &crate::eob::Coded| json!({ "code": c.code, "display": c.display });
+                if let Some(p) = &l.procedure {
+                    lv.insert("procedure".into(), coded(p));
+                }
+                if let Some(r) = &l.revenue {
+                    lv.insert("revenue".into(), coded(r));
+                }
+                if let Some(t) = &l.tooth {
+                    lv.insert("tooth".into(), t.clone().into());
+                }
                 lv.extend(amounts_json(&l.amounts));
                 Value::Object(lv)
             })
@@ -837,20 +886,21 @@ fn claim_json(c: &ClaimRecord, detail: bool) -> Value {
         if !c.codes.is_empty() {
             v.insert("codes".into(), json!(c.codes));
         }
-    } else {
+    } else if c.detailed {
+        // A site claim's lines are read with its detail (`claims get`).
         v.insert("lines".into(), c.claim.lines.len().into());
     }
     Value::Object(v)
 }
 
 /// `--since` / `--until`, checked and zero-padded so they compare as strings.
-struct Window {
-    since: Option<String>,
-    until: Option<String>,
+pub(crate) struct Window {
+    pub(crate) since: Option<String>,
+    pub(crate) until: Option<String>,
 }
 
 impl Window {
-    fn of(range: &RangeArgs) -> Result<Window, CliError> {
+    pub(crate) fn of(range: &RangeArgs) -> Result<Window, CliError> {
         range.validate()?;
         let w = Window {
             since: range.since.as_deref().map(iso).transpose()?,
@@ -864,7 +914,7 @@ impl Window {
         Ok(w)
     }
 
-    fn contains(&self, date: Option<&str>) -> bool {
+    pub(crate) fn contains(&self, date: Option<&str>) -> bool {
         match date {
             Some(d) => self.since.as_deref().is_none_or(|s| d >= s) && self.until.as_deref().is_none_or(|u| d <= u),
             None => self.since.is_none() && self.until.is_none(),
@@ -891,18 +941,7 @@ fn claims_list(ctx: &Ctx, args: &ClaimsListArgs) -> Result<(), CliError> {
     } else if claims.is_empty() {
         ctx.note("no claims");
     } else {
-        output::table(&output::table_view(
-            &claims,
-            &[
-                "service_start",
-                "label",
-                "provider",
-                "billed",
-                "plan_paid",
-                "you_owe",
-                "claim_number",
-            ],
-        ));
+        output::table(&output::table_view(&claims, CLAIM_COLUMNS));
     }
     Ok(())
 }
@@ -941,25 +980,12 @@ fn accumulators(ctx: &Ctx, args: &AccumulatorsArgs) -> Result<(), CliError> {
     } else if items.is_empty() {
         ctx.note("no plan balances in the statements");
     } else {
-        output::table(&output::table_view(
-            &items,
-            &[
-                "plan_year",
-                "label",
-                "network",
-                "limit",
-                "used",
-                "maximum",
-                "remaining",
-                "met",
-                "as_of",
-            ],
-        ));
+        output::table(&output::table_view(&items, BALANCE_COLUMNS));
     }
     Ok(())
 }
 
-fn balance_json(b: &Balances) -> Value {
+pub(crate) fn balance_json(b: &Balances) -> Value {
     let mut v = Map::new();
     v.insert("patient".into(), b.patient.clone().into());
     v.insert("label".into(), b.label.clone().into());
@@ -977,7 +1003,9 @@ fn balance_json(b: &Balances) -> Value {
     v.insert("used".into(), money(b.used));
     v.insert("remaining".into(), money(b.remaining));
     v.insert("met".into(), b.met.into());
-    v.insert("document".into(), b.document.clone().into());
+    if let Some(d) = &b.document {
+        v.insert("document".into(), d.clone().into());
+    }
     Value::Object(v)
 }
 
@@ -1078,7 +1106,7 @@ fn find_document<'a>(book: &'a Book, q: &str) -> Result<(&'a StatementFile, Docu
 /// error unless `replace`; a replaced file (or a symlink in its place) is
 /// removed first, so the new one gets the private mode and nothing is
 /// written through a link.
-fn open_private(path: &Path, replace: bool) -> Result<std::fs::File, CliError> {
+pub(crate) fn open_private(path: &Path, replace: bool) -> Result<std::fs::File, CliError> {
     if let Ok(meta) = std::fs::symlink_metadata(path) {
         if meta.is_dir() {
             return Err(CliError::Usage(format!("{} is a folder", path.display())));
@@ -1107,7 +1135,7 @@ fn open_private(path: &Path, replace: bool) -> Result<std::fs::File, CliError> {
     })
 }
 
-fn write_private(path: &Path, bytes: &[u8], overwrite: bool) -> Result<(), CliError> {
+pub(crate) fn write_private(path: &Path, bytes: &[u8], overwrite: bool) -> Result<(), CliError> {
     open_private(path, overwrite)?
         .write_all(bytes)
         .map_err(|e| CliError::Other(format!("writing {}: {e}", path.display())))

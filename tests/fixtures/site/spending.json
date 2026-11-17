@@ -1,0 +1,993 @@
+{
+  "data": {
+    "spendingOverviews": {
+      "profileV1": {
+        "currentUser": {
+          "userInfo": {
+            "firstName": "Alex",
+            "lastName": "Example",
+            "dob": "1980-01-01",
+            "gender": "MALE"
+          },
+          "dependentSeqNum": "00",
+          "relationshipType": "SUBSCRIBER",
+          "planCoverages": [
+            {
+              "coverageType": "MEDICAL",
+              "groupNumber": "SYNG0001",
+              "memberId": {
+                "id": "SYNM000001"
+              },
+              "planPeriod": {
+                "startDate": "2026-01-01",
+                "endDate": "2026-12-31",
+                "status": "ACTIVE"
+              }
+            },
+            {
+              "coverageType": "DENTAL",
+              "groupNumber": "SYNG0001",
+              "memberId": {
+                "id": "SYNM000001"
+              },
+              "planPeriod": {
+                "startDate": "2026-01-01",
+                "endDate": "2026-12-31",
+                "status": "ACTIVE"
+              }
+            }
+          ]
+        },
+        "dependents": [
+          {
+            "userInfo": {
+              "firstName": "Jordan",
+              "lastName": "Example",
+              "dob": "2015-01-01",
+              "gender": "FEMALE"
+            },
+            "dependentSeqNum": "02",
+            "relationshipType": "DEPENDENT",
+            "planCoverages": [
+              {
+                "coverageType": "MEDICAL",
+                "groupNumber": "SYNG0001",
+                "memberId": {
+                  "id": "SYNM000001"
+                },
+                "planPeriod": {
+                  "startDate": "2026-01-01",
+                  "endDate": "2026-12-31",
+                  "status": "ACTIVE"
+                }
+              },
+              {
+                "coverageType": "DENTAL",
+                "groupNumber": "SYNG0001",
+                "memberId": {
+                  "id": "SYNM000001"
+                },
+                "planPeriod": {
+                  "startDate": "2026-01-01",
+                  "endDate": "2026-12-31",
+                  "status": "ACTIVE"
+                }
+              }
+            ]
+          },
+          {
+            "userInfo": {
+              "firstName": "Sam",
+              "lastName": "Example",
+              "dob": "1982-01-01",
+              "gender": "FEMALE"
+            },
+            "dependentSeqNum": "01",
+            "relationshipType": "SPOUSE",
+            "planCoverages": [
+              {
+                "coverageType": "MEDICAL",
+                "groupNumber": "SYNG0001",
+                "memberId": {
+                  "id": "SYNM000001"
+                },
+                "planPeriod": {
+                  "startDate": "2026-01-01",
+                  "endDate": "2026-12-31",
+                  "status": "ACTIVE"
+                }
+              },
+              {
+                "coverageType": "DENTAL",
+                "groupNumber": "SYNG0001",
+                "memberId": {
+                  "id": "SYNM000001"
+                },
+                "planPeriod": {
+                  "startDate": "2026-01-01",
+                  "endDate": "2026-12-31",
+                  "status": "ACTIVE"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "benefits": [
+        {
+          "depSeqNbr": "00",
+          "benefitsResponses": [
+            {
+              "dependentSeqNum": "00",
+              "benefits": [
+                {
+                  "coverageType": "MEDICAL",
+                  "benefitsPeriodIndicator": "CALENDAR_YEAR",
+                  "maxes": {
+                    "inNetwork": [
+                      {
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "3000.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "FAMILY_OOP",
+                        "amount": {
+                          "value": "8000.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "1250.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_OOP",
+                        "amount": {
+                          "value": "3500.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ],
+                    "outOfNetwork": [
+                      {
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "5500.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "FAMILY_OOP",
+                        "amount": {
+                          "value": "16000.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "3000.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_OOP",
+                        "amount": {
+                          "value": "8000.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "coverageType": "DENTAL",
+                  "benefitsPeriodIndicator": null,
+                  "maxes": {
+                    "inNetwork": [
+                      {
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "150.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "50.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_ANNUAL_MAX",
+                        "amount": {
+                          "value": "1250.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_LIFETIME_MAX",
+                        "amount": {
+                          "value": "1750.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ],
+                    "outOfNetwork": [
+                      {
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "150.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "50.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_ANNUAL_MAX",
+                        "amount": {
+                          "value": "1250.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_LIFETIME_MAX",
+                        "amount": {
+                          "value": "1750.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "coverageType": "RX",
+                  "benefitsPeriodIndicator": null,
+                  "maxes": {
+                    "inNetwork": [],
+                    "outOfNetwork": []
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "depSeqNbr": "01",
+          "benefitsResponses": [
+            {
+              "dependentSeqNum": "01",
+              "benefits": [
+                {
+                  "coverageType": "MEDICAL",
+                  "benefitsPeriodIndicator": "CALENDAR_YEAR",
+                  "maxes": {
+                    "inNetwork": [
+                      {
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "3000.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "FAMILY_OOP",
+                        "amount": {
+                          "value": "8000.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "1250.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_OOP",
+                        "amount": {
+                          "value": "3500.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ],
+                    "outOfNetwork": [
+                      {
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "5500.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "FAMILY_OOP",
+                        "amount": {
+                          "value": "16000.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "3000.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_OOP",
+                        "amount": {
+                          "value": "8000.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "coverageType": "DENTAL",
+                  "benefitsPeriodIndicator": null,
+                  "maxes": {
+                    "inNetwork": [
+                      {
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "150.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "50.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_ANNUAL_MAX",
+                        "amount": {
+                          "value": "1250.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_LIFETIME_MAX",
+                        "amount": {
+                          "value": "1750.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ],
+                    "outOfNetwork": [
+                      {
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "150.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "50.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_ANNUAL_MAX",
+                        "amount": {
+                          "value": "1250.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_LIFETIME_MAX",
+                        "amount": {
+                          "value": "1750.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "coverageType": "RX",
+                  "benefitsPeriodIndicator": null,
+                  "maxes": {
+                    "inNetwork": [],
+                    "outOfNetwork": []
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "depSeqNbr": "02",
+          "benefitsResponses": [
+            {
+              "dependentSeqNum": "02",
+              "benefits": [
+                {
+                  "coverageType": "MEDICAL",
+                  "benefitsPeriodIndicator": "CALENDAR_YEAR",
+                  "maxes": {
+                    "inNetwork": [
+                      {
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "3000.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "FAMILY_OOP",
+                        "amount": {
+                          "value": "8000.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "1250.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_OOP",
+                        "amount": {
+                          "value": "3500.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ],
+                    "outOfNetwork": [
+                      {
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "5500.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "FAMILY_OOP",
+                        "amount": {
+                          "value": "16000.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "3000.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_OOP",
+                        "amount": {
+                          "value": "8000.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "coverageType": "DENTAL",
+                  "benefitsPeriodIndicator": null,
+                  "maxes": {
+                    "inNetwork": [
+                      {
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "150.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "50.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_ANNUAL_MAX",
+                        "amount": {
+                          "value": "1250.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_LIFETIME_MAX",
+                        "amount": {
+                          "value": "1750.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ],
+                    "outOfNetwork": [
+                      {
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "150.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "50.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_ANNUAL_MAX",
+                        "amount": {
+                          "value": "1250.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "type": "INDIVIDUAL_LIFETIME_MAX",
+                        "amount": {
+                          "value": "1750.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "coverageType": "RX",
+                  "benefitsPeriodIndicator": null,
+                  "maxes": {
+                    "inNetwork": [],
+                    "outOfNetwork": []
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "accumulators": [
+        {
+          "depSeqNbr": "00",
+          "accumulatorSummaries": [
+            {
+              "benefits": [
+                {
+                  "coverageType": "MEDICAL",
+                  "benefitsPeriodIndicator": "CALENDAR_YEAR",
+                  "accumulators": {
+                    "inNetwork": [
+                      {
+                        "accumulatorType": "OOP",
+                        "type": "FAMILY_OOP",
+                        "amount": {
+                          "value": "292.50",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "OOP",
+                        "type": "INDIVIDUAL_OOP",
+                        "amount": {
+                          "value": "120.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "150.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "50.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ],
+                    "outOfNetwork": [
+                      {
+                        "accumulatorType": "OOP",
+                        "type": "FAMILY_OOP",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "OOP",
+                        "type": "INDIVIDUAL_OOP",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "coverageType": "DENTAL",
+                  "benefitsPeriodIndicator": null,
+                  "accumulators": {
+                    "inNetwork": [
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "OOP",
+                        "type": "INDIVIDUAL_ANNUAL_MAX",
+                        "amount": {
+                          "value": "96.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": null,
+                        "type": "INDIVIDUAL_LIFETIME_MAX",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ],
+                    "outOfNetwork": [
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "OOP",
+                        "type": "INDIVIDUAL_ANNUAL_MAX",
+                        "amount": {
+                          "value": "96.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": null,
+                        "type": "INDIVIDUAL_LIFETIME_MAX",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "coverageType": "RX",
+                  "benefitsPeriodIndicator": null,
+                  "accumulators": {
+                    "inNetwork": null,
+                    "outOfNetwork": null
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "depSeqNbr": "01",
+          "accumulatorSummaries": [
+            {
+              "benefits": [
+                {
+                  "coverageType": "MEDICAL",
+                  "benefitsPeriodIndicator": "CALENDAR_YEAR",
+                  "accumulators": {
+                    "inNetwork": [
+                      {
+                        "accumulatorType": "OOP",
+                        "type": "FAMILY_OOP",
+                        "amount": {
+                          "value": "292.50",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "OOP",
+                        "type": "INDIVIDUAL_OOP",
+                        "amount": {
+                          "value": "172.50",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "150.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "100.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ],
+                    "outOfNetwork": [
+                      {
+                        "accumulatorType": "OOP",
+                        "type": "FAMILY_OOP",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "OOP",
+                        "type": "INDIVIDUAL_OOP",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "coverageType": "DENTAL",
+                  "benefitsPeriodIndicator": null,
+                  "accumulators": {
+                    "inNetwork": [
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "OOP",
+                        "type": "INDIVIDUAL_ANNUAL_MAX",
+                        "amount": {
+                          "value": "96.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": null,
+                        "type": "INDIVIDUAL_LIFETIME_MAX",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ],
+                    "outOfNetwork": [
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "OOP",
+                        "type": "INDIVIDUAL_ANNUAL_MAX",
+                        "amount": {
+                          "value": "96.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": null,
+                        "type": "INDIVIDUAL_LIFETIME_MAX",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "coverageType": "RX",
+                  "benefitsPeriodIndicator": null,
+                  "accumulators": {
+                    "inNetwork": null,
+                    "outOfNetwork": null
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "depSeqNbr": "02",
+          "accumulatorSummaries": [
+            {
+              "benefits": [
+                {
+                  "coverageType": "MEDICAL",
+                  "benefitsPeriodIndicator": "CALENDAR_YEAR",
+                  "accumulators": {
+                    "inNetwork": [
+                      {
+                        "accumulatorType": "OOP",
+                        "type": "FAMILY_OOP",
+                        "amount": {
+                          "value": "292.50",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "OOP",
+                        "type": "INDIVIDUAL_OOP",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "150.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ],
+                    "outOfNetwork": [
+                      {
+                        "accumulatorType": "OOP",
+                        "type": "FAMILY_OOP",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "OOP",
+                        "type": "INDIVIDUAL_OOP",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "FAMILY_DEDUCTIBLE",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      },
+                      {
+                        "accumulatorType": "DEDUCTIBLE",
+                        "type": "INDIVIDUAL_DEDUCTIBLE",
+                        "amount": {
+                          "value": "0.00",
+                          "iso4217": "USD"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "coverageType": "RX",
+                  "benefitsPeriodIndicator": null,
+                  "accumulators": {
+                    "inNetwork": null,
+                    "outOfNetwork": null
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

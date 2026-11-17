@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- The member site is a source: every command that reads records reads
+  member.uhc.com with `--profile <NAME>` (`patients list`, `claims list`
+  and `get`, `accumulators`, `documents list` and `download`,
+  `records export --ndjson`), with the files source's schemas and ids, so
+  a member or claim is one record to medrec from either. The site adds the
+  claim type (professional, institutional, pharmacy, oral), CPT, HCPCS and
+  CDT codes, revenue codes, tooth numbers, remark codes as process notes,
+  the network status, members' birth dates and plan periods, and every
+  document addressed to the member (EOBs, health statements, letters). A
+  reprocessed claim is its latest version and a reversed pharmacy claim is
+  cancelled; a claim still in process is skipped (`in_process`). From the
+  site, `--since D` reads the details of the claims processed since D only.
+  Four GraphQL queries and the document download, one request a second,
+  queries only; an expired session is exit 3 naming the sign-in, the
+  edge's refusal, 429, 5xx and GraphQL errors are exit 5. `records export
+  -o` is refused for the site.
+- Statements: a pharmacy claim's `ExplanationOfBenefit` is `type`
+  `pharmacy`; `claims list` items gain `type`, and a claim's lines their
+  site codes. `document` in `claims list` and `accumulators` is left out
+  when there is none (the site's balances).
 - A command that reads records names its source: `--files <DIR>` (new
   alias of `--dir`; `UHC_IMPORT_DIR`) for downloaded statements, or
   `--profile <NAME>` (`UHC_PROFILE`) for a member-site sign-in. Without one

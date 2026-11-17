@@ -1,0 +1,11 @@
+{
+  "errors": [
+    {
+      "message": "Validation error of type FieldUndefined: Field 'exampleField' in type 'Query' is undefined",
+      "extensions": {
+        "classification": "ValidationError"
+      }
+    }
+  ],
+  "data": null
+}

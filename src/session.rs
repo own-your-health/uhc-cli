@@ -112,8 +112,8 @@ impl SessionStore {
         Ok(SessionStore { vault })
     }
 
-    /// A store over `vault`, for the unit tests.
-    #[cfg(test)]
+    /// A store over `vault`: the tests' in-memory one
+    /// (`Vault::new(MemoryKeys::new(), dir)`).
     pub fn with_vault(vault: Vault) -> SessionStore {
         SessionStore { vault }
     }

@@ -5,17 +5,23 @@ Report a vulnerability privately through GitHub's "Report a vulnerability"
 
 ## What uhc touches
 
-- Reads the PDFs in the configured import folder (one level of subfolders,
+- Reads the PDFs in the folder given with `--files` (or `import check`'s
+  configured folder; one level of subfolders,
   symlinks not followed, 32 MiB per file) and runs the local `pdftotext` on
   each (60-second limit, 20 MB of text). No shell is involved.
 - Writes only where asked: `documents download` (owner-only 0600 files,
   never replacing one without `--overwrite`) and `records export -o`
-  (synthetic statements only).
-- Contacts no server except GitHub, for `self-update`, and member.uhc.com
-  for `auth login`: a Chrome window the owner signs in through, and one
-  GraphQL read of the member's plan balances that checks the session before
-  it is stored. Every request to member.uhc.com is a GraphQL query or a
-  `GET`; uhc sends no mutation.
+  (statement files only; the member site streams to stdout).
+- Contacts no server except GitHub, for `self-update`, and
+  `https://member.uhc.com`: for `auth login`, a Chrome window the owner signs
+  in through and one GraphQL read that checks the session before it is
+  stored; for a command run with `--profile`, the member's own reads. Every
+  request is a GraphQL query or a `GET` (uhc sends no mutation), one at a
+  time and at least a second apart, with a 30-second limit and no redirect
+  followed. Every URL is built from that fixed origin; a document's PDF is
+  asked for by its id and class, never by a link from an answer.
+- A cookie the site changes is written back to the profile's session once
+  the command has succeeded.
 - Stores one credential per profile, its member-site session: the
   `Cookie` header, the browser's user agent and the capture time, as the
   vault entry `<profile>/session`. The vault (`pk_cli_auth::vault`) is

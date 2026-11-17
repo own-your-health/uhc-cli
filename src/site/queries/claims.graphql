@@ -1,0 +1,84 @@
+query claims($startDate: String!, $stopDate: String!) {
+  allClaimsAggregate(startDate: $startDate, stopDate: $stopDate) {
+    profileV1 {
+      currentUser {
+        ...Member
+      }
+      dependents {
+        ...Member
+      }
+    }
+    healthcareClaims {
+      claims {
+        claimId
+        claimIdSuffix
+        claimKey
+        claimType
+        claimStatus
+        serviceRecipient {
+          firstName
+          dependentSeqNbr
+        }
+        providerName
+        serviceDate
+        lastServiceDate
+        processedDate
+        claimNetworkStatus
+        medicationName
+        prescriptionNumber
+        balance {
+          totalBilledAmount {
+            ...Money
+          }
+          healthPlanDiscount {
+            ...Money
+          }
+          healthPlanPays {
+            ...Money
+          }
+          deductible {
+            ...Money
+          }
+          copay {
+            ...Money
+          }
+          other {
+            ...Money
+          }
+          patientResponsibility {
+            ...Money
+          }
+        }
+      }
+    }
+  }
+}
+
+fragment Money on Money {
+  value
+  iso4217
+}
+
+fragment Member on MemberObjectV2 {
+  userInfo {
+    firstName
+    lastName
+    dob
+    gender
+  }
+  dependentSeqNum
+  relationshipType
+  planCoverages {
+    coverageType
+    groupNumber
+    groupName
+    memberId {
+      id
+    }
+    planPeriod {
+      startDate
+      endDate
+      status
+    }
+  }
+}

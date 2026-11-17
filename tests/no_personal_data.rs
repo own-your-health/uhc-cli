@@ -219,6 +219,67 @@ fn identity_fields_in_fixtures_use_dummy_values() {
     );
 }
 
+/// Every identity field the member-site fixtures carry, by key, wherever it
+/// is nested: names are the household's dummies, ids the dummy shapes, the
+/// dates of birth January firsts, the providers fictional.
+#[test]
+fn identity_fields_in_site_fixtures_use_dummy_values() {
+    fn walk(name: &str, key: &str, v: &serde_json::Value, checked: &mut usize) {
+        match v {
+            serde_json::Value::Object(map) => {
+                for (k, v) in map {
+                    walk(name, k, v, checked);
+                }
+            }
+            serde_json::Value::Array(items) => items.iter().for_each(|v| walk(name, key, v, checked)),
+            serde_json::Value::String(s) if !s.is_empty() => {
+                let first_name = |s: &str| PEOPLE.contains(&s.to_ascii_uppercase().as_str());
+                let ok = match key {
+                    "firstName" => first_name(s),
+                    "lastName" => s == "Example",
+                    "memberName" => is_dummy_name(s),
+                    "dob" => s.ends_with("-01-01"),
+                    "id" | "subscriberId" => shaped(s, "SYNM", 6),
+                    "groupNumber" => shaped(s, "SYNG", 4),
+                    "groupName" | "providerName" => is_dummy_org(s),
+                    "claimId" => {
+                        let base = s.split('-').next().unwrap();
+                        base.starts_with("SYNC") || (base.bytes().all(|b| b.is_ascii_digit()) && is_dummy_number(base))
+                    }
+                    "prescriptionNumber" => s.bytes().all(|b| b.is_ascii_digit()) && is_dummy_number(s),
+                    "documentId" => s.starts_with("00000000-0000-4000-8000-0000000000"),
+                    "claimKey" => s.starts_with("U1lOLWNsYWltLWtleS0"),
+                    "correlationId" => s.starts_with("example-"),
+                    _ => return,
+                };
+                assert!(ok, "{name}: `{key}` holds `{s}`, not a dummy");
+                *checked += 1;
+            }
+            _ => {}
+        }
+    }
+    let dir = format!("{}/tests/fixtures/site", root());
+    let mut checked = 0;
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let path = entry.unwrap().path();
+        let name = path.display().to_string();
+        let text = std::fs::read_to_string(&path).unwrap();
+        if name.ends_with(".json") {
+            let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+            walk(&name, "", &v, &mut checked);
+        } else {
+            assert!(
+                text.contains("EXAMPLE-REQUEST-ID"),
+                "{name}: an edge page carries a dummy request id"
+            );
+        }
+    }
+    assert!(
+        checked >= 60,
+        "only {checked} identity fields found; did the fixtures change?"
+    );
+}
+
 #[test]
 fn the_scanner_flags_real_shapes_and_passes_dummies() {
     for real in [

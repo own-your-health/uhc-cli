@@ -1,0 +1,19 @@
+query documents($processedStartDate: String!, $processedStopDate: String!) {
+  multiDocTypeListSummary(
+    processedStartDate: $processedStartDate
+    processedStopDate: $processedStopDate
+    mnrConsumerDetails: { planProfiles: [] }
+  ) {
+    documents {
+      memberName
+      claimType
+      documentType
+      documentClass
+      documentId
+      documentName
+      dateCreated
+      claimIDs
+      claimKey
+    }
+  }
+}

@@ -7,11 +7,20 @@ Benefits and deductible and out-of-pocket progress, and hands them to the
 household's medical-records system as FHIR (`records-stream/v1`, read by
 `medrec import --from uhc`). It is read-only: nothing it does writes to UHC.
 
-It reads the EOB statement PDFs you download from myuhc.com into a folder.
-The statement commands never contact UnitedHealthcare. Text comes from the
-local `pdftotext` (poppler); nothing is sent anywhere. `docs/api.md` records why: UHC's
-Patient Access API serves Medicare, Medicaid, CHIP and marketplace members,
-not employer plans, and the member site's terms forbid automated access.
+It reads one of two sources, named on each command:
+
+- the member site, member.uhc.com (`--profile <NAME>`): you sign in once in
+  a Chrome window uhc opens, and uhc reads the site's own answers with that
+  session: the claims with their procedure and remark codes, the plan
+  balances, and the EOBs, health statements and letters;
+- the EOB statement PDFs you download from myuhc.com into a folder
+  (`--files <DIR>`): these commands never contact UnitedHealthcare. Text
+  comes from the local `pdftotext` (poppler); nothing is sent anywhere.
+
+`docs/api.md` records why there is no API route (UHC's Patient Access API
+serves Medicare, Medicaid, CHIP and marketplace members, not employer
+plans), what the site's Terms of Use say about automated access (the
+household accepted that risk), and every read uhc makes.
 
 ## Install
 
@@ -22,6 +31,27 @@ cargo install --git https://github.com/piekstra/uhc-cli --locked
 ```
 
 ## Use
+
+From the member site, one profile per member account that signs in:
+
+```sh
+uhc profiles add adult1
+uhc auth login --browser --profile adult1       # sign in in the Chrome window it opens
+uhc --profile adult1 patients list              # subscriber and dependents
+uhc --profile adult1 claims list --since 2026-01-01
+uhc --profile adult1 claims get <claim id>      # with its lines, procedure and remark codes
+uhc --profile adult1 accumulators --year 2026   # deductible and out-of-pocket progress, today
+uhc --profile adult1 documents list             # EOBs, health statements, letters
+uhc --profile adult1 documents download --all -o ~/Archive/UHC
+
+uhc --profile adult1 records export --patient <id> --ndjson | medrec import --from uhc
+```
+
+uhc reads the site one request at a time, a second apart, and only with
+queries: nothing it does writes to UHC. A session that has expired is exit
+3 naming the sign-in that renews it.
+
+From downloaded statements:
 
 ```sh
 # Download each "Claim EOB" PDF from myuhc.com (Claims & Accounts) into one folder.
@@ -86,20 +116,30 @@ Per member: `Patient`, the payer `Organization`, `Coverage`, one
 `ExplanationOfBenefit` per claim (CARIN Blue Button categories for every
 amount, processing codes as notes, the plan balances the statement printed as
 `benefitBalance`), and each statement PDF as `DocumentReference` + `Binary`.
-`docs/fhir.md` has the mapping.
+From the site each claim also carries its claim type (professional,
+institutional, pharmacy, oral), each line its CPT, HCPCS or CDT code and
+revenue code, the remark codes as notes, the member's birth date and plan
+period, and every document addressed to the member. A claim and a member
+have the same id from either source, so medrec keeps one record of each.
+`docs/fhir.md` has the mapping. From the site, `--since D` reads the details
+of the claims processed since D only. A claim the plan has not processed
+yet is skipped (`in_process` in the trailer): its id changes once it is.
 
 `-o DIR` writes the stream to `DIR/records.ndjson` instead (mode 0600,
 written under a temporary name and renamed into place; a symbolic link
 there is refused) and prints `records-export/v1`. A stream that ends
 incomplete goes to `DIR/records.incomplete.ndjson` and the last complete
-export stays. It is for folders of synthetic statements only; real
-records go straight into medrec.
+export stays. It is for folders of synthetic statements only, so the site
+refuses it; real records go straight into medrec.
 
 The stream, `patients list` and the `documents/v1` rows are medical-common's
 `health-records/v1` shapes (`pk-med-records`). A `documents list` id is the
 export's `DocumentReference` id: a statement carrying two members' claims
 is listed once for each, both rows naming the one file. `documents download`
-also takes a prefix of the statement id that `claims list` shows.
+also takes a prefix of the statement id that `claims list` shows, or of the
+site's document id. The site's documents are saved as
+`<date>_uhc-<kind>_<document id>.pdf`; `--all` leaves a file of that name
+alone (`exists`) and reads only the new documents.
 
 ## Profiles and the member-site session
 
