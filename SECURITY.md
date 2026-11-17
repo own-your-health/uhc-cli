@@ -24,7 +24,9 @@ Report a vulnerability privately through GitHub's "Report a vulnerability"
   queries only (no mutation, subscription or persisted query), checked
   before anything is sent.
 - A cookie the site changes is written back to the profile's session once
-  the command has succeeded.
+  the command has succeeded, unless a newer sign-in replaced the stored
+  session meanwhile. A failed write-back is a warning on stderr, not an
+  error.
 - Stores one credential per profile, its member-site session: the
   `Cookie` header, the browser's user agent and the capture time, as the
   vault entry `<profile>/session`. The vault (`pk_cli_auth::vault`) is

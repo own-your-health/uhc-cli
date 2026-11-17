@@ -859,6 +859,29 @@ fn api_reads_the_site_and_refuses_anything_else() {
 
 /// A sign-in made while a command runs is never overwritten by that
 /// command's cookie write-back.
+/// A write-back that fails fails nothing: the export finished, so it exits
+/// 0 with its whole stream, and the stored session is the one that worked.
+/// The warning goes to stderr, which an in-process run does not capture.
+/// The vault's write lock (`.key.lock`, which `put` opens and `get` never
+/// does) is replaced by a folder, so only the write-back fails; were the
+/// file renamed, the write would land and this test would fail.
+#[test]
+fn a_failed_write_back_is_only_a_warning() {
+    let h = Household::new();
+    let lock = h.config.parent().unwrap().join("vault").join(".key.lock");
+    std::fs::remove_file(&lock).unwrap();
+    std::fs::create_dir(&lock).unwrap();
+    let (code, stream) = h.stream(&["records", "export", "--patient", "Sam", "--ndjson"]);
+    assert_eq!(code, 0);
+    assert_eq!(stream.last().unwrap()["complete"], true);
+    assert!(stream.len() > 2, "the whole stream");
+    assert_eq!(h.stored().cookie_header.expose(), COOKIES, "nothing written");
+    // With the lock back, the next command writes the rotated cookie.
+    std::fs::remove_dir(&lock).unwrap();
+    h.json(&["claims", "list"]);
+    assert!(h.stored().cookie_header.expose().contains("AWSALBTG=dummy-rotated"));
+}
+
 #[test]
 fn a_newer_sign_in_is_not_overwritten() {
     let h = Household::new();

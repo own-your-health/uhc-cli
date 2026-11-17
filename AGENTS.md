@@ -104,7 +104,10 @@ least `client::PACE` apart, follows no redirect, and maps answers to exit
 codes: a 401 or a redirect is 3 (`auth login --browser --profile <NAME>
 --overwrite`), the edge's 403 page, 429, 5xx and GraphQL errors without
 data are 5. A `Set-Cookie` updates the jar, written back once the command
-has succeeded. Only `query` operations: a mutation would need SPEC §1.3's
+has succeeded, unless a newer sign-in replaced the stored session
+meanwhile (`portal::Site::finish` compares the stored `Cookie` header
+first). A failed write-back is a warning on stderr, not an error: the
+output is complete and the stored session still works. Only `query` operations: a mutation would need SPEC §1.3's
 gate and a change to the read-only rule. The household chose the
 member site (uhc signs in as the owner in a browser and
 reads the site's own data, accepting the risk under its Terms of Use;

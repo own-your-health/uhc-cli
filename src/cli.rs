@@ -250,7 +250,8 @@ pub enum ClaimsCmd {
 
 #[derive(Args, Debug)]
 pub struct ClaimsListArgs {
-    /// Only this member's claims (id or first name).
+    /// Only this member's claims: its id from `uhc patients list` (with
+    /// --profile, its first name too).
     #[arg(long, value_name = "ID")]
     pub patient: Option<String>,
     #[command(flatten)]
@@ -259,7 +260,8 @@ pub struct ClaimsListArgs {
 
 #[derive(Args, Debug)]
 pub struct AccumulatorsArgs {
-    /// Only this member (id or first name); the family's rows stay.
+    /// Only this member: its id from `uhc patients list` (with --profile, its
+    /// first name too); the family's rows stay.
     #[arg(long, value_name = "ID")]
     pub patient: Option<String>,
     /// Only this plan year (default: every year the source has, the

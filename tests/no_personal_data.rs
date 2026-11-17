@@ -99,6 +99,35 @@ fn scan_line(line: &str) -> Vec<String> {
     findings
 }
 
+/// `<commit>:<path>:<rule>:<line>`: a 40-character hex commit, a path with
+/// no space, a lowercase rule id and a line number.
+fn is_fingerprint(line: &str) -> bool {
+    let parts: Vec<&str> = line.split(':').collect();
+    let [commit, path, rule, number] = parts.as_slice() else {
+        return false;
+    };
+    commit.len() == 40
+        && commit.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        && !path.is_empty()
+        && !path.contains(char::is_whitespace)
+        && !rule.is_empty()
+        && rule.bytes().all(|b| b.is_ascii_lowercase() || b == b'-')
+        && !number.is_empty()
+        && number.bytes().all(|b| b.is_ascii_digit())
+}
+
+#[test]
+fn a_fingerprint_is_only_a_fingerprint() {
+    assert!(is_fingerprint(
+        "865517eb837b9fb4fc7d1983f6cc1de7376015f8:src/portal.rs:generic-api-key:1205"
+    ));
+    assert!(!is_fingerprint(
+        "865517eb837b9fb4fc7d1983f6cc1de7376015f8:src/portal.rs:generic-api-key:1205 note"
+    ));
+    assert!(!is_fingerprint("call 5551234567"));
+    assert!(!is_fingerprint("865517e:src/portal.rs:generic-api-key:1205"));
+}
+
 #[test]
 fn tracked_files_carry_no_personal_data() {
     let files = tracked_files();
@@ -115,6 +144,15 @@ fn tracked_files_carry_no_personal_data() {
             continue;
         };
         for (i, line) in text.lines().enumerate() {
+            // A gitleaks fingerprint's commit hash can hold a phone-length
+            // digit run. Such a line is checked for that shape instead, so
+            // nothing else can ride along in the file uncommented.
+            if file == ".gitleaksignore" && !line.starts_with('#') {
+                if !is_fingerprint(line) {
+                    findings.push(format!("{file}:{}: not a gitleaks fingerprint", i + 1));
+                }
+                continue;
+            }
             for f in scan_line(line) {
                 findings.push(format!("{file}:{}: {f}", i + 1));
             }
