@@ -190,7 +190,7 @@ a mutation.
 |---|---|
 | Before sign-in | `member.uhc.com` sets visitor cookies only: `AWSALBTG`, `AWSALBTGCORS`, `X-DashCafe-Canary` |
 | Signed in | about 50 cookies on `member.uhc.com` and `.uhc.com`; `rally-token`, `RS_MU`, `BARN_SP`, `FD_MU` and `JSESSIONID` are `HttpOnly`. `rally-token` is the capture's readiness signal |
-| Lifetime | every `member.uhc.com` session cookie is a browser-session cookie (no expiry), so a Chrome restart signs the profile out; the kept profile does not stay signed in. The site's own idle and absolute limits are being measured |
+| Lifetime | every `member.uhc.com` session cookie is a browser-session cookie (no expiry), so a Chrome restart signs the profile out; the kept profile does not stay signed in. Measured on 2026-11-17 with one session read by `sessionCheck` alone at growing gaps: `200` after 5, 10, 20 and 40 minutes idle (75 minutes after sign-in), `401` after 80 minutes idle (155 minutes after sign-in). So the session survives at least 40 minutes idle and lasts under 155 minutes unattended; whether an idle limit (40 to 80 minutes) or an absolute one (75 to 155 minutes) ended it is not yet known. Expect one sign-in per sitting: a session from the morning is gone by the afternoon |
 | Signed out | a GraphQL read answers `401 application/json`: `{"meta":{"success":false,...,"errors":[{"error":"Credentials missing.",...}]}}` |
 | Session check | `POST /ce-claims-aggregate-api/graphql?q=sessionCheck` with `query sessionCheck { spendingOverviews { __typename } }`: `200` with `data.spendingOverviews` when signed in, `401` otherwise |
 
