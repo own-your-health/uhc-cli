@@ -79,8 +79,9 @@ uhc --files $F documents download --all -o ~/Archive/UHC   # re-runs save only n
 uhc --files $F records export --patient <id> --ndjson | medrec import --from uhc
 ```
 
-A command that reads records names its source: `--files <DIR>` (alias
-`--dir`, or `UHC_IMPORT_DIR`) for downloaded statements, `--profile <NAME>`
+A command that reads records names its source: `--files <DIR>` (or
+`UHC_FILES`; the older `--dir` and `UHC_IMPORT_DIR` still work) for
+downloaded statements, `--profile <NAME>`
 (or `UHC_PROFILE`) for a member-site sign-in. Without one it is exit 2;
 `config set import_dir` is `import check`'s folder only. A flag wins over
 the other source's variable; both flags, or both variables and no flag, are
@@ -104,7 +105,7 @@ it is a usage error, exit 2).
 | `api` | the site's own JSON answer |
 | `auth login` / `status` / `logout` / `reset` | `auth-login/v1` / `auth-status/v1` / `auth-logout/v1` / `auth-reset/v1` |
 | `profiles list` / `add` / `remove` | `profile-list/v1` / `profile-add/v1` / `profile-remove/v1` |
-| `info` | `cli-info/v1`: profiles `health-records/v1` and `documents/v1`; capability `login-profiles`; `auth.required` true (without `--files`, a record command signs in) |
+| `info` | `cli-info/v1`: profiles `health-records/v1` and `documents/v1`; capabilities `login-profiles` and `records-files` (`records export --files <DIR>`, no sign-in); `auth.required` true (without `--files`, a record command signs in) |
 
 Exit codes: 0 ok, 1 other (pdftotext missing), 2 usage, 3 sign-in not
 finished or session refused, 4 not found, 5 the statements could not be

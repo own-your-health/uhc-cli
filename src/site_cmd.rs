@@ -119,7 +119,7 @@ pub fn run(cli: &Cli, env: &Env, profile: &ProfileName, out: &mut dyn Write) -> 
     // Checked before the session is read, so a refused request reads nothing.
     let api = match &cli.command {
         Command::Api(args) => Some(crate::client::api_request(
-            &args.method,
+            args.method,
             &args.path,
             args.data.as_deref(),
         )?),
@@ -143,8 +143,14 @@ pub fn run(cli: &Cli, env: &Env, profile: &ProfileName, out: &mut dyn Write) -> 
     }?;
     // Only after the command did what it was asked: an export that ended
     // incomplete may have ended on a refused session.
-    if code == 0 && ctx.site.finish()? && cli.common.verbose {
-        eprintln!("the session's cookies were updated");
+    if code == 0 {
+        match ctx.site.finish() {
+            Ok(true) if cli.common.verbose => eprintln!("the session's cookies were updated"),
+            Ok(_) => {}
+            // The output is complete and the stored session is the one that
+            // worked, so a failed write-back fails nothing.
+            Err(e) => eprintln!("warning: the session's updated cookies were not saved: {}", e.message()),
+        }
     }
     Ok(code)
 }

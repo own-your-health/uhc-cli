@@ -63,6 +63,7 @@ fn uhc(dir: &Path) -> Command {
         .env_remove("UHC_PDFTOTEXT")
         .env_remove("UHC_PROFILE")
         .env_remove("UHC_IMPORT_DIR")
+        .env_remove("UHC_FILES")
         .arg("--files")
         .arg(dir);
     cmd

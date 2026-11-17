@@ -27,7 +27,7 @@ use pk_cli_secrets::Secret;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE, COOKIE, RETRY_AFTER, SET_COOKIE, USER_AGENT};
 use serde_json::{json, Value};
 
-use crate::cli::BIN;
+use crate::cli::{ApiMethod, BIN};
 use crate::session::Session;
 
 /// The member site's origin.
@@ -432,7 +432,7 @@ const READ_ONLY: &str = "uhc is read-only: `api` sends a GET, or a GraphQL query
 /// a method other than `GET` and `POST`, a `POST` that is not a GraphQL
 /// document of queries only (no extensions, so no persisted query by hash),
 /// or a sign-out path. Nothing is sent before this passes.
-pub fn api_request(method: &str, path: &str, data: Option<&str>) -> Result<ApiRequest, CliError> {
+pub fn api_request(method: ApiMethod, path: &str, data: Option<&str>) -> Result<ApiRequest, CliError> {
     if path.chars().any(|c| c.is_whitespace() || c.is_control()) {
         return Err(CliError::Usage("the path holds a space or a control character".into()));
     }
@@ -467,14 +467,14 @@ pub fn api_request(method: &str, path: &str, data: Option<&str>) -> Result<ApiRe
             "`api` does not sign out of the site; `{BIN} auth logout --profile <NAME>` removes the stored session"
         )));
     }
-    match method.to_ascii_uppercase().as_str() {
-        "GET" if data.is_some() => Err(CliError::Usage("a GET takes no --data".into())),
-        "GET" if route.contains("graphql") => Err(CliError::Usage(format!(
+    match method {
+        ApiMethod::Get if data.is_some() => Err(CliError::Usage("a GET takes no --data".into())),
+        ApiMethod::Get if route.contains("graphql") => Err(CliError::Usage(format!(
             "{READ_ONLY}; POST the query: `{BIN} api POST {path} --data '{{\"query\": \"query ...\"}}'`"
         ))),
-        "GET" => Ok(ApiRequest::Get(path)),
-        "POST" if !route.ends_with("/graphql") => Err(CliError::Usage(READ_ONLY.into())),
-        "POST" => {
+        ApiMethod::Get => Ok(ApiRequest::Get(path)),
+        ApiMethod::Post if !route.ends_with("/graphql") => Err(CliError::Usage(READ_ONLY.into())),
+        ApiMethod::Post => {
             let data = data.ok_or_else(|| {
                 CliError::Usage("a POST needs --data, the GraphQL request: {\"query\": \"query ...\"}".into())
             })?;
@@ -494,7 +494,6 @@ pub fn api_request(method: &str, path: &str, data: Option<&str>) -> Result<ApiRe
                 None => Err(CliError::Usage("--data needs `query`, the GraphQL document".into())),
             }
         }
-        other => Err(CliError::Usage(format!("{READ_ONLY}, not {other}"))),
     }
 }
 
@@ -743,18 +742,18 @@ mod tests {
     fn api_requests_are_reads_on_the_member_site() {
         let query = r#"{"query":"query A { a }","variables":{},"operationName":"A"}"#;
         assert_eq!(
-            api_request("get", "/rest/x?y=1", None).unwrap(),
+            api_request(ApiMethod::Get, "/rest/x?y=1", None).unwrap(),
             ApiRequest::Get("/rest/x?y=1".into())
         );
         assert_eq!(
-            api_request("GET", "https://member.uhc.com/a/b", None).unwrap(),
+            api_request(ApiMethod::Get, "https://member.uhc.com/a/b", None).unwrap(),
             ApiRequest::Get("/a/b".into())
         );
         assert_eq!(
-            api_request("GET", "https://MEMBER.uhc.com?x", None).unwrap(),
+            api_request(ApiMethod::Get, "https://MEMBER.uhc.com?x", None).unwrap(),
             ApiRequest::Get("/?x".into())
         );
-        match api_request("POST", "/ce-claims-aggregate-api/graphql?q=x", Some(query)).unwrap() {
+        match api_request(ApiMethod::Post, "/ce-claims-aggregate-api/graphql?q=x", Some(query)).unwrap() {
             ApiRequest::Query(path, body) => {
                 assert_eq!(path, "/ce-claims-aggregate-api/graphql?q=x");
                 assert_eq!(body["operationName"], "A");
@@ -762,7 +761,12 @@ mod tests {
             other => panic!("{other:?}"),
         }
         let refused = |method: &str, path: &str, data: Option<&str>| {
-            let e = api_request(method, path, data)
+            let parsed = if method == "GET" {
+                ApiMethod::Get
+            } else {
+                ApiMethod::Post
+            };
+            let e = api_request(parsed, path, data)
                 .err()
                 .unwrap_or_else(|| panic!("{method} {path}"));
             assert_eq!(e.exit_code(), 2, "{method} {path}: {e}");
@@ -776,10 +780,8 @@ mod tests {
         refused("GET", &format!("https://member.uhc.com{}example.com/x", '@'), None);
         refused("GET", "https://member.uhc.com:8443/x", None);
         refused("GET", "/a b", None);
-        // Writes, and reads that are not plain.
-        for m in ["PUT", "DELETE", "PATCH", "HEAD"] {
-            assert!(refused(m, "/x", None).contains("read-only"));
-        }
+        // Reads that are not plain. Another method does not parse
+        // (cli_surface).
         refused("GET", "/x/graphql?query=mutation", None);
         refused("GET", "/x", Some("{}"));
         refused("POST", "/x/rest", Some(query));

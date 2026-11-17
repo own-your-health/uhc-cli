@@ -1084,14 +1084,21 @@ impl<'a> Site<'a> {
         self.client.api(request)
     }
 
+    /// Write the cookies the answers changed back to the profile's session,
+    /// only while the stored session is still the one this command read: a
+    /// sign-in made meanwhile (a long export runs for minutes) is never
+    /// overwritten. Whether it wrote.
     pub fn finish(&self) -> Result<bool, CliError> {
-        match self.client.updated_cookie_header() {
-            Some(header) => {
+        let Some(header) = self.client.updated_cookie_header() else {
+            return Ok(false);
+        };
+        match self.store.get(&self.profile)? {
+            Some(stored) if stored.cookie_header.expose() == self.session.cookie_header.expose() => {
                 self.store
                     .put(&self.profile, &self.session.with_cookie_header(header))?;
                 Ok(true)
             }
-            None => Ok(false),
+            _ => Ok(false),
         }
     }
 }

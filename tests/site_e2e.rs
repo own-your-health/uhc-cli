@@ -821,7 +821,7 @@ fn api_reads_the_site_and_refuses_anything_else() {
             "--data",
             r#"{"query":"mutation { a }"}"#,
         ],
-        vec!["api", "DELETE", "/rest/x"],
+        vec!["api", "GET", "/content/myuhc/logout"],
         vec!["api", "GET", "https://example.com/x"],
     ] {
         let e = h.run(&args).err().unwrap();
@@ -832,4 +832,27 @@ fn api_reads_the_site_and_refuses_anything_else() {
         sent,
         "a refused request sends nothing"
     );
+}
+
+/// A sign-in made while a command runs is never overwritten by that
+/// command's cookie write-back.
+#[test]
+fn a_newer_sign_in_is_not_overwritten() {
+    let h = Household::new();
+    let site = uhc::portal::Site::open(&h.env.sessions, &adult1(), &h.env.base, Duration::ZERO).unwrap();
+    site.household().unwrap();
+    let newer = Session {
+        cookie_header: Secret::new("dummy_session=newer"),
+        user_agent: Some(AGENT.into()),
+        captured_at: "2026-02-03T04:05:06Z".into(),
+    };
+    h.env.sessions.put(&adult1(), &newer).unwrap();
+    assert!(!site.finish().unwrap(), "nothing written over the newer sign-in");
+    assert_eq!(h.stored().cookie_header.expose(), "dummy_session=newer");
+
+    // With the session unchanged, the rotated cookie is written back.
+    let site = uhc::portal::Site::open(&h.env.sessions, &adult1(), &h.env.base, Duration::ZERO).unwrap();
+    site.household().unwrap();
+    assert!(site.finish().unwrap());
+    assert!(h.stored().cookie_header.expose().contains("AWSALBTG=dummy-rotated"));
 }

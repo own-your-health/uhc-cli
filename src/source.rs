@@ -1,7 +1,8 @@
 //! Which source a command reads, and as which profile.
 //!
-//! - The files source applies only when it is named: `--files <DIR>` (or
-//!   `--dir`, or `UHC_IMPORT_DIR`). Otherwise a command that can read
+//! - The files source applies only when it is named: `--files <DIR>` or
+//!   `UHC_FILES` (the family's spelling, medical-common DESIGN.md §1.1), or
+//!   their older names `--dir` and `UHC_IMPORT_DIR`. Otherwise a command that can read
 //!   either reads the member site as the profile `--profile <NAME>` (or
 //!   `UHC_PROFILE`) names, and a missing profile is exit 2. No flag never
 //!   means the files.
@@ -25,7 +26,29 @@ use pk_cli_core::CliError;
 use crate::cli::{Cli, BIN};
 
 pub const PROFILE_ENV: &str = "UHC_PROFILE";
-pub const DIR_ENV: &str = "UHC_IMPORT_DIR";
+pub const DIR_ENV: &str = "UHC_FILES";
+/// [`DIR_ENV`]'s name before the family named it.
+pub const OLD_DIR_ENV: &str = "UHC_IMPORT_DIR";
+
+/// [`OLD_DIR_ENV`] (`old`), read when neither `--files` nor [`DIR_ENV`]
+/// named a folder. With both variables set, the flag decides when given;
+/// otherwise two different folders are exit 2.
+pub fn old_dir_variable(cli: &mut Cli, old: Option<PathBuf>) -> Result<(), CliError> {
+    let Some(old) = old.filter(|p| !p.as_os_str().is_empty()) else {
+        return Ok(());
+    };
+    match &cli.dir {
+        None => {
+            cli.dir = Some(old);
+            Ok(())
+        }
+        Some(_) if cli.given.dir_flag => Ok(()),
+        Some(dir) if *dir == old => Ok(()),
+        Some(_) => Err(CliError::Usage(format!(
+            "{DIR_ENV} and {OLD_DIR_ENV} name different folders; unset {OLD_DIR_ENV}, which {DIR_ENV} replaces"
+        ))),
+    }
+}
 
 /// The profile a command signs in as: `given` (the flag, or clap's value
 /// from `UHC_PROFILE`), which must be configured.
@@ -131,6 +154,40 @@ mod tests {
             p.add(ProfileName::parse(n).unwrap());
         }
         p
+    }
+
+    /// UHC_IMPORT_DIR, UHC_FILES' older name, fills in only what neither
+    /// --files nor UHC_FILES gave; two different folders are exit 2.
+    #[test]
+    fn the_old_files_variable_is_a_fallback() {
+        let old = || Some(PathBuf::from("/tmp/old"));
+        let mut cli = parse(&["uhc", "claims", "list"]);
+        cli.dir = None;
+        old_dir_variable(&mut cli, old()).unwrap();
+        assert_eq!(
+            source(&cli, &Profiles::new()).unwrap(),
+            Source::Files("/tmp/old".into())
+        );
+
+        let mut cli = parse(&["uhc", "claims", "list", "--files", "/tmp/flag"]);
+        old_dir_variable(&mut cli, old()).unwrap();
+        assert_eq!(
+            cli.dir.as_deref(),
+            Some(std::path::Path::new("/tmp/flag")),
+            "the flag wins"
+        );
+
+        // As if UHC_FILES had given a folder.
+        let mut cli = parse(&["uhc", "claims", "list"]);
+        cli.dir = Some("/tmp/new".into());
+        assert_eq!(old_dir_variable(&mut cli, old()).unwrap_err().exit_code(), 2);
+        cli.dir = Some("/tmp/old".into());
+        old_dir_variable(&mut cli, old()).unwrap();
+
+        let mut cli = parse(&["uhc", "claims", "list"]);
+        cli.dir = None;
+        old_dir_variable(&mut cli, Some(PathBuf::new())).unwrap();
+        assert!(cli.dir.is_none(), "an empty variable names nothing");
     }
 
     /// Before or after the subcommand, a flag is the command line's; the

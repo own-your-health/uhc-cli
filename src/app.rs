@@ -160,7 +160,8 @@ pub fn main() {
     let matches = Cli::command().get_matches();
     let mut cli = Cli::from_arg_matches(&matches).unwrap_or_else(|e| e.exit());
     cli.given = source::Given::of(&matches);
-    if let Err(e) = run(&cli) {
+    let old = std::env::var_os(source::OLD_DIR_ENV).map(PathBuf::from);
+    if let Err(e) = source::old_dir_variable(&mut cli, old).and_then(|()| run(&cli)) {
         std::process::exit(fail(&e, cli.common.json));
     }
 }
@@ -292,6 +293,10 @@ pub fn run(cli: &Cli) -> Result<(), CliError> {
                     // The login commands, records export among them, take
                     // --profile.
                     pk_med_records::LOGIN_PROFILES,
+                    // `records export --files <DIR>` reads the statement
+                    // files with no sign-in (medical-common DESIGN.md §1.1;
+                    // `pk_med_records::RECORDS_FILES` from v0.6.2).
+                    "records-files",
                 ],
             )
             .with_profiles(PROFILES);
@@ -1103,10 +1108,6 @@ fn find_document<'a>(book: &'a Book, q: &str) -> Result<(&'a StatementFile, Docu
     }
 }
 
-/// Open `path` for writing, owner-only (0600). An existing file is a usage
-/// error unless `replace`; a replaced file (or a symlink in its place) is
-/// removed first, so the new one gets the private mode and nothing is
-/// written through a link.
 /// Write `bytes` to `path`, owner-only (`pk_cli_core::private_file`): an
 /// existing file only with `overwrite`, replaced by rename so a failed
 /// write leaves the old file and never a partial one.

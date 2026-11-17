@@ -74,8 +74,9 @@ These come from the household's plan and are not negotiable.
 ## Sources
 
 A command that reads records reads the source it is given, never a
-default (`source::source`): `--files <DIR>` (alias `--dir`,
-`UHC_IMPORT_DIR`) or `--profile <NAME>` (`UHC_PROFILE`); neither is exit 2,
+default (`source::source`): `--files <DIR>` (`UHC_FILES`, medical-common
+DESIGN.md §1.1; older names `--dir` and `UHC_IMPORT_DIR`, read by
+`source::old_dir_variable`) or `--profile <NAME>` (`UHC_PROFILE`); neither is exit 2,
 and `config set import_dir` is `import check`'s folder only. A profile is
 cli-common's (`pk_cli_config::profile`, DESIGN.md §2.5): configured in
 uhc's config (`profiles add`), resolved by `profile::resolve` (missing,

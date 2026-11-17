@@ -1,7 +1,7 @@
 //! Black-box tests of the binary's surface. None reads a statement or the
 //! member site: each renders help or info, or is refused by argument checks
 //! that run before a source is read. The config directory is a temp dir,
-//! never the developer's, and `UHC_IMPORT_DIR` and `UHC_PROFILE` are
+//! never the developer's, and `UHC_FILES`, `UHC_IMPORT_DIR` and `UHC_PROFILE` are
 //! cleared.
 //!
 //! None reaches the real keychain or browser profile: `UHC_KEYCHAIN_SERVICE`
@@ -61,6 +61,7 @@ fn uhc() -> Command {
     hermetic(&mut cmd)
         .env("XDG_CONFIG_HOME", config_with(&["adult1"]))
         .env_remove("UHC_IMPORT_DIR")
+        .env_remove("UHC_FILES")
         .env_remove("UHC_PROFILE")
         .env_remove("NO_COLOR");
     cmd
@@ -141,6 +142,8 @@ fn info_declares_both_profiles_and_the_browser_sign_in() {
     let capabilities = v["capabilities"].as_array().unwrap();
     assert!(capabilities.contains(&serde_json::json!("login-profiles")), "{v}");
     assert!(capabilities.contains(&serde_json::json!("api")), "{v}");
+    // A records store passes --files only to a provider listing this.
+    assert!(capabilities.contains(&serde_json::json!("records-files")), "{v}");
     assert_eq!(v["auth"]["required"], true);
     assert_eq!(v["auth"]["method"], "browser-session");
     assert_eq!(v["auth"]["login_hint"], "uhc auth login --browser --profile <NAME>");
@@ -377,6 +380,18 @@ fn auth_login_user_agent_goes_with_a_pasted_session() {
     }
 }
 
+/// `api` reads: another method is a usage error when the arguments parse,
+/// before a profile or the vault is read; GET and POST take any case.
+#[test]
+fn api_takes_get_and_post_only() {
+    for m in ["PUT", "DELETE", "PATCH", "HEAD"] {
+        uhc().args(["--profile", "adult1", "api", m, "/x"]).assert().code(2);
+    }
+    let help = uhc().args(["api", "--help"]).assert().success();
+    let text = String::from_utf8_lossy(&help.get_output().stdout).to_string();
+    assert!(text.contains("[possible values: GET, POST]"), "{text}");
+}
+
 const EITHER_SOURCE: [&[&str]; 7] = [
     &["patients", "list"],
     &["claims", "list"],
@@ -492,16 +507,38 @@ fn a_folder_that_is_not_there_is_not_found() {
         .code(2);
 }
 
+/// UHC_FILES names the folder, and UHC_IMPORT_DIR, its older name, still
+/// does; the two naming different folders is exit 2.
 #[test]
 fn the_import_folder_comes_from_the_environment_too() {
     let dir = tmp();
-    let out = uhc()
+    for var in ["UHC_FILES", "UHC_IMPORT_DIR"] {
+        let out = uhc()
+            .env(var, &dir)
+            .args(["patients", "list", "--json"])
+            .assert()
+            .success();
+        let v: Value = serde_json::from_slice(&out.get_output().stdout).unwrap();
+        assert_eq!(v["schema"], "patient-list/v1", "{var}");
+    }
+    uhc()
+        .env("UHC_FILES", &dir)
         .env("UHC_IMPORT_DIR", &dir)
         .args(["patients", "list", "--json"])
         .assert()
         .success();
-    let v: Value = serde_json::from_slice(&out.get_output().stdout).unwrap();
-    assert_eq!(v["schema"], "patient-list/v1");
+    uhc()
+        .env("UHC_FILES", &dir)
+        .env("UHC_IMPORT_DIR", tmp())
+        .args(["patients", "list", "--json"])
+        .assert()
+        .code(2);
+    uhc()
+        .env("UHC_PROFILE", "adult1")
+        .env("UHC_FILES", &dir)
+        .args(["patients", "list", "--json"])
+        .assert()
+        .code(2);
 }
 
 #[test]
@@ -513,6 +550,7 @@ fn config_set_show_unset() {
         hermetic(&mut c)
             .env("XDG_CONFIG_HOME", &cfg)
             .env_remove("UHC_IMPORT_DIR")
+            .env_remove("UHC_FILES")
             .env_remove("UHC_PROFILE")
             .args(args);
         c

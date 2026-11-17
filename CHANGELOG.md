@@ -29,8 +29,10 @@ sessions live in an encrypted vault.
   `pharmacy`; `claims list` items gain `type`, and a claim's lines their
   site codes. `document` in `claims list` and `accumulators` is left out
   when there is none (the site's balances).
-- A command that reads records names its source: `--files <DIR>` (new
-  alias of `--dir`; `UHC_IMPORT_DIR`) for downloaded statements, or
+- A command that reads records names its source: `--files <DIR>` or
+  `UHC_FILES`, the family's spelling (`--dir` and `UHC_IMPORT_DIR` stay as
+  older names; the two variables naming different folders is exit 2) for
+  downloaded statements, or
   `--profile <NAME>` (`UHC_PROFILE`) for a member-site sign-in. Without one
   it is exit 2; before, no flag read `config set import_dir`, which is now
   `import check`'s folder only. `import check`, `info`, `config`,
@@ -51,6 +53,10 @@ sessions live in an encrypted vault.
   `piekstra.uhc`), so a new build asks the keychain once for every profile.
   `auth reset` removes every session and the key (asks; `--force` without a
   terminal, exit 6 without).
+- `info` lists `records-files` among its capabilities: `records export
+  --files <DIR>` streams the statement files with no sign-in (`method:
+  "portal"`, no `patient.session`), and a records store passes `--files`
+  only to a provider listing it.
 - `info` lists `login-profiles` among its capabilities, where a records
   store looks for it (medical-common DESIGN.md §1.1), and `auth.required`
   is true, in `auth status` too: without `--files`, a record command signs
