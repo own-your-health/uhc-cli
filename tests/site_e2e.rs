@@ -857,8 +857,6 @@ fn api_reads_the_site_and_refuses_anything_else() {
     );
 }
 
-/// A sign-in made while a command runs is never overwritten by that
-/// command's cookie write-back.
 /// A write-back that fails fails nothing: the export finished, so it exits
 /// 0 with its whole stream, and the stored session is the one that worked.
 /// The warning goes to stderr, which an in-process run does not capture.
@@ -882,6 +880,8 @@ fn a_failed_write_back_is_only_a_warning() {
     assert!(h.stored().cookie_header.expose().contains("AWSALBTG=dummy-rotated"));
 }
 
+/// A sign-in made while a command runs is never overwritten by that
+/// command's cookie write-back.
 #[test]
 fn a_newer_sign_in_is_not_overwritten() {
     let h = Household::new();
