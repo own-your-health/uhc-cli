@@ -1,0 +1,92 @@
+   SYNTHETIC TEST DATA - NOT A REAL STATEMENT
+   UnitedHealthcare                                                          Explanation of Benefits
+                                                                             Member/Patient:   SAM EXAMPLE
+                                                                             Member ID:        SYNM000001
+                                                                             Relationship:     SP
+                                                                             Group name:       EXAMPLE EMPLOYER
+                                                                             Group number:     SYNG0001
+
+   Hi, SAM.                                                                  Claim summary
+   THIS IS NOT A BILL. This Explanation of Benefits (EOB) is a summary of    Services in this statement occurred
+   services received and how plan benefits were applied.                     between Aug. 3, 2026 - Aug. 12, 2026
+                                                                             Provider billed               $720.00
+                                                                             Your total amount owed        $147.50
+   Plan balances
+                     As of 08/20/2026 for plan year 2026
+
+    Balances for SAM                                         Maximum         Progress so far        Remaining
+                                                              amount                                  amount
+         Network           Deductible                       $1,500.00            $100.00            $1,400.00
+                           Out-of-pocket limit              $4,000.00            $172.50            $3,827.50
+         Out-of-Network    Deductible                       $3,000.00              $0.00            $3,000.00
+                           Out-of-pocket limit              $8,000.00              $0.00            $8,000.00
+
+   STD-EOB
+   000000000000000-A-S-PS-E
+   Page 1 of 3
+
+   08/20/2026
+
+   Claim detail for SAM
+   Provider: EXAMPLE CLINIC                                                  Patient account number: SYNA0006
+   Status: Network                                                           Claim number: SYNC00000006
+
+                                    Claim     Provider     Amount    Plan allowed    Your     Applied to    Copay   Coinsurance   Plan does   Amount
+   Services received             processing    billed       saved       amount     plan paid  deductible                         not cover   you owe**
+                                   codes
+   OFFICE VISITS                     UG       $200.00      $80.00     $120.00      $85.00       $0.00     $35.00      $0.00       $0.00      $35.00
+   08/03/2026
+
+   Total amount                               $200.00      $80.00     $120.00      $85.00       $0.00     $35.00      $0.00       $0.00      $35.00
+
+
+   Provider: Pharmacy                                                        Patient account number: 00000000000000000
+                                                                             Claim number: SYNC00000007
+
+                                    Claim     Provider     Amount    Plan allowed    Your     Applied to    Copay   Coinsurance   Plan does   Amount
+   Services received             processing    billed       saved       amount     plan paid  deductible                         not cover   you owe**
+                                   codes
+   PRESCRIPTION DRUGS                FB         $0.00       $0.00       $0.00       $0.00       $0.00      $0.00      $0.00       $0.00      $12.50
+   08/05/2026
+
+   Total amount                                 $0.00       $0.00       $0.00       $0.00       $0.00      $0.00      $0.00       $0.00      $12.50
+
+
+   Provider: EXAMPLE CLINIC                                                  Patient account number: SYNA0006
+   Status: Network                                                           Claim number: SYNC00000008
+
+                                    Claim     Provider     Amount    Plan allowed    Your     Applied to    Copay   Coinsurance   Plan does   Amount
+   Services received             processing    billed       saved       amount     plan paid  deductible                         not cover   you owe**
+                                   codes
+   RADIOLOGY SERVICES                UG       $300.00     $150.00     $150.00     $150.00       $0.00      $0.00      $0.00       $0.00       $0.00
+   08/12/2026
+
+   Got questions?
+   Get in touch with customer service at 888-555-0100
+   STD-EOB
+   000000000000000-A-S-PS-E
+   Page 2 of 3
+
+   08/20/2026
+
+   Claim detail for SAM continued
+   Provider: EXAMPLE CLINIC                                                  Patient account number: SYNA0006
+   Status: Network                                                           Claim number: SYNC00000008
+
+                                    Claim     Provider     Amount    Plan allowed    Your     Applied to    Copay   Coinsurance   Plan does   Amount
+   Services received             processing    billed       saved       amount     plan paid  deductible                         not cover   you owe**
+                                   codes
+   RADIOLOGY SERVICES                UG       $220.00     $100.00     $120.00      $20.00     $100.00      $0.00      $0.00       $0.00     $100.00
+   08/12/2026
+
+   Total amount                               $520.00     $250.00     $270.00     $170.00     $100.00      $0.00      $0.00       $0.00     $100.00
+
+   Explanation of your claim processing codes
+   UG -- YOU HAVE RECEIVED A DISCOUNT FOR USING A HEALTH CARE PROFESSIONAL IN YOUR PLAN'S NETWORK.
+   FB -- THIS CLAIM WAS PROCESSED BY YOUR PHARMACY DRUG BENEFIT PROGRAM.
+
+   STD-EOB
+   000000000000000-A-S-PS-E
+   Page 3 of 3
+
+   08/20/2026

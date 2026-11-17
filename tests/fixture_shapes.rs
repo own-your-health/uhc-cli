@@ -185,3 +185,43 @@ fn unusual_whitespace_does_not_panic() {
     let st = eob::parse(&text);
     assert_eq!(st.claims.len(), 1);
 }
+
+/// UHC's own layout: one "Claim detail for" block holds several claims,
+/// each opening with its "Provider:" line, one of them the pharmacy's and
+/// two of them the same provider's, and the last continues across a page.
+#[test]
+fn a_block_of_several_claims_reads_each_one() {
+    let st = eob::parse(&fixture("2026-08-20-statement.txt"));
+    assert!(st.issues.is_empty(), "{:?}", st.issues);
+    let numbers: Vec<_> = st.claims.iter().map(|c| c.claim_number.as_deref()).collect();
+    assert_eq!(
+        numbers,
+        [Some("SYNC00000006"), Some("SYNC00000007"), Some("SYNC00000008")]
+    );
+    assert!(st.claims.iter().all(|c| c.patient == "SAM"));
+    let pharmacy = &st.claims[1];
+    assert_eq!(pharmacy.provider.as_deref(), Some("Pharmacy"));
+    assert_eq!(pharmacy.account_number.as_deref(), Some("00000000000000000"));
+    assert_eq!(pharmacy.network, None, "the pharmacy's claim prints no status");
+    assert_eq!(pharmacy.lines.len(), 1);
+    assert_eq!(pharmacy.total.unwrap().you_owe, usd("$12.50"));
+    let continued = &st.claims[2];
+    assert_eq!(continued.provider.as_deref(), Some("EXAMPLE CLINIC"));
+    assert_eq!(continued.lines.len(), 2, "the page break continues the claim");
+    assert_eq!(continued.total.unwrap().billed, usd("$520.00"));
+    assert_eq!(st.total_owed, Some(usd("$147.50")));
+}
+
+/// A page headed "Claim detail for SAM continued" that holds only the
+/// processing codes opens no claim.
+#[test]
+fn a_continued_heading_over_the_codes_opens_no_claim() {
+    let text = fixture("2026-08-20-statement.txt").replacen(
+        "   Explanation of your claim processing codes\n",
+        "   Claim detail for SAM continued\n   Explanation of your claim processing codes\n",
+        1,
+    );
+    let st = eob::parse(&text);
+    assert!(st.issues.is_empty(), "{:?}", st.issues);
+    assert_eq!(st.claims.len(), 3);
+}

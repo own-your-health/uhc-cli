@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- A statement's claim block holding several claims, each opening with its
+  own "Provider:" line, is read as that many claims (UHC's layout). Before,
+  a second claim in a block was folded into the first. A continued page
+  heading over the processing codes alone opens no claim.
+- A pharmacy benefit's claim on a medical statement ("Provider: Pharmacy")
+  is `rx` + the first 17 digits of its pharmacy claim number, which the
+  statement prints as the patient account number (`docs/fhir.md`).
+
 - On medical-common v0.2.0 and cli-common v0.31.1. `records export -o`
   renames the stream into place only once it is written: a complete one
   replaces `records.ndjson`, an incomplete one goes to
