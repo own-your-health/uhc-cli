@@ -113,6 +113,29 @@ pub fn patient_id(member_id: &str, first_name: &str) -> String {
     format!("m{}", &hex(&Sha256::digest(key.as_bytes()))[..12])
 }
 
+/// The id of a pharmacy benefit's claim: `rx` and the first 17 digits of
+/// its pharmacy claim number. The site lists the claim under that number
+/// (18 digits); a medical statement prints it, cut to 17, as the "Patient
+/// account number" of a claim from "Provider: Pharmacy", under a claim
+/// number of the statement's own that the site does not show. Both sources
+/// name the claim this way, so it is one claim to medrec.
+pub fn pharmacy_claim_id(number: &str) -> Option<String> {
+    let n = number.trim();
+    ((17..=18).contains(&n.len()) && n.bytes().all(|b| b.is_ascii_digit())).then(|| format!("rx{}", &n[..17]))
+}
+
+/// A statement's claim from the pharmacy benefit, by [`pharmacy_claim_id`].
+fn statement_pharmacy_id(c: &Claim) -> Option<String> {
+    let pharmacy = c
+        .provider
+        .as_deref()
+        .is_some_and(|p| p.eq_ignore_ascii_case("pharmacy"));
+    c.account_number
+        .as_deref()
+        .filter(|_| pharmacy)
+        .and_then(pharmacy_claim_id)
+}
+
 pub fn family_id(member_id: &str) -> String {
     format!("family-{}", &patient_id(member_id, "")[1..])
 }
@@ -245,9 +268,10 @@ impl Book {
             let st = &f.statement;
             let mid = Self::member_id(f);
             for (n, c) in st.claims.iter().enumerate() {
-                let key = match &c.claim_number {
-                    Some(num) => format!("c{}", sanitize(num)),
-                    None => format!("x{}{n:02}", &f.id[..10]),
+                let key = match (statement_pharmacy_id(c), &c.claim_number) {
+                    (Some(rx), _) => rx,
+                    (None, Some(num)) => format!("c{}", sanitize(num)),
+                    (None, None) => format!("x{}{n:02}", &f.id[..10]),
                 };
                 let totals = c
                     .total
@@ -445,6 +469,26 @@ mod tests {
         assert_eq!(a.len(), 13);
         assert!(!a.to_ascii_uppercase().contains("ALEX"));
         assert!(family_id("SYNM000001").starts_with("family-"));
+    }
+
+    #[test]
+    fn a_pharmacy_claim_is_named_by_its_first_17_digits() {
+        assert_eq!(
+            pharmacy_claim_id("000000000000000009").as_deref(),
+            Some("rx00000000000000000")
+        );
+        assert_eq!(
+            pharmacy_claim_id(" 00000000000000000 ").as_deref(),
+            Some("rx00000000000000000")
+        );
+        for not in [
+            "SYNA0006",
+            "0000000000000000",
+            "0000000000000000000",
+            "00000000000000000A",
+        ] {
+            assert_eq!(pharmacy_claim_id(not), None, "{not}");
+        }
     }
 
     #[test]

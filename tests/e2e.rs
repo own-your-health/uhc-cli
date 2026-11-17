@@ -58,9 +58,12 @@ const GOOD: &[&str] = &[
 fn uhc(dir: &Path) -> Command {
     let mut cmd = Command::cargo_bin("uhc").unwrap();
     cmd.env("XDG_CONFIG_HOME", tmp("cfg"))
+        .env("UHC_KEYCHAIN_SERVICE", "piekstra.uhc.hermetic-tests")
         .env_remove("NO_COLOR")
         .env_remove("UHC_PDFTOTEXT")
-        .arg("--dir")
+        .env_remove("UHC_PROFILE")
+        .env_remove("UHC_IMPORT_DIR")
+        .arg("--files")
         .arg(dir);
     cmd
 }
@@ -535,10 +538,15 @@ fn statements_that_cannot_be_read_are_an_upstream_error() {
     std::fs::write(dir.join("s.pdf"), uhc::synth::text_pdf(text)).unwrap();
     let out = uhc(&dir).args(["claims", "list", "--json"]).assert().code(5);
     let e: Value = serde_json::from_slice(&out.get_output().stdout).unwrap();
-    assert!(e["error"]["message"]
-        .as_str()
-        .unwrap()
-        .contains("layout may have changed"));
+    let message = e["error"]["message"].as_str().unwrap();
+    assert!(
+        message.starts_with("the statements could not be read: 1 PDF(s)"),
+        "{message}"
+    );
+    assert!(message.contains("layout may have changed"), "{message}");
+    assert_eq!(e["error"]["code"], "upstream");
+    let stderr = String::from_utf8_lossy(&out.get_output().stderr);
+    assert!(!stderr.contains("network"), "no network is involved: {stderr}");
     // The check and the documents still work: they are how to look into it.
     let v = json_of(uhc(&dir).args(["import", "check"]));
     assert_eq!(v["issues"]["no_claims"], 1);
@@ -678,6 +686,7 @@ fn a_closed_pipe_ends_the_export_quietly() {
     let alex = member_id(&dir, "Alex");
     let mut child = std::process::Command::new(assert_cmd::cargo::cargo_bin("uhc"))
         .env("XDG_CONFIG_HOME", tmp("cfg"))
+        .env_remove("UHC_PROFILE")
         .arg("--dir")
         .arg(&dir)
         .args(["records", "export", "--patient", &alex, "--ndjson"])

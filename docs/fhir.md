@@ -17,6 +17,7 @@ Every resource carries `meta.source` `uhc:eob-pdf` and the tag
 | Family | `family-` + 12 hex of SHA-256(member id \| "") | the family rows of the plan balances |
 | Coverage | `cov-` + 12 hex of SHA-256(member id \| member \| group) | one per member and group |
 | Claim | `c` + the claim number | stable across reprocessing |
+| Pharmacy claim | `rx` + the first 17 digits of the pharmacy claim number | a medical statement prints a pharmacy benefit's claim from "Provider: Pharmacy" under a claim number of its own, with the pharmacy claim number, cut to 17 digits, as its "Patient account number" |
 | Claim without a number | `x` + the first 10 hex of the document id + its index | a damaged statement |
 | Statement | first 16 hex of the PDF's SHA-256 | the same file saved twice is one statement |
 | DocumentReference, Binary | `doc-` / `bin-` + the statement id + `-` + the member id | a statement carrying two members' claims is a document of each, with its own subject |

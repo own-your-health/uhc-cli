@@ -17,6 +17,10 @@ owns the records stream, the export file and the profile's DTOs. Every
 |---|---|
 | `src/cli.rs` | the clap tree |
 | `src/app.rs` | the commands, argument checks, output |
+| `src/auth.rs` | `auth login`, `status`, `logout` of one `--profile`, `auth reset`: the browser-profile seams |
+| `src/session.rs` | `SessionStore`: get, put and delete a profile's session in the vault; the only code that knows where it lives |
+| `src/source.rs` | which source a command reads (`--files` or `--profile`), and as which configured profile (`resolve_profile`) |
+| `src/site.rs` | the member site: the browser capture, the session check (`SESSION_CHECK_URL`, `judge`) |
 | `src/files.rs` | the import folder: which PDFs, `pdftotext` bounded in time and size |
 | `src/eob.rs` | the statement parser (UHC's STD-EOB layout) and its issue codes |
 | `src/cents.rs` | statement amounts as integer cents |
@@ -33,10 +37,16 @@ These come from the household's plan and are not negotiable.
   pull requests or issues. Fixtures are synthetic (`tests/fixtures/README.md`);
   `tests/no_personal_data.rs` scans every tracked file and checks every
   identity field in the fixtures against its dummy shape.
-- An agent session is a third-party service. Never read, print or summarize a
-  real statement, record or member name in one. Develop and dogfood on the
-  synthetic statements (`make synth`). A check against real statements is
-  `uhc import check`: counts and issue codes only, never a value.
+- Records and their contents are never sent to an outside service: no
+  health-data aggregator, cloud OCR or other company's API. A Claude session
+  is not one of these (the household's decision, 2026-11-17). A session may
+  read, print and summarize the household's real statements, records and
+  names when the work needs it: debugging a real export, mapping the member
+  site with real answers, checking a pull, answering the owner. Real data
+  stays out of tracked files, commits, pull requests and issues, and out of
+  messages to other sessions unless they need it. Tests and fixtures stay
+  synthetic (`make synth`), and a raw capture is deleted from `/tmp` once it
+  has served.
 - `records export -o DIR` refuses statements without the synthetic marker;
   real records go straight into medrec through a pipe.
 - No FHIR, SMART or PDF libraries, no aggregators, no cloud OCR or AI.
@@ -59,20 +69,50 @@ These come from the household's plan and are not negotiable.
 
 ## Sources
 
-The files source is the only one. The member site source (`auth login
---browser` through `pk-cli-browser`) waits on the household's ruling on
-myuhc.com's terms; `docs/api.md` § Route. When it lands: one keychain item
-per credential set, a `UHC_KEYCHAIN_SERVICE` test-only override, every
-`make` target signs, request logs through `Capture::request_log` (method,
-host, path, status; no bodies or queries), shapes only from real responses.
+A command that reads records reads the source it is given, never a
+default (`source::source`): `--files <DIR>` (alias `--dir`,
+`UHC_IMPORT_DIR`) or `--profile <NAME>` (`UHC_PROFILE`); neither is exit 2,
+and `config set import_dir` is `import check`'s folder only. A profile is
+cli-common's (`pk_cli_config::profile`, DESIGN.md §2.5): configured in
+uhc's config (`profiles add`), resolved by `profile::resolve` (missing,
+malformed or unknown is exit 2 listing the configured names; a lone
+profile is never picked). A session is the vault entry `<profile>/session`
+(`pk_cli_auth::vault::Vault::for_binary("uhc")`: one keychain item,
+`vault-key` in `piekstra.uhc`, and an encrypted file per entry under
+`~/.config/uhc/vault/`), and a `--browser` sign-in runs in the profile's own
+kept Chrome profile (`Launch::profile_name`). `profiles remove` removes the
+session and that browser profile before the profile; `auth reset` is
+`Vault::clear`. The vault's remedies are replaced with uhc's commands.
+
+The member-site sign-in is in place (`auth login --browser` through
+`pk-cli-browser`, or `--stdin`), with a `UHC_KEYCHAIN_SERVICE` test-only
+override, and every `make` target signs. Its session check is one GraphQL
+read (`site::SESSION_CHECK_URL`, judged by `site::judge`). The household chose the
+member site (uhc signs in as the owner in a browser and
+reads the site's own data, accepting the risk under its Terms of Use;
+`docs/api.md` § Route). Map it by driving the signed-in site directly, with
+the browser-explore loop or the session's own requests, and read real
+answers as the work needs. Be gentle with it: one request at a time, no bulk
+crawling. `examples/map-site.rs` prints an endpoint list and answer shapes
+for `docs/api.md`.
 
 ## Tests are offline, always
 
-`cargo test` reads no keychain, contacts nothing, and reads no real
-statement:
+`cargo test` reads no real keychain item or browser profile, stores no
+session, contacts nothing beyond loopback, and reads no real statement.
+Every test that runs a credential-reading command sets
+`UHC_KEYCHAIN_SERVICE=piekstra.uhc.hermetic-tests`, a service that holds
+nothing, with a temp `XDG_CONFIG_HOME`: under that variable the vault is
+`$XDG_CONFIG_HOME/uhc/vault`, never the owner's, and uhc leaves the kept
+browser profiles alone. No binary test stores a session, so none writes or
+reads a key (the vault reads its key only when an entry exists). Unit and
+in-process tests use `Vault::new(MemoryKeys::new(), dir)`; the profile
+seams are filled with `named_profile_exists_in` and
+`forget_named_profile_in` under a temp dir.
 
 - `tests/cli_surface.rs`: every `--help`, exit codes, JSON errors, argument
-  checks before the folder is read, `NO_COLOR`, a per-test `XDG_CONFIG_HOME`.
+  checks before a source is read, source and profile selection, `NO_COLOR`,
+  a per-test `XDG_CONFIG_HOME`.
 - `tests/fixture_shapes.rs`: the parser over `tests/fixtures/eob/*.txt`.
 - `tests/e2e.rs`: the binary over the fixtures written as PDFs at test time
   and read back through the real `pdftotext` (skipped where poppler is not

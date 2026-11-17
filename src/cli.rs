@@ -4,13 +4,16 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 use clap_complete::Shell;
+use pk_cli_auth::LoginArgs;
+use pk_cli_browser::BrowserArgs;
 use pk_cli_core::{CommonArgs, RangeArgs};
 use pk_cli_selfupdate::SelfUpdateArgs;
 
 pub const BIN: &str = "uhc";
 
 /// UnitedHealthcare coverage, claims, EOBs and deductible progress, read from
-/// the EOB statements you download from myuhc.com. Read-only; unofficial.
+/// the member site (myuhc.com) or from the EOB statements you download from
+/// it. Read-only; unofficial.
 #[derive(Parser, Debug)]
 #[command(name = BIN, version, about, long_about = None)]
 pub struct Cli {
@@ -21,10 +24,28 @@ pub struct Cli {
     #[arg(long, global = true, value_name = "PATH")]
     pub config: Option<PathBuf>,
 
-    /// The folder holding your downloaded EOB statement PDFs (overrides
-    /// `config set import_dir`).
-    #[arg(long, global = true, env = "UHC_IMPORT_DIR", value_name = "DIR")]
+    /// Read the member site as this profile: one configured with `uhc
+    /// profiles add <NAME>` and signed in with `uhc auth login --browser
+    /// --profile <NAME>`. There is no default profile.
+    #[arg(long, global = true, env = "UHC_PROFILE", value_name = "NAME")]
+    pub profile: Option<String>,
+
+    /// Read the EOB statement PDFs downloaded into this folder (the files
+    /// source) instead of the member site. `import check` falls back to
+    /// `config set import_dir`.
+    #[arg(
+        long,
+        visible_alias = "files",
+        global = true,
+        env = "UHC_IMPORT_DIR",
+        value_name = "DIR"
+    )]
     pub dir: Option<PathBuf>,
+
+    /// Which of --profile and --dir were given as flags, not variables
+    /// (`source::Given::of`).
+    #[arg(skip)]
+    pub given: crate::source::Given,
 
     #[command(subcommand)]
     pub command: Command,
@@ -32,25 +53,30 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    /// Sign-in status. The files source needs no sign-in.
+    /// The member-site sign-in (myuhc.com), one per --profile. The files
+    /// source needs none.
     #[command(subcommand)]
     Auth(AuthCmd),
     /// Non-secret settings (`import_dir`).
     #[command(subcommand)]
     Config(ConfigCmd),
-    /// The members the statements name: subscriber and dependents (patient-list/v1).
+    /// The member-site logins: one profile per account (profile-list/v1).
+    #[command(subcommand)]
+    Profiles(ProfilesCmd),
+    /// The members on the plan: subscriber and dependents (patient-list/v1).
     #[command(subcommand)]
     Patients(PatientsCmd),
     /// Coverage and claims as records-stream/v1, for `medrec import --from uhc`.
     #[command(subcommand)]
     Records(RecordsCmd),
-    /// Claims, each once, as its latest statement prints it.
+    /// Claims, each once, in their latest version.
     #[command(subcommand)]
     Claims(ClaimsCmd),
     /// Deductible and out-of-pocket progress per member and plan year
     /// (accumulator-list/v1).
     Accumulators(AccumulatorsArgs),
-    /// The EOB statement PDFs (documents/v1).
+    /// The EOB statement PDFs, and on the member site its other letters
+    /// (documents/v1).
     #[command(subcommand)]
     Documents(DocumentsCmd),
     /// Check the import folder: how many statements, claims and balances were
@@ -67,12 +93,64 @@ pub enum Command {
 
 #[derive(Subcommand, Debug)]
 pub enum AuthCmd {
-    /// The files source needs no sign-in; this says so.
-    Login,
-    /// Credential state (auth-status/v1).
+    /// Sign in to the member site as --profile <NAME> and keep the session
+    /// in uhc's vault: encrypted files under ~/.config/uhc/vault/, sealed
+    /// with a key held in the OS keychain (auth-login/v1).
+    ///
+    /// --browser opens a Chrome window on member.uhc.com in the profile's
+    /// own browser profile, where you sign in; --stdin reads the Cookie
+    /// header of a member.uhc.com request, copied from a signed-in
+    /// browser's DevTools, with --user-agent from the same request. One member-site read checks the session before
+    /// it is stored, unless --no-verify.
+    Login(LoginCmd),
+    /// Whether the profile's member-site session is stored and when it was
+    /// captured (auth-status/v1). Sends no request.
     Status,
-    /// Nothing is stored for the files source; this says so.
+    /// Remove the profile's stored session, then the browser profile its
+    /// --browser sign-in keeps (auth-logout/v1).
     Logout,
+    /// Remove every profile's stored session from the vault and the vault's
+    /// key from the keychain (auth-reset/v1): the way out when the key is lost or
+    /// damaged. Asks first; without a terminal it needs --force (exit 6).
+    Reset {
+        /// Do not ask.
+        #[arg(long)]
+        force: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ProfilesCmd {
+    /// The configured profiles, by name (profile-list/v1).
+    #[command(visible_alias = "ls")]
+    List,
+    /// Add a profile: 1 to 32 lowercase letters, digits, `-` or `_`,
+    /// starting with a letter or a digit (profile-add/v1).
+    Add { name: String },
+    /// Remove a profile with its stored session and the browser profile its
+    /// --browser sign-in keeps (profile-remove/v1). Asks first; without a
+    /// terminal it needs --force (exit 6).
+    Remove {
+        name: String,
+        /// Do not ask.
+        #[arg(long)]
+        force: bool,
+    },
+}
+
+// The family's login flags with `--browser` beside them (DESIGN.md §2.2).
+// A plain comment: a doc comment here would replace `auth login`'s about.
+#[derive(Args, Debug)]
+pub struct LoginCmd {
+    #[command(flatten)]
+    pub login: LoginArgs,
+    #[command(flatten)]
+    pub browser: BrowserArgs,
+    /// With --stdin or --from-env: the User-Agent of the browser the Cookie
+    /// header was copied from. The site's edge refuses requests without a
+    /// browser's, so the check and every later read send it.
+    #[arg(long, value_name = "UA")]
+    pub user_agent: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]

@@ -14,14 +14,14 @@ plan balances. Findings are from UHC's and Optum's public pages, read on
 
 ## Route
 
-Open: the household's decision, recorded in the uhc-cli twapp session. The
-household's plan is an employer plan. The evidence below says the Patient Access
-API serves Medicare, Medicaid, CHIP and ACA marketplace members, so the member
-site or the member's own downloads are the realistic sources.
+Decided: the member site. uhc signs in to myuhc.com in a browser as the
+owner and reads the site's own data, accepting the risk under its Terms of
+Use. The household's plan is an employer plan, and the evidence below says
+the Patient Access API serves Medicare, Medicaid, CHIP and ACA marketplace
+members.
 
-Built in v0.1.0, whatever the decision: the files source. It reads the EOB
-statement PDFs the member downloads from the site (layout below) and never
-contacts UHC. The member site source waits on the decision.
+The files source (v0.1.0) stays: it reads the EOB statement PDFs the member
+downloads from the site (layout below) and never contacts UHC.
 
 ## Patient Access API (Optum FHIR Layer EXchange, "FLEX")
 
@@ -156,8 +156,16 @@ self or a dependent on the consent screen.
 
 ## Member site (myuhc.com)
 
+Mapped 2026-11-17 by driving a signed-in session: page loads in the
+owner's own window, then the same requests replayed with the session's
+cookies. Every read below is a GraphQL `query` or a `GET`; uhc never sends
+a mutation.
+
 - Entry `https://www.myuhc.com/` redirects to `https://member.uhc.com/myuhc`.
-  Sign-in is HealthSafe ID at `www.healthsafe-id.com`.
+  Sign-in is HealthSafe ID at `identity.healthsafe-id.com/oneapp`, an Angular
+  app on CloudFront. Its public bundle carries ThreatMetrix device profiling
+  and reCAPTCHA. uhc never automates the sign-in: the owner signs in on the
+  site's own page, in the Chrome window `uhc auth login --browser` opens.
 - Terms: the HealthSafe ID Terms of Use (effective September 28, 2022), linked
   from the sign-in page. Under "Restrictions on Use of Online Services ... You
   Will Not": "Copy, modify or harvest data, Content, or materials from the
@@ -170,13 +178,53 @@ self or a dependent on the consent screen.
   any of these Terms, your license to the Online Services and its Content
   terminates immediately." Disputes go to binding arbitration with a class
   action waiver; disputes "about the existence or extent of your health
-  benefits or coverage" are excluded from arbitration.
-- What it shows: claims for the member and covered family, EOB PDFs ("Download
-  Explanation of Benefits (EOB)"), ID cards, plan balances. An employer's HR page
-  says members "can download claims to a spreadsheet".
-- Endpoints: not yet observed. Learning them needs the household's ruling on
-  the terms and a real sign-in, with request logs only (method, host, path,
-  status) and shapes, never values.
+  benefits or coverage" are excluded from arbitration. The Terms of Use the
+  member site's footer loads (`myoptum.optum.com/content/optum-dashboard/en/footer/uhc/terms.html`)
+  say the same: "not to use manual or automated software, devices, scripts,
+  robots, backdoors or other means or processes to access ... "scrape,"
+  "crawl" or "spider" any web pages". The household accepted that risk.
+
+### The session
+
+| | |
+|---|---|
+| Before sign-in | `member.uhc.com` sets visitor cookies only: `AWSALBTG`, `AWSALBTGCORS`, `X-DashCafe-Canary` |
+| Signed in | about 50 cookies on `member.uhc.com` and `.uhc.com`; `rally-token`, `RS_MU`, `BARN_SP`, `FD_MU` and `JSESSIONID` are `HttpOnly`. `rally-token` is the capture's readiness signal |
+| Lifetime | every `member.uhc.com` session cookie is a browser-session cookie (no expiry), so a Chrome restart signs the profile out; the kept profile does not stay signed in. The site's own idle and absolute limits are being measured |
+| Signed out | a GraphQL read answers `401 application/json`: `{"meta":{"success":false,...,"errors":[{"error":"Credentials missing.",...}]}}` |
+| Session check | `POST /ce-claims-aggregate-api/graphql?q=sessionCheck` with `query sessionCheck { spendingOverviews { __typename } }`: `200` with `data.spendingOverviews` when signed in, `401` otherwise |
+
+### Reads
+
+All on `https://member.uhc.com`, `POST` with a JSON body
+`{"operationName", "variables", "query"}` unless marked `GET`.
+
+| What | Request | Answer |
+|---|---|---|
+| Members | `/ce-claims-aggregate-api/graphql?q=getAllClaims`, `getAllClaims(startDate, stopDate)` | `allClaimsAggregate.profileV1`: `currentUser` and `dependents[]` (names, `dependentSeqNum`, `planCoverages[]` with `memberId`, `groupNumber`, `coverageType`), `claimCoverageTypes` |
+| Claims | `/ce-claims-aggregate-api/graphql?page=allClaims&cache=off`, `allClaims(startDate, stopDate)` (ISO dates; the page asks for 18 months) | `allClaimsAggregate.healthcareClaims.claims[]`: `claimType` (`MEDICAL`, `RX`, `DENTAL`), `claimKey`, `claimId`, `claimStatus`, `serviceDate`, `lastServiceDate`, `processedDate`, `providerName`, `eobDocument`, `serviceRecipient` (`firstName`, `lastName`, `dependentSeqNbr`), `balance` (`totalBilledAmount`, `healthPlanDiscount`, `healthPlanPays`, `deductible`, `copay`, `patientResponsibility`, `youMayOweAmount`, each `{value, iso4217}`) |
+| FSA claims | same endpoint, `allFinancialClaims(startDate, stopDate, accountType: "FSAHC")` | `financialClaims[]` |
+| One claim | `/ce-claims-aggregate-api/graphql?q=getClaimDetails`, `getClaimDetails(claimKey, claimType)` | `claimDetailsAggregate.healthCareClaimDetails`: `claimDates`, `claimNetworkStatus`, `providerId` (`tin`), `claimHistory[]`, `serviceLines[]` with `serviceDate`, `procedures[]` and `serviceInfo` (`code`, `description`), `serviceRemarks[]` (`code`, `description`) and `serviceAdjudication` (`chargedAmount`, `planPaidAmount`, `deductible`, `copay`, `coinsurance`, `memberNotCoveredAmount`, `patientResponsibility`, `providerWriteOff`) |
+| Plan balances | `/ce-claims-aggregate-api/graphql?q=getSpendingOverview`, no variables | `spendingOverviews.accumulators[]` per `depSeqNbr`: `accumulatorSummaries[].benefits[]` with `coverageType`, `benefitsPeriodIndicator` and `accumulators.inNetwork[]`, `outOfNetwork[]`, `tier1[]` (`accumulatorType`, `type`, `amount`); `benefits[].benefitsResponses[]` with the plan's `maxes` |
+| Spending by month | `/ce-claims-aggregate-api/graphql?page=spendingOverviews`, `GetSpendingCostsV1(startDate, endDate)` | `costs.spendingCosts[].memberData[]` by category and month |
+| Documents | `/rest/oneportal/web/documents-aggregate-api/v1/graphql`, `GetAllDocumentTypes(processedStartDate, processedStopDate, mnrConsumerDetails: {planProfiles: []})` (the page asks for 3 months) | `multiDocTypeListSummary.documents[]`: `documentId`, `documentType` ("Explanation of Benefits", "Health Statement", "Prior Authorization Letters", ...), `documentClass`, `claimIDs[]`, `claimKey`, `dateCreated`, `memberName`; `errors[]` per document type |
+| A document | `GET /oneportal/view/documents-aggregate-api/v1/v2/doc360/content/id/<uuid>?documentClass=...` | `application/pdf`. Several statements share one `<uuid>` and differ only in the query |
+| Plan benefits | `/benefits/eni/graphql?traceName=...`: `globalQuery`, `fastQuery` (the benefit catalog), `summaryBenefits(benefitIds, benefitPlanId)`, `benefitDetails`, `additionalBenefits` | benefit text as rich-text nodes; the certificate of coverage is a PDF linked from the coverage page |
+| ID card | `GET /rest/oneportal/web/integrated?components=idCard...&pageId=DIGITALIDCARD` | the card's sections, images included (about 330 KB) |
+
+### Traps
+
+- A request without a browser's `User-Agent` gets `403 text/html` from the
+  edge, signed in or not. uhc sends the user agent captured with the
+  session; `auth login --stdin` takes it as `--user-agent`.
+- The signed-in pages have no sign-out link a page script can see: the
+  site header is a web component. Readiness is a cookie, not the DOM.
+- The GraphQL endpoints answer queries the site never sends, such as the
+  one-field session check.
+- `benefit-details?benefitName=` for a benefit the plan does not list loads
+  no `benefitDetails` at all. Home health care and private-duty nursing
+  are only in the certificate of coverage, not the benefit pages.
+- `uhc.com`'s legal pages answer `403` to fetch tools.
 
 ## EOB statement layout (UHC's public sample)
 

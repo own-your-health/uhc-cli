@@ -3,11 +3,11 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use clap::CommandFactory;
-use pk_cli_auth::AuthStatus;
+use clap::{CommandFactory, FromArgMatches};
+use pk_cli_config::profile::{ProfileName, Profiles};
 use pk_cli_config::ConfigStore;
 use pk_cli_core::info::{AuthInfo, CliInfo};
-use pk_cli_core::{dates, output, CliError, Paged, RangeArgs};
+use pk_cli_core::{dates, output, CliError, Paged, RangeArgs, Reason};
 use pk_cli_documents::{fs_safe, verify_pdf, Document, DownloadBatch, SavedDocument, SkippedDocument};
 use pk_cli_selfupdate::Updater;
 use pk_med_records::dto::{kind, member_role, method, relationship};
@@ -24,9 +24,16 @@ use crate::eob::Issue;
 use crate::fhir;
 use crate::files::{self, Scan};
 use crate::model::{Balances, Book, ClaimRecord, Member, StatementFile, ORGANIZATION, ORGANIZATION_NAME};
+use crate::source;
 
 const REPO: &str = "piekstra/uhc-cli";
-pub const PROFILES: &[&str] = &[pk_med_records::PROFILE, pk_cli_documents::PROFILE];
+/// `info`'s profiles: health-records/v1 and documents/v1, and login-profiles,
+/// since the member-site commands take `--profile <NAME>`.
+pub const PROFILES: &[&str] = &[
+    pk_med_records::PROFILE,
+    pk_cli_documents::PROFILE,
+    pk_med_records::LOGIN_PROFILES,
+];
 /// Where the statements come from; the stream's `organization.fhir_base`.
 pub const SITE_BASE: &str = "https://member.uhc.com/myuhc";
 /// `Skip.code` (an open set) for a statement read with issues.
@@ -38,11 +45,16 @@ pub struct Config {
     /// The folder holding the downloaded EOB statement PDFs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub import_dir: Option<String>,
+    /// The member-site logins, one per account (`uhc profiles add <NAME>`).
+    #[serde(default, skip_serializing_if = "Profiles::is_empty")]
+    pub profiles: Profiles,
 }
 
 struct Ctx<'a> {
     cli: &'a Cli,
     store: ConfigStore,
+    /// The statements folder a files-source command reads.
+    dir: Option<PathBuf>,
 }
 
 impl Ctx<'_> {
@@ -56,8 +68,10 @@ impl Ctx<'_> {
         }
     }
 
+    /// The folder the files source reads: the command's `--files`, else
+    /// (for `import check`) `config set import_dir`.
     fn import_dir(&self) -> Result<PathBuf, CliError> {
-        if let Some(d) = &self.cli.dir {
+        if let Some(d) = &self.dir {
             return Ok(expand(d));
         }
         let cfg: Config = self.store.load()?;
@@ -65,7 +79,7 @@ impl Ctx<'_> {
             Some(d) => Ok(expand(Path::new(&d))),
             None => Err(CliError::Usage(format!(
                 "no import folder: download your EOB statements from myuhc.com into a folder, then \
-                 `{BIN} config set import_dir <DIR>` (or pass --dir)"
+                 `{BIN} config set import_dir <DIR>` (or pass --files <DIR>)"
             ))),
         }
     }
@@ -100,10 +114,11 @@ impl Ctx<'_> {
         let unread = |f: &&StatementFile| f.statement.claims.is_empty() && f.statement.balances.is_empty();
         if !files.is_empty() && files.iter().all(|f| unread(&f)) {
             return Err(CliError::Upstream(format!(
-                "{} PDF(s) look like UnitedHealthcare EOB statements but none could be read; the statement \
-                 layout may have changed (`{BIN} import check`)",
+                "{UNREADABLE}{} PDF(s) look like UnitedHealthcare EOB statements, but no claim or balance came \
+                 out of any; the statement layout may have changed (`{BIN} import check`)",
                 files.len()
-            )));
+            ))
+            .because(UNREADABLE_STATEMENTS));
         }
         Ok(scan)
     }
@@ -125,50 +140,137 @@ pub fn main() {
     unsafe {
         libc::signal(libc::SIGPIPE, libc::SIG_DFL);
     }
-    let cli = <Cli as clap::Parser>::parse();
+    let matches = Cli::command().get_matches();
+    let mut cli = Cli::from_arg_matches(&matches).unwrap_or_else(|e| e.exit());
+    cli.given = source::Given::of(&matches);
     if let Err(e) = run(&cli) {
-        std::process::exit(output::fail(&e, cli.common.json));
+        std::process::exit(fail(&e, cli.common.json));
     }
 }
 
+/// How the exit 5 for a folder of unreadable statements begins.
+const UNREADABLE: &str = "the statements could not be read: ";
+/// Its cause, which [`fail`] prints without cli-common's "network/upstream
+/// error:" line.
+const UNREADABLE_STATEMENTS: Reason = Reason::Provider("unreadable-statements");
+
+/// `output::fail`, except for statements that could not be read: cli-common
+/// prints every exit 5 as "network/upstream error: …", and reading a folder
+/// involves no network.
+fn fail(e: &CliError, json: bool) -> i32 {
+    if e.reason() != Some(UNREADABLE_STATEMENTS) {
+        return output::fail(e, json);
+    }
+    if json {
+        output::json(&serde_json::json!({"error": {"code": e.code(), "message": e.message()}}));
+    }
+    eprintln!("error: {}", e.message());
+    e.exit_code()
+}
+
 pub fn run(cli: &Cli) -> Result<(), CliError> {
-    let ctx = Ctx {
+    let ctx = |dir: Option<PathBuf>| Ctx {
         cli,
         store: ConfigStore::new(BIN).with_override(cli.config.clone()),
+        dir,
+    };
+    // A command that reads either source reads the one named
+    // (`source::source`); the files commands below run as they always have.
+    // The configured profiles, for a command that may sign in.
+    let profiles = || -> Result<Profiles, CliError> { Ok(ctx(None).store.load::<Config>()?.profiles) };
+    let files = || -> Result<Result<Ctx, ProfileName>, CliError> {
+        Ok(match source::source(cli, &profiles()?)? {
+            source::Source::Files(dir) => Ok(ctx(Some(dir))),
+            source::Source::Site(profile) => Err(profile),
+        })
     };
     match &cli.command {
-        Command::Auth(cmd) => auth(&ctx, cmd),
-        Command::Config(cmd) => config(&ctx, cmd),
-        Command::Patients(PatientsCmd::List) => patients(&ctx),
-        Command::Records(RecordsCmd::Export(args)) => export(&ctx, args),
-        Command::Claims(ClaimsCmd::List(args)) => claims_list(&ctx, args),
-        Command::Claims(ClaimsCmd::Get { claim }) => claims_get(&ctx, claim),
-        Command::Accumulators(args) => accumulators(&ctx, args),
-        Command::Documents(DocumentsCmd::List(range)) => documents_list(&ctx, range),
-        Command::Documents(DocumentsCmd::Download(args)) => documents_download(&ctx, args),
-        Command::Import(ImportCmd::Check) => import_check(&ctx),
-        Command::SelfUpdate(args) => Updater {
-            repo: REPO.into(),
-            binary: BIN.into(),
-            target: env!("BUILD_TARGET").into(),
-            current: env!("CARGO_PKG_VERSION").into(),
+        Command::Auth(AuthCmd::Reset { force }) => {
+            source::no_profile(cli, "auth reset")?;
+            crate::auth::reset(*force, cli.common.interactive(), cli.common.json, cli.common.quiet)
         }
-        .run(args, cli.common.json, cli.common.quiet),
+        Command::Auth(cmd) => auth(&ctx(None), cmd, &profiles()?),
+        Command::Config(cmd) => {
+            source::no_profile(cli, "config")?;
+            config(&ctx(None), cmd)
+        }
+        Command::Profiles(cmd) => {
+            source::no_profile(cli, "profiles")?;
+            profiles_cmd(&ctx(None), cmd)
+        }
+        Command::Patients(PatientsCmd::List) => match files()? {
+            Ok(ctx) => patients(&ctx),
+            Err(profile) => site_pending(&profile),
+        },
+        Command::Records(RecordsCmd::Export(args)) => {
+            // Its own checks come first, whichever the source.
+            export_args(cli, args)?;
+            match files()? {
+                Ok(ctx) => export(&ctx, args),
+                Err(profile) => site_pending(&profile),
+            }
+        }
+        Command::Claims(ClaimsCmd::List(args)) => match files()? {
+            Ok(ctx) => claims_list(&ctx, args),
+            Err(profile) => site_pending(&profile),
+        },
+        Command::Claims(ClaimsCmd::Get { claim }) => match files()? {
+            Ok(ctx) => claims_get(&ctx, claim),
+            Err(profile) => site_pending(&profile),
+        },
+        Command::Accumulators(args) => match files()? {
+            Ok(ctx) => accumulators(&ctx, args),
+            Err(profile) => site_pending(&profile),
+        },
+        Command::Documents(DocumentsCmd::List(range)) => match files()? {
+            Ok(ctx) => documents_list(&ctx, range),
+            Err(profile) => site_pending(&profile),
+        },
+        Command::Documents(DocumentsCmd::Download(args)) => match files()? {
+            Ok(ctx) => documents_download(&ctx, args),
+            Err(profile) => site_pending(&profile),
+        },
+        Command::Import(ImportCmd::Check) => {
+            source::no_profile(cli, "import check")?;
+            import_check(&ctx(cli.dir.clone()))
+        }
+        Command::SelfUpdate(args) => {
+            source::no_profile(cli, "self-update")?;
+            Updater {
+                repo: REPO.into(),
+                binary: BIN.into(),
+                target: env!("BUILD_TARGET").into(),
+                current: env!("CARGO_PKG_VERSION").into(),
+            }
+            .run(args, cli.common.json, cli.common.quiet)
+        }
         Command::Completions { shell } => {
+            source::no_profile(cli, "completions")?;
             clap_complete::generate(*shell, &mut Cli::command(), BIN, &mut std::io::stdout());
             Ok(())
         }
         Command::Info => {
+            source::no_profile(cli, "info")?;
             let info = CliInfo::new(
                 BIN,
                 env!("CARGO_PKG_VERSION"),
                 &format!("https://github.com/{REPO}"),
+                // The files source needs no sign-in; the member site's is a
+                // browser one.
                 AuthInfo {
                     required: false,
-                    method: "none".into(),
-                    login_hint: None,
+                    method: "browser-session".into(),
+                    login_hint: Some(format!("{BIN} auth login --browser --profile <NAME>")),
                 },
-                &["patients", "records", "claims", "accumulators", "documents", "import"],
+                &[
+                    "profiles",
+                    "patients",
+                    "records",
+                    "claims",
+                    "accumulators",
+                    "documents",
+                    "import",
+                ],
             )
             .with_profiles(PROFILES);
             output::json(&serde_json::to_value(&info).expect("CliInfo serializes"));
@@ -179,21 +281,91 @@ pub fn run(cli: &Cli) -> Result<(), CliError> {
 
 // ------------------------------------------------------------------ auth
 
-fn auth(ctx: &Ctx, cmd: &AuthCmd) -> Result<(), CliError> {
+fn auth(ctx: &Ctx, cmd: &AuthCmd, profiles: &Profiles) -> Result<(), CliError> {
+    let quiet = ctx.cli.common.quiet;
+    let profile = source::site_profile(ctx.cli, profiles)?;
     match cmd {
-        AuthCmd::Login => Err(CliError::Usage(format!(
-            "nothing to sign in to: {BIN} reads the EOB statements you download from myuhc.com \
-             (`{BIN} config set import_dir <DIR>`)"
-        ))),
-        AuthCmd::Status => {
-            AuthStatus::not_required().emit(ctx.json());
+        AuthCmd::Login(args) => crate::auth::login(args, &profile, ctx.json(), quiet),
+        AuthCmd::Status => crate::auth::status(&profile, ctx.json(), quiet),
+        AuthCmd::Logout => crate::auth::logout(&profile, ctx.json(), quiet),
+        AuthCmd::Reset { .. } => unreachable!("run() handles auth reset"),
+    }
+}
+
+// -------------------------------------------------------------- profiles
+
+/// `profiles list|add|remove` (cli-common DESIGN.md §2.5): the logins, by
+/// name, in the config. Removing one removes what uhc keeps for it first.
+fn profiles_cmd(ctx: &Ctx, cmd: &ProfilesCmd) -> Result<(), CliError> {
+    match cmd {
+        ProfilesCmd::List => {
+            let cfg: Config = ctx.store.load()?;
+            let list = cfg.profiles.list();
+            if ctx.json() {
+                output::json(&serde_json::to_value(&list).unwrap_or_default());
+            } else if list.profiles.is_empty() {
+                ctx.note(&format!(
+                    "no profiles: `{BIN} profiles add <NAME>`, one per member-site account"
+                ));
+            } else {
+                for p in &list.profiles {
+                    println!("{}", p.name);
+                }
+            }
             Ok(())
         }
-        AuthCmd::Logout => {
-            if ctx.json() {
-                output::json(&json!({ "schema": "auth-logout/v1", "signed_out": [] }));
+        ProfilesCmd::Add { name } => {
+            let name = ProfileName::parse(name)?;
+            let mut cfg: Config = ctx.store.load()?;
+            let added = cfg.profiles.add(name.clone());
+            if added {
+                ctx.store.save(&cfg)?;
             }
-            ctx.note("nothing is stored: the files source keeps no credential");
+            output::emit(
+                ctx.json(),
+                "profile-add",
+                json!({ "profile": name.as_str(), "added": added }),
+                |_| {
+                    ctx.note(&if added {
+                        format!("added profile {name}; sign in with `{BIN} auth login --browser --profile {name}`")
+                    } else {
+                        format!("profile {name} is already configured")
+                    })
+                },
+            );
+            Ok(())
+        }
+        ProfilesCmd::Remove { name, force } => {
+            let name = ProfileName::parse(name)?;
+            // Whether it can ask, before the config or the vault is read.
+            pk_cli_core::confirm::require_confirmable(*force, ctx.cli.common.interactive(), "remove a profile")?;
+            let cfg: Config = ctx.store.load()?;
+            if !cfg.profiles.contains(&name) {
+                return Err(CliError::NotFound(format!("no profile `{name}`"))
+                    .with_remedy(format!("`{BIN} profiles list` shows the configured ones")));
+            }
+            pk_cli_core::confirm::confirm(
+                *force,
+                &format!("Remove profile {name}, its stored session and its browser profile?"),
+            )?;
+            let done = crate::auth::forget_login(&name)?;
+            let mut cfg: Config = ctx.store.load()?;
+            cfg.profiles.remove(&name);
+            ctx.store.save(&cfg)?;
+            let mut v = json!({ "profile": name.as_str(), "session_removed": done.session_removed });
+            if let Some(removed) = done.browser_profile_removed {
+                v["browser_profile_removed"] = removed.into();
+            }
+            output::emit(ctx.json(), "profile-remove", v, |_| {
+                ctx.note(&format!(
+                    "removed profile {name}: {}",
+                    if done.session_removed {
+                        "its session was removed"
+                    } else {
+                        "no session was stored"
+                    }
+                ))
+            });
             Ok(())
         }
     }
@@ -389,7 +561,7 @@ fn patients(ctx: &Ctx) -> Result<(), CliError> {
 
 // --------------------------------------------------------------- records
 
-fn now_rfc3339() -> String {
+pub(crate) fn now_rfc3339() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
@@ -486,16 +658,29 @@ pub fn member_resources(book: &Book, m: &Member, sel: &Selection) -> Result<Vec<
     Ok(out)
 }
 
-fn export(ctx: &Ctx, args: &ExportArgs) -> Result<(), CliError> {
-    if args.ndjson && ctx.json() {
+/// `records export`'s argument checks, before any source is read.
+fn export_args(cli: &Cli, args: &ExportArgs) -> Result<(), CliError> {
+    if args.ndjson && cli.common.json {
         return Err(CliError::Usage("--ndjson is the output; drop --json".into()));
     }
-    let since = args.since.as_deref().map(iso).transpose()?;
+    args.since.as_deref().map(iso).transpose()?;
     if !args.ndjson && args.output.is_none() {
         return Err(CliError::Usage(
             "say where the records go: --ndjson for stdout (`| medrec import --from uhc`) or -o <DIR>".into(),
         ));
     }
+    Ok(())
+}
+
+/// Until the member-site source is in place.
+fn site_pending(profile: &ProfileName) -> Result<(), CliError> {
+    Err(CliError::Other(format!(
+        "the member-site source (profile `{profile}`) is not built yet; pass --files <DIR>"
+    )))
+}
+
+fn export(ctx: &Ctx, args: &ExportArgs) -> Result<(), CliError> {
+    let since = args.since.as_deref().map(iso).transpose()?;
     let scan = ctx.records()?;
     let members = scan.book.members();
     let m = find_member(&members, &args.who.patient)?;

@@ -273,12 +273,12 @@ pub fn parse(text: &str) -> Statement {
     let mut pending_date: Option<usize> = None; // index into the current claim's lines
     let mut row_network: Option<Network> = None;
     let mut claim_margin = 0usize;
-    // A repeated "Claim detail for" header of a claim with no total yet: the
-    // claim goes on (a page break) unless the block names another claim.
-    let mut continuing = false;
     // Plain text since the last service line: a description printed above
     // its amounts, or wrapped onto further lines.
     let mut pending_text: Vec<String> = Vec::new();
+    // The provider of the latest "Provider:" line, for a claim that a new
+    // claim number opens on the line after it.
+    let mut last_provider: Option<String> = None;
 
     for (i, raw) in lines.iter().enumerate() {
         let line = raw.trim_end();
@@ -365,7 +365,9 @@ pub fn parse(text: &str) -> Statement {
         }
         if let Some(who) = field(line, "Claim detail for") {
             let patient = first_word(&who);
-            continuing = st
+            // A repeated header over a claim with no total yet goes on with
+            // it (a page break); a block naming another claim starts that one.
+            let continuing = st
                 .claims
                 .last()
                 .is_some_and(|c| c.total.is_none() && !c.lines.is_empty() && c.patient.eq_ignore_ascii_case(&patient));
@@ -375,6 +377,7 @@ pub fn parse(text: &str) -> Statement {
                     ..Claim::default()
                 });
                 pending_date = None;
+                last_provider = None;
             }
             claim_margin = line.len() - line.trim_start().len();
             section = Section::Claim;
@@ -417,19 +420,27 @@ pub fn parse(text: &str) -> Statement {
             Section::Claim => {
                 let provider = field(line, "Provider:");
                 let number = field(line, "Claim number:").map(|v| first_word(&v));
-                if continuing {
-                    // A continued block that names a different claim is that claim.
-                    let last = st.claims.last().expect("a claim section has a claim");
-                    let differs = |new: &Option<String>, old: &Option<String>| matches!((new, old), (Some(n), Some(o)) if !n.eq_ignore_ascii_case(o));
-                    if differs(&number, &last.claim_number) || differs(&provider, &last.provider) {
-                        let patient = last.patient.clone();
-                        st.claims.push(Claim {
-                            patient,
-                            ..Claim::default()
-                        });
-                        pending_date = None;
-                        continuing = false;
-                    }
+                if provider.is_some() {
+                    last_provider = provider.clone();
+                }
+                // One block can hold several claims, each opening with its
+                // own "Provider:" line, the same provider's twice included.
+                // A continued block repeats the provider and number of the
+                // claim it goes on with, which has no total yet.
+                let last = st.claims.last().expect("a claim section has a claim");
+                let differs = |new: &Option<String>, old: &Option<String>| matches!((new, old), (Some(n), Some(o)) if !n.eq_ignore_ascii_case(o));
+                if differs(&number, &last.claim_number)
+                    || differs(&provider, &last.provider)
+                    || (provider.is_some() && last.total.is_some())
+                {
+                    let patient = last.patient.clone();
+                    st.claims.push(Claim {
+                        patient,
+                        provider: provider.clone().or_else(|| last_provider.clone()),
+                        ..Claim::default()
+                    });
+                    pending_date = None;
+                    pending_text.clear();
                 }
                 let claim = st.claims.last_mut().expect("a claim section has a claim");
                 if claim.provider.is_none() {
@@ -462,7 +473,6 @@ pub fn parse(text: &str) -> Statement {
                     }
                     continue;
                 }
-                continuing = false;
                 let values: Vec<Cents> = amounts.iter().map(|(_, c)| *c).collect();
                 let prefix = &line[..amounts[0].0];
                 if prefix.trim_start().starts_with("Total amount") {
@@ -509,6 +519,10 @@ pub fn parse(text: &str) -> Statement {
     }
 
     st.statement_date = footer_date.or_else(|| st.balances.iter().find_map(|b| b.as_of.clone()));
+    // A "Claim detail for … continued" heading over a page that holds only
+    // the processing codes opens no claim.
+    st.claims
+        .retain(|c| c.provider.is_some() || c.claim_number.is_some() || !c.lines.is_empty() || c.total.is_some());
     check(&mut st);
     st
 }

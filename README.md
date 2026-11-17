@@ -8,8 +8,8 @@ household's medical-records system as FHIR (`records-stream/v1`, read by
 `medrec import --from uhc`). It is read-only: nothing it does writes to UHC.
 
 It reads the EOB statement PDFs you download from myuhc.com into a folder.
-It never contacts UnitedHealthcare. Text comes from the local `pdftotext`
-(poppler); nothing is sent anywhere. `docs/api.md` records why: UHC's
+The statement commands never contact UnitedHealthcare. Text comes from the
+local `pdftotext` (poppler); nothing is sent anywhere. `docs/api.md` records why: UHC's
 Patient Access API serves Medicare, Medicaid, CHIP and marketplace members,
 not employer plans, and the member site's terms forbid automated access.
 
@@ -26,18 +26,29 @@ cargo install --git https://github.com/piekstra/uhc-cli --locked
 ```sh
 # Download each "Claim EOB" PDF from myuhc.com (Claims & Accounts) into one folder.
 uhc config set import_dir ~/Documents/UHC-EOBs
-
 uhc import check                 # counts and issue codes only; safe to share
-uhc patients list                # subscriber and dependents
-uhc claims list --since 2026-01-01
-uhc claims get <claim number>
-uhc accumulators --year 2026     # deductible and out-of-pocket progress
-uhc documents list
-uhc documents download <id> -o ~/Desktop
-uhc documents download --all -o ~/Archive/UHC   # re-runs save only new statements
 
-uhc records export --patient <id> --ndjson | medrec import --from uhc
+F=~/Documents/UHC-EOBs
+uhc --files $F patients list     # subscriber and dependents
+uhc --files $F claims list --since 2026-01-01
+uhc --files $F claims get <claim number>
+uhc --files $F accumulators --year 2026     # deductible and out-of-pocket progress
+uhc --files $F documents list
+uhc --files $F documents download <id> -o ~/Desktop
+uhc --files $F documents download --all -o ~/Archive/UHC   # re-runs save only new statements
+
+uhc --files $F records export --patient <id> --ndjson | medrec import --from uhc
 ```
+
+A command that reads records names its source: `--files <DIR>` (alias
+`--dir`, or `UHC_IMPORT_DIR`) for downloaded statements, `--profile <NAME>`
+(or `UHC_PROFILE`) for a member-site sign-in. Without one it is exit 2;
+`config set import_dir` is `import check`'s folder only. A flag wins over
+the other source's variable; both flags, or both variables and no flag, are
+exit 2. A profile must be configured (`uhc profiles add <NAME>`); there is
+no default, and a lone profile is never picked. `import check`, `info`,
+`config`, `profiles`, `auth reset`, `self-update` and `completions` need no
+sign-in and take no `--profile`.
 
 Every command takes `--json` and prints one schema-tagged document, except
 `records export --ndjson`, whose NDJSON stream is the output (`--json` with
@@ -51,11 +62,15 @@ it is a usage error, exit 2).
 | `accumulators` | `accumulator-list/v1` |
 | `documents list` / `download` | `document-list/v1` / `document-download/v1`, `document-download-batch/v1` |
 | `import check` | `import-check/v1` |
-| `auth status` | `auth-status/v1` |
-| `info` | `cli-info/v1`, profiles `health-records/v1` and `documents/v1` |
+| `auth login` / `status` / `logout` / `reset` | `auth-login/v1` / `auth-status/v1` / `auth-logout/v1` / `auth-reset/v1` |
+| `profiles list` / `add` / `remove` | `profile-list/v1` / `profile-add/v1` / `profile-remove/v1` |
+| `info` | `cli-info/v1`, profiles `health-records/v1`, `documents/v1` and `login-profiles` |
 
-Exit codes: 0 ok, 1 other (pdftotext missing), 2 usage, 4 not found,
-5 the statements could not be read (layout changed).
+Exit codes: 0 ok, 1 other (pdftotext missing), 2 usage, 3 sign-in not
+finished or session refused, 4 not found, 5 the statements could not be
+read (layout changed), or the member site's answer could not decide, 6 a
+destructive command (`auth reset`, `profiles remove`) without a terminal
+to ask on and without `--force`.
 
 `documents download` never replaces a file without `--overwrite`. For one
 document an existing file is a usage error (exit 2). With `--all`, a
@@ -86,11 +101,49 @@ export's `DocumentReference` id: a statement carrying two members' claims
 is listed once for each, both rows naming the one file. `documents download`
 also takes a prefix of the statement id that `claims list` shows.
 
+## Profiles and the member-site session
+
+The files source needs no sign-in. The member site's is one session per
+profile: one per member account that signs in, named by you (1 to 32
+lowercase letters, digits, `-` or `_`) and kept in uhc's config.
+
+```sh
+uhc profiles add adult1                       # once per account
+uhc profiles list
+uhc auth login --browser --profile adult1     # a Chrome window on member.uhc.com; sign in there
+uhc auth login --browser --fresh-profile --profile adult1   # a scratch browser profile, removed afterwards
+pbpaste | uhc auth login --stdin --user-agent "<the browser's>" --profile adult1   # a Cookie header from DevTools
+uhc auth status --profile adult1              # stored or not, and when; sends no request
+uhc auth logout --profile adult1              # removes the session, then the browser profile
+uhc profiles remove adult1                    # the session, the browser profile, then the profile
+uhc auth reset                                # every profile's session and the vault's key
+```
+
+Before a session is stored, one member-site read checks it (a one-field
+GraphQL query; a 401 is not signed in); `--no-verify` stores it unchecked
+(`"verified": false` in `auth-login/v1`). With a session stored for the
+profile, `auth login` refuses before Chrome opens unless `--overwrite`. The
+site's edge refuses a request without a browser's user agent, so a
+`--stdin` session needs `--user-agent`.
+
+| What | Where | Removed by |
+| --- | --- | --- |
+| The session: the `Cookie` header, the browser's user agent and when it was captured, as one JSON entry `<profile>/session` | uhc's vault: one encrypted, owner-only (`0600`) file per entry under `~/.config/uhc/vault/`, sealed with one key, the keychain item `vault-key` in service `piekstra.uhc` | `uhc auth logout --profile <NAME>`, first; `uhc auth reset` removes every entry and the key |
+| The Chrome profile `--browser` signs in through, one per profile, kept so the site remembers this device: the site's cookies (encrypted by Chrome), its site storage and the window's history | `~/Library/Application Support/piekstra.uhc/browser-profile-<profile>`, owner-only (`0700`); under `$XDG_DATA_HOME` on Linux | `uhc auth logout --profile <NAME>`, after the session |
+
+`--fresh-profile` signs in without the kept profile and leaves it as it is.
+The session never goes on a command line or into a log, and on disk only
+encrypted. One keychain item for every profile means a new build of uhc
+asks the keychain once, and a run with nothing stored reads no item at all
+(cli-common DESIGN.md §2.5). `auth reset` is for a lost or damaged key:
+it asks first, and without a terminal needs `--force`.
+
 ## Try it on synthetic data
 
 ```sh
 make synth                       # target/synth/*.pdf, from tests/fixtures/eob/
-uhc --dir target/synth import check
+uhc --files target/synth import check
+uhc --files target/synth claims list
 ```
 
 ## Development

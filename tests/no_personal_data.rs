@@ -150,9 +150,11 @@ fn is_dummy_name(full: &str) -> bool {
 }
 
 fn is_dummy_org(name: &str) -> bool {
-    ["EXAMPLE", "SAMPLE", "TEST"]
-        .iter()
-        .any(|w| name.split_whitespace().any(|x| x == *w))
+    // A statement prints a pharmacy benefit's claim as "Provider: Pharmacy".
+    name == "Pharmacy"
+        || ["EXAMPLE", "SAMPLE", "TEST"]
+            .iter()
+            .any(|w| name.split_whitespace().any(|x| x == *w))
 }
 
 /// `prefix` then exactly `digits` digits.
@@ -196,10 +198,13 @@ fn identity_fields_in_fixtures_use_dummy_values() {
             check("Group number:", &|v| shaped(v, "SYNG", 4));
             check("Group name:", &is_dummy_org);
             check("Claim number:", &|v| shaped(v, "SYNC", 8));
-            check("Patient account number:", &|v| shaped(v, "SYNA", 4));
+            // A pharmacy claim's account number is its pharmacy claim number.
+            check("Patient account number:", &|v| {
+                shaped(v, "SYNA", 4) || (v.bytes().all(|b| b.is_ascii_digit()) && is_dummy_number(v))
+            });
             check("Provider:", &is_dummy_org);
             check("Claim detail for", &|v| {
-                PEOPLE.contains(&v.trim_end_matches(" (continued)"))
+                PEOPLE.contains(&v.trim_end_matches(" (continued)").trim_end_matches(" continued"))
             });
             check("Balances for", &|v| PEOPLE.contains(&v) || v == "FAMILY");
             check("Hi,", &|v| PEOPLE.contains(&v.trim_end_matches('.')));

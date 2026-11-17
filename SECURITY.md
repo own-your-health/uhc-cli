@@ -11,8 +11,28 @@ Report a vulnerability privately through GitHub's "Report a vulnerability"
 - Writes only where asked: `documents download` (owner-only 0600 files,
   never replacing one without `--overwrite`) and `records export -o`
   (synthetic statements only).
-- Contacts no server except GitHub, for `self-update`.
-- Stores no credential. The config file holds the import folder's path.
+- Contacts no server except GitHub, for `self-update`, and member.uhc.com
+  for `auth login`: a Chrome window the owner signs in through, and one
+  GraphQL read of the member's plan balances that checks the session before
+  it is stored. Every request to member.uhc.com is a GraphQL query or a
+  `GET`; uhc sends no mutation.
+- Stores one credential per profile, its member-site session: the
+  `Cookie` header, the browser's user agent and the capture time, as the
+  vault entry `<profile>/session`. The vault (`pk_cli_auth::vault`) is
+  encrypted owner-only files under `~/.config/uhc/vault/`, with one key in
+  the keychain (service `piekstra.uhc`, account `vault-key`). A session never
+  goes on a command line or into a log.
+- Keeps one Chrome profile per uhc profile for `auth login --browser`, so
+  the site remembers the device:
+  `~/Library/Application Support/piekstra.uhc/browser-profile-<profile>`
+  (under `$XDG_DATA_HOME` on Linux), owner-only (`0700`, a launch is refused
+  otherwise). It holds the site's cookies, which Chrome encrypts, and its
+  site storage and the window's history, which only the mode protects.
+  `--fresh-profile` signs in without it.
+- `auth logout --profile <NAME>` and `profiles remove <NAME>` remove that
+  profile's session, then its Chrome profile. `auth reset` removes every
+  session and the vault key.
+- The config file holds the import folder's path and the profile names.
 
 ## What uhc never does
 
