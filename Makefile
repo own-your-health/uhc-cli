@@ -52,8 +52,9 @@ synth:
 	$(CARGO) run -q --example synth-eob -- target/synth
 
 # Offline smoke test: no network, no real statement, and never the real
-# keychain or browser profile: UHC_KEYCHAIN_SERVICE names a service that
-# holds nothing, under which uhc leaves the kept profile alone. The round
+# keychain, vault or browser profile: UHC_KEYCHAIN_SERVICE names a service
+# that holds nothing, with the vault under target/smoke-config, and uhc
+# leaves the kept profile alone. Nothing is stored, so no key is read. The round
 # trip over the synthetic PDFs runs where pdftotext is installed.
 HERMETIC := UHC_KEYCHAIN_SERVICE=piekstra.uhc.hermetic-tests XDG_DATA_HOME=$(CURDIR)/target/smoke-data \
 	XDG_CONFIG_HOME=$(CURDIR)/target/smoke-config
@@ -61,9 +62,11 @@ smoke: build
 	@./target/debug/$(BIN) --version >/dev/null
 	@env -u UHC_PROFILE ./target/debug/$(BIN) info >/dev/null
 	@env -u UHC_PROFILE ./target/debug/$(BIN) completions bash >/dev/null
+	@rm -rf target/smoke-config
+	@$(HERMETIC) ./target/debug/$(BIN) -q profiles add smoke >/dev/null
 	@$(HERMETIC) ./target/debug/$(BIN) -q auth status --profile smoke --json >/dev/null
-	@for c in "auth login" "auth status" "auth logout" \
-		"patients list" "records export" "claims list" "claims get" accumulators \
+	@for c in "auth login" "auth status" "auth logout" "auth reset" "profiles list" "profiles add" \
+		"profiles remove" "patients list" "records export" "claims list" "claims get" accumulators \
 		"documents list" "documents download" "import check"; do \
 		./target/debug/$(BIN) $$c --help >/dev/null || exit 1; done
 	@if command -v pdftotext >/dev/null; then \

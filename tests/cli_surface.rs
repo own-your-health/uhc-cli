@@ -8,7 +8,11 @@
 //! names a service that holds nothing (a missing item needs no approval),
 //! and under it the binary never touches the kept profile. `XDG_DATA_HOME`,
 //! where Linux keeps that profile, is a temp dir besides. `HOME` stays: on
-//! macOS the keychain is found through it. No test stores a session.
+//! macOS the keychain is found through it. No test stores a session, so no
+//! test writes the vault's key or reads one: the vault reads its key only
+//! when an entry exists (cli-common DESIGN.md §2.5).
+//!
+//! The temp config of [`uhc`] configures one profile, `adult1`.
 
 use assert_cmd::Command;
 use predicates::prelude::*;
@@ -36,10 +40,26 @@ fn hermetic(cmd: &mut Command) -> &mut Command {
         .env_remove("UHC_CHROME")
 }
 
+/// A config directory whose config configures `profiles`.
+fn config_with(profiles: &[&str]) -> std::path::PathBuf {
+    let base = tmp();
+    std::fs::create_dir_all(base.join("uhc")).unwrap();
+    let names: serde_json::Map<String, Value> = profiles
+        .iter()
+        .map(|p| (p.to_string(), serde_json::json!({})))
+        .collect();
+    std::fs::write(
+        base.join("uhc").join("config.json"),
+        serde_json::json!({ "profiles": names }).to_string(),
+    )
+    .unwrap();
+    base
+}
+
 fn uhc() -> Command {
     let mut cmd = Command::cargo_bin("uhc").unwrap();
     hermetic(&mut cmd)
-        .env("XDG_CONFIG_HOME", tmp())
+        .env("XDG_CONFIG_HOME", config_with(&["adult1"]))
         .env_remove("UHC_IMPORT_DIR")
         .env_remove("UHC_PROFILE")
         .env_remove("NO_COLOR");
@@ -58,6 +78,11 @@ fn every_command_renders_help() {
         vec!["auth", "login", "--help"],
         vec!["auth", "status", "--help"],
         vec!["auth", "logout", "--help"],
+        vec!["auth", "reset", "--help"],
+        vec!["profiles", "--help"],
+        vec!["profiles", "list", "--help"],
+        vec!["profiles", "add", "--help"],
+        vec!["profiles", "remove", "--help"],
         vec!["config", "--help"],
         vec!["config", "path", "--help"],
         vec!["config", "show", "--help"],
@@ -109,7 +134,10 @@ fn info_declares_both_profiles_and_the_browser_sign_in() {
     assert_eq!(v["schema"], "cli-info/v1");
     assert_eq!(v["name"], "uhc");
     assert_eq!(v["spec"], "piekstra-cli/1");
-    assert_eq!(v["profiles"], serde_json::json!(["health-records/v1", "documents/v1"]));
+    assert_eq!(
+        v["profiles"],
+        serde_json::json!(["health-records/v1", "documents/v1", "login-profiles"])
+    );
     // The files source needs no sign-in; the member site's is a browser one.
     assert_eq!(v["auth"]["required"], false);
     assert_eq!(v["auth"]["method"], "browser-session");
@@ -142,6 +170,90 @@ fn auth_status_when_nothing_is_stored() {
         .success()
         .stdout(predicate::str::contains("Method:        browser-session"))
         .stdout(predicate::str::contains("Keychain:      empty"));
+}
+
+/// A profile must be configured: an unknown one is exit 2 naming the
+/// configured ones, none configured names `profiles add`, and a lone
+/// profile is never picked for a command that names none.
+#[test]
+fn a_profile_must_be_configured() {
+    let out = uhc()
+        .args(["auth", "status", "--profile", "adult2", "--json"])
+        .assert()
+        .code(2);
+    let e = error_of(&out);
+    assert!(e["error"]["message"].as_str().unwrap().contains("adult1"), "{e}");
+    let out = uhc().args(["auth", "status", "--json"]).assert().code(2);
+    assert!(error_of(&out)["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("configured: adult1"));
+    let out = uhc()
+        .env("XDG_CONFIG_HOME", tmp())
+        .args(["claims", "list", "--profile", "adult1", "--json"])
+        .assert()
+        .code(2);
+    let e = error_of(&out);
+    assert!(e.to_string().contains("uhc profiles add adult1"), "{e}");
+}
+
+#[test]
+fn profiles_add_list_remove() {
+    let cfg = tmp();
+    let run = |args: &[&str]| {
+        let mut c = uhc();
+        c.env("XDG_CONFIG_HOME", &cfg).args(args);
+        c
+    };
+    let list =
+        |c: &mut Command| -> Value { serde_json::from_slice(&c.assert().success().get_output().stdout).unwrap() };
+    assert_eq!(
+        list(&mut run(&["profiles", "list", "--json"])),
+        serde_json::json!({ "schema": "profile-list/v1", "profiles": [] })
+    );
+    for name in ["adult2", "adult1"] {
+        let v = list(&mut run(&["profiles", "add", name, "--json"]));
+        assert_eq!(
+            v,
+            serde_json::json!({ "schema": "profile-add/v1", "profile": name, "added": true })
+        );
+    }
+    let v = list(&mut run(&["profiles", "add", "adult1", "--json"]));
+    assert_eq!(v["added"], false);
+    let v = list(&mut run(&["profiles", "list", "--json"]));
+    assert_eq!(
+        v["profiles"],
+        serde_json::json!([{ "name": "adult1" }, { "name": "adult2" }])
+    );
+    run(&["profiles", "list"]).assert().success().stdout("adult1\nadult2\n");
+    for bad in ["Adult1", "a b", "-x"] {
+        run(&["profiles", "add", bad]).assert().code(2);
+    }
+    // Destructive: without a terminal it needs --force, decided first.
+    run(&["profiles", "remove", "adult2"]).assert().code(6);
+    run(&["profiles", "remove", "adult3", "--force"]).assert().code(4);
+    let v = list(&mut run(&["profiles", "remove", "adult2", "--force", "--json"]));
+    assert_eq!(v["schema"], "profile-remove/v1");
+    assert_eq!(v["profile"], "adult2");
+    assert_eq!(v["session_removed"], false);
+    // The kept browser profile is left alone under the test service.
+    assert!(v.get("browser_profile_removed").is_none(), "{v}");
+    let v = list(&mut run(&["profiles", "list", "--json"]));
+    assert_eq!(v["profiles"], serde_json::json!([{ "name": "adult1" }]));
+    run(&["--profile", "adult1", "profiles", "list"]).assert().code(2);
+}
+
+/// `auth reset` clears every profile's session: without a terminal it
+/// needs --force (exit 6), before the vault is opened, and it is no one
+/// profile's.
+#[test]
+fn auth_reset_needs_force_without_a_terminal() {
+    let out = uhc().args(["auth", "reset", "--json"]).assert().code(6);
+    assert_eq!(error_of(&out)["error"]["code"], "confirmation_required");
+    uhc()
+        .args(["auth", "reset", "--force", "--profile", "adult1"])
+        .assert()
+        .code(2);
 }
 
 #[test]

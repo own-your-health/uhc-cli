@@ -17,9 +17,9 @@ owns the records stream, the export file and the profile's DTOs. Every
 |---|---|
 | `src/cli.rs` | the clap tree |
 | `src/app.rs` | the commands, argument checks, output |
-| `src/auth.rs` | `auth login`, `status`, `logout` of one `--profile`: the browser-profile seams |
-| `src/session.rs` | `SessionStore`: get, put and delete a profile's session; the only code that knows where it lives |
-| `src/source.rs` | which source a command reads (`--files` or `--profile`), profile names (`resolve_profile`) |
+| `src/auth.rs` | `auth login`, `status`, `logout` of one `--profile`, `auth reset`: the browser-profile seams |
+| `src/session.rs` | `SessionStore`: get, put and delete a profile's session in the vault; the only code that knows where it lives |
+| `src/source.rs` | which source a command reads (`--files` or `--profile`), and as which configured profile (`resolve_profile`) |
 | `src/site.rs` | the member site: the browser capture, the session check (`SESSION_CHECK_URL`, `judge`) |
 | `src/files.rs` | the import folder: which PDFs, `pdftotext` bounded in time and size |
 | `src/eob.rs` | the statement parser (UHC's STD-EOB layout) and its issue codes |
@@ -72,13 +72,17 @@ These come from the household's plan and are not negotiable.
 A command that reads records reads the source it is given, never a
 default (`source::source`): `--files <DIR>` (alias `--dir`,
 `UHC_IMPORT_DIR`) or `--profile <NAME>` (`UHC_PROFILE`); neither is exit 2,
-and `config set import_dir` is `import check`'s folder only. This is
-provisional until cli-common v0.33.0: its `pk_cli_config::profile::resolve`
-replaces `source::resolve_profile` (an unknown name becomes exit 2), and its
-`pk_cli_auth::vault::Vault` replaces `session::SessionStore`'s body (entries
-`<profile>/session`). Until then a session is the keychain item
-`piekstra.uhc` / `session/<profile>`, and a `--browser` sign-in runs in
-the profile's own kept Chrome profile (`Launch::profile_name`).
+and `config set import_dir` is `import check`'s folder only. A profile is
+cli-common's (`pk_cli_config::profile`, DESIGN.md §2.5): configured in
+uhc's config (`profiles add`), resolved by `profile::resolve` (missing,
+malformed or unknown is exit 2 listing the configured names; a lone
+profile is never picked). A session is the vault entry `<profile>/session`
+(`pk_cli_auth::vault::Vault::for_binary("uhc")`: one keychain item,
+`vault-key` in `piekstra.uhc`, and an encrypted file per entry under
+`~/.config/uhc/vault/`), and a `--browser` sign-in runs in the profile's own
+kept Chrome profile (`Launch::profile_name`). `profiles remove` removes the
+session and that browser profile before the profile; `auth reset` is
+`Vault::clear`. The vault's remedies are replaced with uhc's commands.
 
 The member-site sign-in is in place (`auth login --browser` through
 `pk-cli-browser`, or `--stdin`), with a `UHC_KEYCHAIN_SERVICE` test-only
@@ -98,9 +102,13 @@ for `docs/api.md`.
 session, contacts nothing beyond loopback, and reads no real statement.
 Every test that runs a credential-reading command sets
 `UHC_KEYCHAIN_SERVICE=piekstra.uhc.hermetic-tests`, a service that holds
-nothing, under which uhc leaves the kept profiles alone; unit tests fill the
-profile seams with `named_profile_exists_in` and `forget_named_profile_in`
-under a temp dir.
+nothing, with a temp `XDG_CONFIG_HOME`: under that variable the vault is
+`$XDG_CONFIG_HOME/uhc/vault`, never the owner's, and uhc leaves the kept
+browser profiles alone. No binary test stores a session, so none writes or
+reads a key (the vault reads its key only when an entry exists). Unit and
+in-process tests use `Vault::new(MemoryKeys::new(), dir)`; the profile
+seams are filled with `named_profile_exists_in` and
+`forget_named_profile_in` under a temp dir.
 
 - `tests/cli_surface.rs`: every `--help`, exit codes, JSON errors, argument
   checks before a source is read, source and profile selection, `NO_COLOR`,

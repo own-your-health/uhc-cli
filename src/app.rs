@@ -4,6 +4,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use clap::{CommandFactory, FromArgMatches};
+use pk_cli_config::profile::{ProfileName, Profiles};
 use pk_cli_config::ConfigStore;
 use pk_cli_core::info::{AuthInfo, CliInfo};
 use pk_cli_core::{dates, output, CliError, Paged, RangeArgs};
@@ -26,7 +27,13 @@ use crate::model::{Balances, Book, ClaimRecord, Member, StatementFile, ORGANIZAT
 use crate::source;
 
 const REPO: &str = "piekstra/uhc-cli";
-pub const PROFILES: &[&str] = &[pk_med_records::PROFILE, pk_cli_documents::PROFILE];
+/// `info`'s profiles: health-records/v1 and documents/v1, and login-profiles,
+/// since the member-site commands take `--profile <NAME>`.
+pub const PROFILES: &[&str] = &[
+    pk_med_records::PROFILE,
+    pk_cli_documents::PROFILE,
+    pk_med_records::LOGIN_PROFILES,
+];
 /// Where the statements come from; the stream's `organization.fhir_base`.
 pub const SITE_BASE: &str = "https://member.uhc.com/myuhc";
 /// `Skip.code` (an open set) for a statement read with issues.
@@ -38,6 +45,9 @@ pub struct Config {
     /// The folder holding the downloaded EOB statement PDFs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub import_dir: Option<String>,
+    /// The member-site logins, one per account (`uhc profiles add <NAME>`).
+    #[serde(default, skip_serializing_if = "Profiles::is_empty")]
+    pub profiles: Profiles,
 }
 
 struct Ctx<'a> {
@@ -162,17 +172,27 @@ pub fn run(cli: &Cli) -> Result<(), CliError> {
     };
     // A command that reads either source reads the one named
     // (`source::source`); the files commands below run as they always have.
-    let files = || -> Result<Result<Ctx, crate::source::Profile>, CliError> {
-        Ok(match source::source(cli)? {
+    // The configured profiles, for a command that may sign in.
+    let profiles = || -> Result<Profiles, CliError> { Ok(ctx(None).store.load::<Config>()?.profiles) };
+    let files = || -> Result<Result<Ctx, ProfileName>, CliError> {
+        Ok(match source::source(cli, &profiles()?)? {
             source::Source::Files(dir) => Ok(ctx(Some(dir))),
             source::Source::Site(profile) => Err(profile),
         })
     };
     match &cli.command {
-        Command::Auth(cmd) => auth(&ctx(None), cmd),
+        Command::Auth(AuthCmd::Reset { force }) => {
+            source::no_profile(cli, "auth reset")?;
+            crate::auth::reset(*force, cli.common.interactive(), cli.common.json, cli.common.quiet)
+        }
+        Command::Auth(cmd) => auth(&ctx(None), cmd, &profiles()?),
         Command::Config(cmd) => {
             source::no_profile(cli, "config")?;
             config(&ctx(None), cmd)
+        }
+        Command::Profiles(cmd) => {
+            source::no_profile(cli, "profiles")?;
+            profiles_cmd(&ctx(None), cmd)
         }
         Command::Patients(PatientsCmd::List) => match files()? {
             Ok(ctx) => patients(&ctx),
@@ -238,7 +258,15 @@ pub fn run(cli: &Cli) -> Result<(), CliError> {
                     method: "browser-session".into(),
                     login_hint: Some(format!("{BIN} auth login --browser --profile <NAME>")),
                 },
-                &["patients", "records", "claims", "accumulators", "documents", "import"],
+                &[
+                    "profiles",
+                    "patients",
+                    "records",
+                    "claims",
+                    "accumulators",
+                    "documents",
+                    "import",
+                ],
             )
             .with_profiles(PROFILES);
             output::json(&serde_json::to_value(&info).expect("CliInfo serializes"));
@@ -249,13 +277,93 @@ pub fn run(cli: &Cli) -> Result<(), CliError> {
 
 // ------------------------------------------------------------------ auth
 
-fn auth(ctx: &Ctx, cmd: &AuthCmd) -> Result<(), CliError> {
+fn auth(ctx: &Ctx, cmd: &AuthCmd, profiles: &Profiles) -> Result<(), CliError> {
     let quiet = ctx.cli.common.quiet;
-    let profile = source::site_profile(ctx.cli)?;
+    let profile = source::site_profile(ctx.cli, profiles)?;
     match cmd {
         AuthCmd::Login(args) => crate::auth::login(args, &profile, ctx.json(), quiet),
         AuthCmd::Status => crate::auth::status(&profile, ctx.json(), quiet),
         AuthCmd::Logout => crate::auth::logout(&profile, ctx.json(), quiet),
+        AuthCmd::Reset { .. } => unreachable!("run() handles auth reset"),
+    }
+}
+
+// -------------------------------------------------------------- profiles
+
+/// `profiles list|add|remove` (cli-common DESIGN.md §2.5): the logins, by
+/// name, in the config. Removing one removes what uhc keeps for it first.
+fn profiles_cmd(ctx: &Ctx, cmd: &ProfilesCmd) -> Result<(), CliError> {
+    match cmd {
+        ProfilesCmd::List => {
+            let cfg: Config = ctx.store.load()?;
+            let list = cfg.profiles.list();
+            if ctx.json() {
+                output::json(&serde_json::to_value(&list).unwrap_or_default());
+            } else if list.profiles.is_empty() {
+                ctx.note(&format!(
+                    "no profiles: `{BIN} profiles add <NAME>`, one per member-site account"
+                ));
+            } else {
+                for p in &list.profiles {
+                    println!("{}", p.name);
+                }
+            }
+            Ok(())
+        }
+        ProfilesCmd::Add { name } => {
+            let name = ProfileName::parse(name)?;
+            let mut cfg: Config = ctx.store.load()?;
+            let added = cfg.profiles.add(name.clone());
+            if added {
+                ctx.store.save(&cfg)?;
+            }
+            output::emit(
+                ctx.json(),
+                "profile-add",
+                json!({ "profile": name.as_str(), "added": added }),
+                |_| {
+                    ctx.note(&if added {
+                        format!("added profile {name}; sign in with `{BIN} auth login --browser --profile {name}`")
+                    } else {
+                        format!("profile {name} is already configured")
+                    })
+                },
+            );
+            Ok(())
+        }
+        ProfilesCmd::Remove { name, force } => {
+            let name = ProfileName::parse(name)?;
+            // Whether it can ask, before the config or the vault is read.
+            pk_cli_core::confirm::require_confirmable(*force, ctx.cli.common.interactive(), "remove a profile")?;
+            let cfg: Config = ctx.store.load()?;
+            if !cfg.profiles.contains(&name) {
+                return Err(CliError::NotFound(format!("no profile `{name}`"))
+                    .with_remedy(format!("`{BIN} profiles list` shows the configured ones")));
+            }
+            pk_cli_core::confirm::confirm(
+                *force,
+                &format!("Remove profile {name}, its stored session and its browser profile?"),
+            )?;
+            let done = crate::auth::forget_login(&name)?;
+            let mut cfg: Config = ctx.store.load()?;
+            cfg.profiles.remove(&name);
+            ctx.store.save(&cfg)?;
+            let mut v = json!({ "profile": name.as_str(), "session_removed": done.session_removed });
+            if let Some(removed) = done.browser_profile_removed {
+                v["browser_profile_removed"] = removed.into();
+            }
+            output::emit(ctx.json(), "profile-remove", v, |_| {
+                ctx.note(&format!(
+                    "removed profile {name}: {}",
+                    if done.session_removed {
+                        "its session was removed"
+                    } else {
+                        "no session was stored"
+                    }
+                ))
+            });
+            Ok(())
+        }
     }
 }
 
@@ -561,7 +669,7 @@ fn export_args(cli: &Cli, args: &ExportArgs) -> Result<(), CliError> {
 }
 
 /// Until the member-site source is in place.
-fn site_pending(profile: &crate::source::Profile) -> Result<(), CliError> {
+fn site_pending(profile: &ProfileName) -> Result<(), CliError> {
     Err(CliError::Other(format!(
         "the member-site source (profile `{profile}`) is not built yet; pass --files <DIR>"
     )))

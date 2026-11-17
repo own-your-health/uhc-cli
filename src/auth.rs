@@ -1,6 +1,6 @@
-//! `auth login`, `auth status` and `auth logout`: a member-site session per
-//! profile (DESIGN.md §1.7, §2.2), kept through [`SessionStore`], which alone
-//! knows where.
+//! `auth login`, `auth status`, `auth logout` and `auth reset`, and what
+//! `profiles remove` removes: a member-site session per profile (DESIGN.md
+//! §1.7, §2.2, §2.5), kept through [`SessionStore`], which alone knows where.
 //!
 //! A `--browser` sign-in runs Chrome in the profile's own kept browser
 //! profile (`Launch::profile_name`), so the site remembers each account's
@@ -21,11 +21,11 @@ use serde_json::{json, Value};
 use crate::cli::{LoginCmd, BIN};
 use crate::session::{self, Session, SessionStore, KEYCHAIN_SERVICE_ENV};
 use crate::site;
-use crate::source::Profile;
+use pk_cli_config::profile::ProfileName;
 
 // ----------------------------------------------------------------- login
 
-pub fn login(cmd: &LoginCmd, profile: &Profile, json: bool, quiet: bool) -> Result<(), CliError> {
+pub fn login(cmd: &LoginCmd, profile: &ProfileName, json: bool, quiet: bool) -> Result<(), CliError> {
     let LoginCmd {
         login,
         browser,
@@ -56,7 +56,7 @@ pub fn login(cmd: &LoginCmd, profile: &Profile, json: bool, quiet: bool) -> Resu
     }
     let verify = !login.no_verify;
     can_confirm(verify, site::SESSION_CHECK_URL)?;
-    let store = SessionStore::open();
+    let store = SessionStore::open()?;
     // Before Chrome opens or stdin is read, so no sign-in is spent on a
     // session that would not be stored.
     if !login.overwrite {
@@ -118,7 +118,7 @@ fn can_confirm(verify: bool, check: Option<&str>) -> Result<(), CliError> {
 /// The session from a Chrome window: the owner signs in on the site's own
 /// page, and the capture hands over the `uhc.com` jar once a signed-in page
 /// is open and, with `verify`, [`site::confirm_candidate`] accepts it.
-fn browser_session(profile: &Profile, fresh: bool, verify: bool, quiet: bool) -> Result<Session, CliError> {
+fn browser_session(profile: &ProfileName, fresh: bool, verify: bool, quiet: bool) -> Result<Session, CliError> {
     let scratch = fresh || session::hermetic();
     if scratch && !fresh && !quiet {
         eprintln!(
@@ -127,7 +127,7 @@ fn browser_session(profile: &Profile, fresh: bool, verify: bool, quiet: bool) ->
     }
     let launch = Launch::new(BIN)
         .url(site::START_URL)
-        .profile_name(profile.name())
+        .profile_name(profile.as_str())
         .fresh_profile(scratch)
         .login_hint(format!("{BIN} auth login --browser --profile {profile}"))
         .quiet(quiet);
@@ -153,7 +153,7 @@ fn manual_session(
     raw: &Secret,
     user_agent: Option<&str>,
     verify: bool,
-    profile: &Profile,
+    profile: &ProfileName,
     confirm: impl FnOnce(&str, Option<&str>) -> Confirm,
 ) -> Result<Session, CliError> {
     let cookie_header = cookie_header_from(raw)?;
@@ -212,8 +212,8 @@ fn cookie_header_from(raw: &Secret) -> Result<Secret, CliError> {
 
 /// `auth status`: local facts only, no request. `required` is false
 /// because the files source needs no sign-in.
-pub fn status(profile: &Profile, json: bool, quiet: bool) -> Result<(), CliError> {
-    let store = SessionStore::open();
+pub fn status(profile: &ProfileName, json: bool, quiet: bool) -> Result<(), CliError> {
+    let store = SessionStore::open()?;
     let (stored, session) = match store.get(profile) {
         Ok(session) => (session.is_some(), session),
         Err(e) if e.reason() == Some(Reason::CredentialUnreadable) => {
@@ -223,10 +223,10 @@ pub fn status(profile: &Profile, json: bool, quiet: bool) -> Result<(), CliError
         Err(e) => return Err(e),
     };
     let mut status = AuthStatus::new(false, session.is_some(), AuthMethod::BrowserSession);
-    status.account = Some(profile.name().to_string());
+    status.account = Some(profile.as_str().to_string());
     status.credential_in_keychain = Some(stored);
     let (kept, line) = browser_profile_status(session::hermetic(), || {
-        pk_cli_browser::named_profile_exists(BIN, profile.name())
+        pk_cli_browser::named_profile_exists(BIN, profile.as_str())
     });
     status.browser_profile = kept;
     if let (Some(line), false) = (line, quiet) {
@@ -274,10 +274,8 @@ fn browser_profile_status(
 
 // ---------------------------------------------------------------- logout
 
-pub fn logout(profile: &Profile, json: bool, quiet: bool) -> Result<(), CliError> {
-    let store = SessionStore::open();
-    let forget = (!session::hermetic()).then_some(|| pk_cli_browser::forget_named_profile(BIN, profile.name()));
-    let done = run_logout(|| store.delete(profile), forget, profile)?;
+pub fn logout(profile: &ProfileName, json: bool, quiet: bool) -> Result<(), CliError> {
+    let done = forget_login(profile)?;
     if json {
         output::json(&done.to_json());
     } else if !quiet {
@@ -286,12 +284,21 @@ pub fn logout(profile: &Profile, json: bool, quiet: bool) -> Result<(), CliError
     Ok(())
 }
 
+/// What a login keeps, removed: the profile's session, then the browser
+/// profile its `--browser` sign-in keeps (`forget_named_profile`), which
+/// [`session::hermetic`] leaves alone. `auth logout` and `profiles remove`.
+pub fn forget_login(profile: &ProfileName) -> Result<LoggedOut, CliError> {
+    let store = SessionStore::open()?;
+    let forget = (!session::hermetic()).then_some(|| pk_cli_browser::forget_named_profile(BIN, profile.as_str()));
+    run_logout(|| store.delete(profile), forget, profile)
+}
+
 /// What `auth logout` removed (`auth-logout/v1`).
 #[derive(Debug, PartialEq, Eq)]
-struct LoggedOut {
-    session_removed: bool,
+pub struct LoggedOut {
+    pub session_removed: bool,
     /// `None` when the profile was left alone ([`KEYCHAIN_SERVICE_ENV`]).
-    browser_profile_removed: Option<bool>,
+    pub browser_profile_removed: Option<bool>,
 }
 
 impl LoggedOut {
@@ -314,7 +321,7 @@ impl LoggedOut {
 
 fn session_said(removed: bool) -> &'static str {
     if removed {
-        "the session was removed from the keychain"
+        "the session was removed from the vault"
     } else {
         "no session was stored"
     }
@@ -338,7 +345,7 @@ fn profile_said(removed: Option<bool>) -> String {
 fn run_logout(
     delete_session: impl FnOnce() -> Result<bool, CliError>,
     forget_profile: Option<impl FnOnce() -> Result<bool, BrowserError>>,
-    who: &Profile,
+    who: &ProfileName,
 ) -> Result<LoggedOut, CliError> {
     let session = delete_session();
     let profile = forget_profile.map(|forget| forget().map_err(CliError::from));
@@ -366,12 +373,38 @@ fn run_logout(
     }
 }
 
+// ----------------------------------------------------------------- reset
+
+/// `auth reset`: every profile's session and the vault's key, removed under
+/// the vault's key lock (`Vault::clear`). For a key that is lost or damaged,
+/// when no session reads; the profiles and the kept browser profiles stay.
+/// Destructive, so it asks on a terminal and needs `--force` otherwise
+/// (exit 6), decided before the vault is opened.
+pub fn reset(force: bool, interactive: bool, json: bool, quiet: bool) -> Result<(), CliError> {
+    let what = "remove every profile's member-site session and the vault's key";
+    pk_cli_core::confirm::require_confirmable(force, interactive, what)?;
+    pk_cli_core::confirm::confirm(
+        force,
+        "Remove every profile's stored member-site session and the vault's key? Each profile signs in again after",
+    )?;
+    let removed = SessionStore::open()?.clear()?;
+    if json {
+        output::json(&json!({ "schema": "auth-reset/v1", "sessions_removed": removed }));
+    } else if !quiet {
+        eprintln!(
+            "reset: {removed} stored session(s) and the vault's key removed; sign in again with `{BIN} auth login \
+             --browser --profile <NAME>`"
+        );
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn adult1() -> Profile {
-        crate::source::resolve_profile("adult1").unwrap()
+    fn adult1() -> ProfileName {
+        ProfileName::parse("adult1").unwrap()
     }
 
     #[test]
@@ -534,7 +567,7 @@ mod tests {
         );
         assert_eq!(
             done.line(),
-            "logged out: the session was removed from the keychain; the browser profile was removed"
+            "logged out: the session was removed from the vault; the browser profile was removed"
         );
 
         let nothing = run_logout(

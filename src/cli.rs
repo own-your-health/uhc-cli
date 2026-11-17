@@ -24,9 +24,9 @@ pub struct Cli {
     #[arg(long, global = true, value_name = "PATH")]
     pub config: Option<PathBuf>,
 
-    /// Read the member site as this profile: the account signed in with
-    /// `uhc auth login --browser --profile <NAME>` (1 to 32 lowercase
-    /// letters, digits, `-` or `_`).
+    /// Read the member site as this profile: one configured with `uhc
+    /// profiles add <NAME>` and signed in with `uhc auth login --browser
+    /// --profile <NAME>`. There is no default profile.
     #[arg(long, global = true, env = "UHC_PROFILE", value_name = "NAME")]
     pub profile: Option<String>,
 
@@ -60,6 +60,9 @@ pub enum Command {
     /// Non-secret settings (`import_dir`).
     #[command(subcommand)]
     Config(ConfigCmd),
+    /// The member-site logins: one profile per account (profile-list/v1).
+    #[command(subcommand)]
+    Profiles(ProfilesCmd),
     /// The members on the plan: subscriber and dependents (patient-list/v1).
     #[command(subcommand)]
     Patients(PatientsCmd),
@@ -105,6 +108,33 @@ pub enum AuthCmd {
     /// Remove the profile's stored session, then the browser profile its
     /// --browser sign-in keeps (auth-logout/v1).
     Logout,
+    /// Remove every profile's stored session and the vault's key from the
+    /// keychain (auth-reset/v1): the way out when the key is lost or
+    /// damaged. Asks first; without a terminal it needs --force (exit 6).
+    Reset {
+        /// Do not ask.
+        #[arg(long)]
+        force: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ProfilesCmd {
+    /// The configured profiles, by name (profile-list/v1).
+    #[command(visible_alias = "ls")]
+    List,
+    /// Add a profile: 1 to 32 lowercase letters, digits, `-` or `_`,
+    /// starting with a letter or a digit (profile-add/v1).
+    Add { name: String },
+    /// Remove a profile with its stored session and the browser profile its
+    /// --browser sign-in keeps (profile-remove/v1). Asks first; without a
+    /// terminal it needs --force (exit 6).
+    Remove {
+        name: String,
+        /// Do not ask.
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 // The family's login flags with `--browser` beside them (DESIGN.md §2.2).
