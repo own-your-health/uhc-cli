@@ -10,7 +10,7 @@ plan balances. Findings are from UHC's and Optum's public pages, read on
 | Who it serves | The plans under the CMS Patient Access rule; employer plans most likely not (below) | Every UHC member with a HealthSafe ID | Every member |
 | Registration | An organization and an app at `flex.optum.com/portal`, each reviewed (5 business days each) | None | None |
 | Terms | "Terms and Conditions (Patient Data API License)" | HealthSafe ID Terms of Use, which forbid software access ("scrape," "crawl," "spider") | Ordinary member use |
-| `uhc` source | `api` (SMART standalone launch) | `portal` (`pk-cli-browser`), only if the household accepts the terms | `import` (local files, no network) |
+| `uhc` source | none (SMART standalone launch, if it ever serves the plan) | `--profile <NAME>`: a session signed in through `pk-cli-browser` (the household accepted the terms' risk) | `--files <DIR>` (local files, no network) |
 
 ## Route
 
@@ -190,7 +190,7 @@ a mutation.
 |---|---|
 | Before sign-in | `member.uhc.com` sets visitor cookies only: `AWSALBTG`, `AWSALBTGCORS`, `X-DashCafe-Canary` |
 | Signed in | about 50 cookies on `member.uhc.com` and `.uhc.com`; `rally-token`, `RS_MU`, `BARN_SP`, `FD_MU` and `JSESSIONID` are `HttpOnly`. `rally-token` is the capture's readiness signal |
-| Lifetime | every `member.uhc.com` session cookie is a browser-session cookie (no expiry), so a Chrome restart signs the profile out; the kept profile does not stay signed in. The site's own idle and absolute limits are being measured |
+| Lifetime | every `member.uhc.com` session cookie is a browser-session cookie (no expiry), so a Chrome restart signs the profile out; the kept profile does not stay signed in. Measured on 2026-11-17 with one session read by `sessionCheck` alone at growing gaps: `200` after 5, 10, 20 and 40 minutes idle (75 minutes after sign-in), `401` after 80 minutes idle (155 minutes after sign-in). So the session survives at least 40 minutes idle and lasts under 155 minutes unattended; whether an idle limit (40 to 80 minutes) or an absolute one (75 to 155 minutes) ended it is not yet known. Expect one sign-in per sitting: a session from the morning is gone by the afternoon |
 | Signed out | a GraphQL read answers `401 application/json`: `{"meta":{"success":false,...,"errors":[{"error":"Credentials missing.",...}]}}` |
 | Session check | `POST /ce-claims-aggregate-api/graphql?q=sessionCheck` with `query sessionCheck { spendingOverviews { __typename } }`: `200` with `data.spendingOverviews` when signed in, `401` otherwise |
 
@@ -212,6 +212,78 @@ All on `https://member.uhc.com`, `POST` with a JSON body
 | Plan benefits | `/benefits/eni/graphql?traceName=...`: `globalQuery`, `fastQuery` (the benefit catalog), `summaryBenefits(benefitIds, benefitPlanId)`, `benefitDetails`, `additionalBenefits` | benefit text as rich-text nodes; the certificate of coverage is a PDF linked from the coverage page |
 | ID card | `GET /rest/oneportal/web/integrated?components=idCard...&pageId=DIGITALIDCARD` | the card's sections, images included (about 330 KB) |
 
+### What uhc reads
+
+`src/client.rs` sends four queries (`src/site/queries/*.graphql`) and one
+`GET`, one at a time, at least a second apart, each with the stored
+`Cookie` header and the browser's user agent. The variables are dates
+only; every other id (`claimKey`, `claimType`, `documentId`,
+`documentClass`) comes from an answer.
+
+| uhc's read | Request | Variables |
+|---|---|---|
+| `claims` | `POST /ce-claims-aggregate-api/graphql?q=claims&cache=off`, `allClaimsAggregate { profileV1, healthcareClaims }` | `startDate` 2016-01-01, `stopDate` today |
+| `claimDetails` | `POST /ce-claims-aggregate-api/graphql?q=claimDetails`, `claimDetailsAggregate(claimKey, claimType)` | the claim's latest `claimKey` and its `claimType` |
+| `spending` | `POST /ce-claims-aggregate-api/graphql?q=spending`, `spendingOverviews { profileV1, benefits, accumulators }` | none |
+| `documents` | `POST /rest/oneportal/web/documents-aggregate-api/v1/graphql`, `multiDocTypeListSummary(processedStartDate, processedStopDate, mnrConsumerDetails: {planProfiles: []})`, with `XSRF-TOKEN` and `RP-Token-Suffix: MU` | `processedStartDate` 2016-01-01, `processedStopDate` today |
+| a document | `GET /oneportal/view/documents-aggregate-api/v1/v2/doc360/content/id/<documentId>?documentClass=<documentClass>`, `Accept: application/pdf,application/json` | |
+
+| Command | Reads |
+|---|---|
+| `patients list` | claims, documents |
+| `claims list` | claims |
+| `claims get` | claims, documents, the claim's detail |
+| `accumulators` | spending |
+| `documents list` | claims, documents |
+| `documents download` | claims, documents, each PDF (`--all` skips a file already saved under its name) |
+| `records export` | claims, documents, each of the member's claims' details (with `--since`, those processed since), each of the member's documents (with `--since`, created since) |
+
+Measured 2026-11-17 on one household's account:
+
+| Window | One answer |
+|---|---|
+| Claims, 2016-01-01 to today | every claim: back to 2022 (dental) and 2023 (medical); no paging |
+| Documents, 2016-01-01 to today | every document, created from 2022 on, one row per document and claim; no paging |
+
+How the answers read:
+
+- Members: `profileV1.currentUser` and `dependents[]`, one family member
+  id for every member and both coverages (medical and dental);
+  `relationshipType` `SUBSCRIBER`, `SPOUSE`, `DEPENDENT`; `gender` `MALE`
+  or `FEMALE`; the profile leaves null fields out (`groupName`).
+- A medical claim's `claimId` is `<base>-<suffix>` or `<base>`, with the
+  suffix in `claimIdSuffix` too; `<base><suffix>` is the claim number a
+  statement prints. A pharmacy claim's is 18 digits; its first 17 are a
+  statement's "Patient account number" for it (one sample). A dental
+  claim's is 12 digits without a suffix; no dental statement has been
+  compared.
+- A reprocessed claim is listed once per version, with the same id and a
+  later `processedDate`. A reversed pharmacy claim is listed again with
+  negative amounts. A claim `IN_PROCESS` has no suffix, no `processedDate`,
+  no network status and most of its balance null.
+- The summary's `balance.other` is coinsurance and the not-covered amount
+  together; the detail's `claimCoinsurance` and `claimMemberNotCovered`
+  split it. In the summary, billed = discount + plan pays + patient
+  responsibility.
+- A detail line: `chargedAmount` = `providerWriteOff` + `planPaidAmount`
+  + `patientResponsibility`, and that = deductible + copay + coinsurance
+  + `memberNotCoveredAmount`. A medical line's `allowedAmount` is null; a
+  dental line's is set, with `toothNumber` a tooth or a range (`01-32`).
+  `serviceRemarks[].code` are the processing codes a statement prints
+  (`D1`, `UG`).
+- Plan balances: `benefits[].benefitsResponses[].benefits[].maxes` holds
+  the maximums by `type` (`INDIVIDUAL_DEDUCTIBLE`, `INDIVIDUAL_OOP`,
+  `FAMILY_DEDUCTIBLE`, `FAMILY_OOP`), `accumulators[].accumulatorSummaries`
+  the progress by `accumulatorType` and `type`, both per `depSeqNbr`,
+  medical `CALENDAR_YEAR`. Dental has annual and lifetime maximums instead
+  (`uhc accumulators` reports medical only); `tier1` and pharmacy are null.
+- Documents: one member, class and creation date per `documentId`, and one
+  row per claim it covers (`claimKey`). `memberName` is `FIRST LAST`. The
+  plan's general forms ("Other Forms": proof of coverage and the like) have
+  no member and no date, and a `documentClass` that is a title; uhc leaves
+  them out. A PDF's bytes differ on each download.
+- `eobDocument` on a claim names no document the documents read lists.
+
 ### Traps
 
 - A request without a browser's `User-Agent` gets `403 text/html` from the
@@ -221,6 +293,16 @@ All on `https://member.uhc.com`, `POST` with a JSON body
   site header is a web component. Readiness is a cookie, not the DOM.
 - The GraphQL endpoints answer queries the site never sends, such as the
   one-field session check.
+- The documents service answers `403 application/json`
+  (`{"timestamp", "status": 403, "error": "Forbidden", "path"}`) without
+  `XSRF-TOKEN`, the first `!`-separated part of the URL-decoded `FH_MU`
+  cookie, and `RP-Token-Suffix: MU`. The claims service needs neither.
+- A request without a session gets `401 application/json`
+  (`{"meta": {"success": false, "errors": [{"error": "Credentials
+  missing."}]}}`) from the claims service; a non-browser user agent gets
+  the edge's `403` page first.
+- Answers set `AWSALBTG`, `AWSALBTGCORS` and `__cf_bm`; uhc keeps what they
+  set and writes the session back once a command has succeeded.
 - `benefit-details?benefitName=` for a benefit the plan does not list loads
   no `benefitDetails` at all. Home health care and private-duty nursing
   are only in the certificate of coverage, not the benefit pages.

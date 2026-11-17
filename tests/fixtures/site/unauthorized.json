@@ -1,0 +1,12 @@
+{
+  "meta": {
+    "success": false,
+    "correlationId": "example-mcu-claims-aggregate-api",
+    "errors": [
+      {
+        "error": "Credentials missing.",
+        "error_description": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,103 @@
+query claimDetails($claimKey: String!, $claimType: String!) {
+  claimDetailsAggregate(claimKey: $claimKey, claimType: $claimType) {
+    healthCareClaimDetails {
+      claimId
+      claimIdSuffix
+      claimKey
+      claimType
+      claimStatus
+      claimNetworkStatus
+      providerName
+      claimDates {
+        dateProcessed
+        serviceStartDate
+        lastServiceDate
+      }
+      balance {
+        totalBilledAmount {
+          ...Money
+        }
+        healthPlanDiscount {
+          ...Money
+        }
+        healthPlanPay {
+          ...Money
+        }
+        deductible {
+          ...Money
+        }
+        copay {
+          ...Money
+        }
+        claimCoinsurance {
+          ...Money
+        }
+        claimMemberNotCovered {
+          ...Money
+        }
+        patientResponsibility {
+          ...Money
+        }
+      }
+      serviceLines {
+        serviceDate
+        lastServiceDate
+        procedures {
+          code
+          description
+        }
+        revenues {
+          code
+          description
+        }
+        serviceInfo {
+          code
+          description
+        }
+        providedServiceInfo {
+          code
+          description
+        }
+        serviceRemarks {
+          code
+          description
+        }
+        toothNumber
+        serviceAdjudication {
+          chargedAmount {
+            ...Money
+          }
+          allowedAmount {
+            ...Money
+          }
+          providerWriteOff {
+            ...Money
+          }
+          planPaidAmount {
+            ...Money
+          }
+          deductible {
+            ...Money
+          }
+          copay {
+            ...Money
+          }
+          coinsurance {
+            ...Money
+          }
+          memberNotCoveredAmount {
+            ...Money
+          }
+          patientResponsibility {
+            ...Money
+          }
+        }
+      }
+    }
+  }
+}
+
+fragment Money on Money {
+  value
+  iso4217
+}

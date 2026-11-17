@@ -1,0 +1,115 @@
+{
+  "data": {
+    "claimDetailsAggregate": {
+      "healthCareClaimDetails": {
+        "claimId": "000000000003",
+        "claimIdSuffix": null,
+        "claimKey": "SYNK-007",
+        "claimType": "DENTAL",
+        "claimStatus": "PROCESSED",
+        "claimNetworkStatus": "OUT_OF_NETWORK",
+        "providerName": "EXAMPLE DENTAL",
+        "claimDates": {
+          "dateProcessed": "2026-06-10",
+          "serviceStartDate": "2026-06-02",
+          "lastServiceDate": "2026-06-02"
+        },
+        "balance": {
+          "totalBilledAmount": {
+            "value": "150.00",
+            "iso4217": "USD"
+          },
+          "healthPlanDiscount": {
+            "value": "30.00",
+            "iso4217": "USD"
+          },
+          "healthPlanPay": {
+            "value": "96.00",
+            "iso4217": "USD"
+          },
+          "deductible": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "copay": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "claimCoinsurance": {
+            "value": "24.00",
+            "iso4217": "USD"
+          },
+          "claimMemberNotCovered": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "patientResponsibility": {
+            "value": "24.00",
+            "iso4217": "USD"
+          }
+        },
+        "serviceLines": [
+          {
+            "serviceDate": "2026-06-02",
+            "lastServiceDate": "2026-06-02",
+            "procedures": [
+              {
+                "code": "D1110",
+                "description": "Prophylaxis - adult"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "D1110",
+              "description": "Prophylaxis - adult"
+            },
+            "providedServiceInfo": {
+              "code": "02",
+              "description": "Preventive"
+            },
+            "serviceRemarks": [],
+            "toothNumber": "01-32",
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "150.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": {
+                "value": "120.00",
+                "iso4217": "USD"
+              },
+              "providerWriteOff": {
+                "value": "30.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "96.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "24.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "24.00",
+                "iso4217": "USD"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

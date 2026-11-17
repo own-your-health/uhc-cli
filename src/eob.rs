@@ -113,15 +113,30 @@ pub struct Claim {
     pub total: Option<Amounts>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+/// A code with its text, as the member site gives a procedure, a revenue
+/// code or a remark. A statement prints none of these.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Coded {
+    pub code: String,
+    pub display: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct ClaimLine {
     pub description: String,
+    /// Processing codes (a statement's) or remark codes (the site's).
     pub codes: Vec<String>,
     /// Date of service, ISO; a range keeps its first day in `date` and its
     /// last in `date_end`.
     pub date: Option<String>,
     pub date_end: Option<String>,
     pub amounts: Amounts,
+    /// The site's procedure code (CPT, HCPCS or CDT) for the line.
+    pub procedure: Option<Coded>,
+    /// The site's revenue code, on an institutional claim's line.
+    pub revenue: Option<Coded>,
+    /// The site's tooth or tooth range, on a dental line (`01-32`).
+    pub tooth: Option<String>,
 }
 
 /// The nine amounts of a service line or a claim total, in the statement's
@@ -507,6 +522,7 @@ pub fn parse(text: &str) -> Statement {
                     date: date.clone(),
                     date_end,
                     amounts: a,
+                    ..ClaimLine::default()
                 });
                 pending_date = if date.is_none() {
                     Some(claim.lines.len() - 1)

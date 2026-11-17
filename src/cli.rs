@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use clap_complete::Shell;
 use pk_cli_auth::LoginArgs;
 use pk_cli_browser::BrowserArgs;
@@ -31,13 +31,13 @@ pub struct Cli {
     pub profile: Option<String>,
 
     /// Read the EOB statement PDFs downloaded into this folder (the files
-    /// source) instead of the member site. `import check` falls back to
-    /// `config set import_dir`.
+    /// source) instead of the member site. UHC_IMPORT_DIR and --dir are its
+    /// older names. `import check` falls back to `config set import_dir`.
     #[arg(
-        long,
-        visible_alias = "files",
+        long = "files",
+        visible_alias = "dir",
         global = true,
-        env = "UHC_IMPORT_DIR",
+        env = "UHC_FILES",
         value_name = "DIR"
     )]
     pub dir: Option<PathBuf>,
@@ -83,12 +83,41 @@ pub enum Command {
     /// read and what could not be. Counts only, never a value.
     #[command(subcommand)]
     Import(ImportCmd),
+    /// One read of the member site as --profile <NAME>, printed as the JSON
+    /// it answers: `GET <PATH>`, or `POST <PATH> --data '{"query": "query
+    /// ..."}'` to a /graphql path. Read-only: any other request is refused
+    /// before one is sent.
+    Api(ApiArgs),
     /// Update to the latest release from GitHub.
     SelfUpdate(SelfUpdateArgs),
     /// Print a shell completion script.
     Completions { shell: Shell },
     /// Machine-readable capability discovery (cli-info/v1).
     Info,
+}
+
+/// `uhc api <METHOD> <PATH> [--data JSON]`, read-only: cli-common's
+/// `ApiArgs` offers PUT and DELETE.
+#[derive(Args, Debug, Clone)]
+pub struct ApiArgs {
+    /// GET, or POST for a GraphQL query (any case).
+    #[arg(value_enum, ignore_case = true)]
+    pub method: ApiMethod,
+    /// A path on https://member.uhc.com (leading /), or a URL on it.
+    pub path: String,
+    /// For POST: the GraphQL request as JSON, {"query": "query ...",
+    /// "variables": {...}}. Only query operations are sent.
+    #[arg(long)]
+    pub data: Option<String>,
+}
+
+/// The methods `uhc api` sends: it reads only.
+#[derive(ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ApiMethod {
+    #[value(name = "GET")]
+    Get,
+    #[value(name = "POST")]
+    Post,
 }
 
 #[derive(Subcommand, Debug)]
@@ -174,9 +203,10 @@ pub enum PatientsCmd {
 
 #[derive(Args, Debug, Clone)]
 pub struct PatientArg {
-    /// A member: its id from `uhc patients list`, or its first name.
+    /// A member: its id from `uhc patients list` (with --profile, its first
+    /// name too). May be omitted when there is one member.
     #[arg(long, value_name = "ID")]
-    pub patient: String,
+    pub patient: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -190,9 +220,10 @@ pub enum RecordsCmd {
 pub struct ExportArgs {
     #[command(flatten)]
     pub who: PatientArg,
-    /// Only what changed since this day (YYYY-MM-DD): claims whose latest
-    /// statement is dated on or after it, and the statements dated on or
-    /// after it.
+    /// Only what changed since this day (YYYY-MM-DD). From --files: claims
+    /// whose latest statement is dated on or after it, and the statements
+    /// dated on or after it. From --profile: claims processed on or after
+    /// it, and documents created on or after it.
     #[arg(long, value_name = "YYYY-MM-DD")]
     pub since: Option<String>,
     /// Write the stream to stdout (`| medrec import --from uhc`). The stream
@@ -219,7 +250,8 @@ pub enum ClaimsCmd {
 
 #[derive(Args, Debug)]
 pub struct ClaimsListArgs {
-    /// Only this member's claims (id or first name).
+    /// Only this member's claims: its id from `uhc patients list` (with
+    /// --profile, its first name too).
     #[arg(long, value_name = "ID")]
     pub patient: Option<String>,
     #[command(flatten)]
@@ -228,20 +260,24 @@ pub struct ClaimsListArgs {
 
 #[derive(Args, Debug)]
 pub struct AccumulatorsArgs {
-    /// Only this member (id or first name); the family's rows stay.
+    /// Only this member: its id from `uhc patients list` (with --profile, its
+    /// first name too); the family's rows stay.
     #[arg(long, value_name = "ID")]
     pub patient: Option<String>,
-    /// Only this plan year (default: every year the statements cover).
+    /// Only this plan year (default: every year the source has, the
+    /// statements' or the member site's).
     #[arg(long, value_name = "YYYY")]
     pub year: Option<i32>,
 }
 
 #[derive(Subcommand, Debug)]
 pub enum DocumentsCmd {
-    /// The statements, newest first (document-list/v1).
+    /// The documents, newest first: from --files the statements, from
+    /// --profile the site's statements and letters (document-list/v1).
     #[command(visible_alias = "ls")]
     List(RangeArgs),
-    /// Copy one statement, or `--all` of them, out of the import folder
+    /// Save one document, or `--all` of them: from --files, the statements
+    /// copied out of the folder; from --profile, the site's PDFs downloaded
     /// (document-download/v1, document-download-batch/v1).
     #[command(visible_alias = "get")]
     Download(DownloadArgs),

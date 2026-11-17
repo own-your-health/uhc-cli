@@ -196,8 +196,8 @@ fn cookie_header_from(raw: &Secret) -> Result<Secret, CliError> {
 
 // ---------------------------------------------------------------- status
 
-/// `auth status`: local facts only, no request. `required` is false
-/// because the files source needs no sign-in.
+/// `auth status`: local facts only, no request. `required` is true, as in
+/// `info`: without --files, every record command signs in.
 pub fn status(profile: &ProfileName, json: bool, quiet: bool) -> Result<(), CliError> {
     let store = SessionStore::open()?;
     let (stored, session) = match store.get(profile) {
@@ -208,7 +208,7 @@ pub fn status(profile: &ProfileName, json: bool, quiet: bool) -> Result<(), CliE
         }
         Err(e) => return Err(e),
     };
-    let mut status = AuthStatus::new(false, session.is_some(), AuthMethod::BrowserSession);
+    let mut status = AuthStatus::new(true, session.is_some(), AuthMethod::BrowserSession);
     status.account = Some(profile.as_str().to_string());
     status.credential_in_keychain = Some(stored);
     let (kept, line) = browser_profile_status(session::hermetic(), || {

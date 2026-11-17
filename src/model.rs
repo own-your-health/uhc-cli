@@ -10,6 +10,111 @@ use sha2::{Digest, Sha256};
 use crate::cents::Cents;
 use crate::eob::{Amounts, Claim, ClaimLine, Limit, Network, Statement, Whom};
 
+/// Where a record was read: the downloaded statements, or the member site.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Origin {
+    #[default]
+    Statements,
+    Site,
+}
+
+/// What a claim is, as far as its source says. A statement does not print
+/// whether a medical claim is professional or institutional (`Medical`);
+/// the member site's lines do (a revenue code is institutional).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ClaimKind {
+    #[default]
+    Medical,
+    Professional,
+    Institutional,
+    Pharmacy,
+    Oral,
+}
+
+impl ClaimKind {
+    pub fn code(self) -> &'static str {
+        match self {
+            ClaimKind::Medical => "medical",
+            ClaimKind::Professional => "professional",
+            ClaimKind::Institutional => "institutional",
+            ClaimKind::Pharmacy => "pharmacy",
+            ClaimKind::Oral => "oral",
+        }
+    }
+}
+
+/// What the member site says about a member beyond what a statement prints.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SiteMember {
+    /// The site's dependent sequence number (`00` the subscriber).
+    pub dep_seq: String,
+    pub first_name: String,
+    pub last_name: Option<String>,
+    pub birth_date: Option<String>,
+    /// FHIR's administrative gender: male, female, other, unknown.
+    pub gender: Option<String>,
+    /// The medical coverage's plan period, ISO dates.
+    pub plan_start: Option<String>,
+    pub plan_end: Option<String>,
+    /// The site's plan status (`ACTIVE`).
+    pub plan_status: Option<String>,
+}
+
+impl SiteMember {
+    pub fn full_name(&self) -> String {
+        match &self.last_name {
+            Some(last) => format!("{} {last}", self.first_name),
+            None => self.first_name.clone(),
+        }
+    }
+}
+
+/// A document the member site lists (an EOB, a health statement, a
+/// letter): one per document id, whose rows name its claims.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SiteDocument {
+    /// The site's document id (a UUID).
+    pub id: String,
+    /// What the PDF download asks for beside the id (`u_mber_eob`).
+    pub class: String,
+    /// "Explanation of Benefits", "Health Statement", ...
+    pub doc_type: String,
+    pub name: Option<String>,
+    /// ISO date it was created.
+    pub date: Option<String>,
+    /// The member it is addressed to; none for a form addressed to no one.
+    pub patient: Option<String>,
+    pub label: Option<String>,
+    /// The claims its rows list (`claimKey`).
+    pub claim_keys: Vec<String>,
+}
+
+impl SiteDocument {
+    pub fn is_eob(&self) -> bool {
+        self.doc_type.eq_ignore_ascii_case("Explanation of Benefits")
+    }
+
+    /// A short name for its kind, for a file name and `documents/v1`'s
+    /// category: `eob`, or the document type in lowercase words joined by
+    /// `-` (`health-statement`).
+    pub fn category(&self) -> String {
+        if self.is_eob() {
+            return "eob".into();
+        }
+        let words: Vec<String> = self
+            .doc_type
+            .split(|c: char| !c.is_ascii_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .map(str::to_ascii_lowercase)
+            .collect();
+        if words.is_empty() {
+            "document".into()
+        } else {
+            words.join("-")
+        }
+    }
+}
+
 /// One statement file and what was read from it.
 #[derive(Debug, Clone)]
 pub struct StatementFile {
@@ -56,6 +161,10 @@ pub struct Member {
     pub statements: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latest_statement: Option<String>,
+    #[serde(skip)]
+    pub origin: Origin,
+    #[serde(skip)]
+    pub site: Option<SiteMember>,
 }
 
 pub const ORGANIZATION: &str = "uhc";
@@ -76,12 +185,28 @@ pub struct ClaimRecord {
     pub service_start: Option<String>,
     pub service_end: Option<String>,
     pub statement_date: Option<String>,
-    pub document: String,
-    /// How many statements carry this claim (more than one: reprocessed).
+    /// The statement (its file id) or the site document (its id) the claim
+    /// is read from or explained in; a site claim may have none.
+    pub document: Option<String>,
+    /// How many statements carry this claim (more than one: reprocessed),
+    /// or how many versions the site lists.
     pub versions: u64,
     /// Every statement carrying it, oldest first; `document` is the last.
+    /// On the site, every document listing it.
     pub documents: Vec<String>,
     pub codes: BTreeMap<String, String>,
+    pub kind: ClaimKind,
+    /// When the plan processed it (the site's `processedDate`).
+    pub processed: Option<String>,
+    /// The site's claim status, lowercased (`processed`, `denied`,
+    /// `provider_denied`); none for a statement.
+    pub status: Option<String>,
+    /// A pharmacy claim the site lists again with negative amounts: reversed.
+    pub reversed: bool,
+    /// Whether its lines were read: always for a statement, on the site only
+    /// once the claim's detail is.
+    pub detailed: bool,
+    pub origin: Origin,
 }
 
 /// The latest plan balances for one person (or the family) and plan year.
@@ -100,7 +225,8 @@ pub struct Balances {
     pub used: Cents,
     pub remaining: Cents,
     pub met: bool,
-    pub document: String,
+    /// The statement that printed them; none for the site's.
+    pub document: Option<String>,
 }
 
 /// The patient id for a member: stable across statements, carries no name.
@@ -154,13 +280,14 @@ pub fn title(name: &str) -> String {
     }
 }
 
-/// UHC's relationship code to FHIR's subscriber-relationship code.
+/// UHC's relationship code (a statement's, or the site's
+/// `relationshipType`) to FHIR's subscriber-relationship code.
 pub fn relationship(code: &str) -> Option<&'static str> {
     match code.to_ascii_uppercase().as_str() {
-        "EE" | "SUB" | "SELF" => Some("self"),
+        "EE" | "SUB" | "SELF" | "SUBSCRIBER" => Some("self"),
         "SP" | "SPO" | "SPOUSE" => Some("spouse"),
-        "DP" => Some("common"),
-        "CH" | "CHD" | "DEP" | "SN" | "DT" | "SON" | "DAU" => Some("child"),
+        "DP" | "DOMESTIC_PARTNER" => Some("common"),
+        "CH" | "CHD" | "DEP" | "SN" | "DT" | "SON" | "DAU" | "CHILD" | "DEPENDENT" => Some("child"),
         _ => None,
     }
 }
@@ -221,6 +348,8 @@ impl Book {
                     claims: 0,
                     statements: 0,
                     latest_statement: None,
+                    origin: Origin::Statements,
+                    site: None,
                 });
                 m.group_number = st.member.group_number.clone().or(m.group_number.take());
                 m.group_name = st.member.group_name.clone().or(m.group_name.take());
@@ -268,7 +397,13 @@ impl Book {
             let st = &f.statement;
             let mid = Self::member_id(f);
             for (n, c) in st.claims.iter().enumerate() {
-                let key = match (statement_pharmacy_id(c), &c.claim_number) {
+                let pharmacy = statement_pharmacy_id(c);
+                let kind = if pharmacy.is_some() {
+                    ClaimKind::Pharmacy
+                } else {
+                    ClaimKind::Medical
+                };
+                let key = match (pharmacy, &c.claim_number) {
                     (Some(rx), _) => rx,
                     (None, Some(num)) => format!("c{}", sanitize(num)),
                     (None, None) => format!("x{}{n:02}", &f.id[..10]),
@@ -279,7 +414,10 @@ impl Book {
                 let (start, end) = service_range(&c.lines);
                 // The same claim number twice on one statement is one claim
                 // whose blocks the parser could not join: its lines together.
-                if let Some(r) = by_key.get_mut(&key).filter(|r| r.document == f.id) {
+                if let Some(r) = by_key
+                    .get_mut(&key)
+                    .filter(|r| r.document.as_deref() == Some(f.id.as_str()))
+                {
                     r.claim.lines.extend(c.lines.iter().cloned());
                     if r.claim.total.is_none() {
                         r.claim.total = c.total;
@@ -317,10 +455,16 @@ impl Book {
                         service_start: start,
                         service_end: end,
                         statement_date: st.statement_date.clone(),
-                        document: f.id.clone(),
+                        document: Some(f.id.clone()),
                         versions,
                         documents,
                         codes,
+                        kind,
+                        processed: None,
+                        status: None,
+                        reversed: false,
+                        detailed: true,
+                        origin: Origin::Statements,
                     },
                 );
             }
@@ -357,7 +501,7 @@ impl Book {
                     used: r.used,
                     remaining: r.remaining,
                     met: r.met,
-                    document: f.id.clone(),
+                    document: Some(f.id.clone()),
                 });
             }
         }
@@ -420,7 +564,7 @@ impl Book {
                                 used: r.used,
                                 remaining: r.remaining,
                                 met: r.met,
-                                document: f.id.clone(),
+                                document: Some(f.id.clone()),
                             },
                         );
                     }

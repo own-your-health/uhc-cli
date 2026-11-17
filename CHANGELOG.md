@@ -1,9 +1,38 @@
 # Changelog
 
-## Unreleased
+## v0.2.0
 
-- A command that reads records names its source: `--files <DIR>` (new
-  alias of `--dir`; `UHC_IMPORT_DIR`) for downloaded statements, or
+The member site as a source. `uhc auth login --browser --profile <NAME>`
+signs in to myuhc.com in a Chrome window as the member, and every record
+command run with `--profile` reads the site's own data: members, claims with
+their service lines, plan balances and documents. The statement files stay
+a source, named with `--files`. Each login is its own profile, and the
+sessions live in an encrypted vault.
+
+- The member site is a source: every command that reads records reads
+  member.uhc.com with `--profile <NAME>` (`patients list`, `claims list`
+  and `get`, `accumulators`, `documents list` and `download`,
+  `records export --ndjson`), with the files source's schemas and ids, so
+  a member or claim is one record to medrec from either. The site adds the
+  claim type (professional, institutional, pharmacy, oral), CPT, HCPCS and
+  CDT codes, revenue codes, tooth numbers, remark codes as process notes,
+  the network status, members' birth dates and plan periods, and every
+  document addressed to the member (EOBs, health statements, letters). A
+  reprocessed claim is its latest version and a reversed pharmacy claim is
+  cancelled; a claim still in process is skipped (`in_process`). From the
+  site, `--since D` reads the details of the claims processed since D only.
+  Four GraphQL queries and the document download, one request a second,
+  queries only; an expired session is exit 3 naming the sign-in, the
+  edge's refusal, 429, 5xx and GraphQL errors are exit 5. `records export
+  -o` is refused for the site.
+- Statements: a pharmacy claim's `ExplanationOfBenefit` is `type`
+  `pharmacy`; `claims list` items gain `type`, and a claim's lines their
+  site codes. `document` in `claims list` and `accumulators` is left out
+  when there is none (the site's balances).
+- A command that reads records names its source: `--files <DIR>` or
+  `UHC_FILES`, the family's spelling (`--dir` and `UHC_IMPORT_DIR` stay as
+  older names; the two variables naming different folders is exit 2) for
+  downloaded statements, or
   `--profile <NAME>` (`UHC_PROFILE`) for a member-site sign-in. Without one
   it is exit 2; before, no flag read `config set import_dir`, which is now
   `import check`'s folder only. `import check`, `info`, `config`,
@@ -24,8 +53,20 @@
   `piekstra.uhc`), so a new build asks the keychain once for every profile.
   `auth reset` removes every session and the key (asks; `--force` without a
   terminal, exit 6 without).
-- `info` lists the `login-profiles` capability beside `health-records/v1`
+- `info` lists `records-files` among its capabilities: `records export
+  --files <DIR>` streams the statement files with no sign-in (`method:
+  "portal"`, no `patient.session`), and a records store passes `--files`
+  only to a provider listing it.
+- `info` lists `login-profiles` among its capabilities, where a records
+  store looks for it (medical-common DESIGN.md §1.1), and `auth.required`
+  is true, in `auth status` too: without `--files`, a record command signs
+  in, so medrec passes `--profile`. Its profiles stay `health-records/v1`
   and `documents/v1`.
+- `uhc --profile <NAME> api GET <PATH>` and `api POST <PATH> --data
+  '{"query": ...}'`: one read of the member site, printed as the JSON it
+  answers. Read-only: another method or host, a GraphQL document with any
+  operation but a query, a persisted query or a sign-out path is exit 2
+  before anything is sent.
 - A statement's claim block holding several claims, each opening with its
   own "Provider:" line, is read as that many claims (UHC's layout). Before,
   a second claim in a block was folded into the first. A continued page
@@ -34,8 +75,18 @@
   is `rx` + the first 17 digits of its pharmacy claim number, which the
   statement prints as the patient account number (`docs/fhir.md`).
 
-- On medical-common v0.6.0 and cli-common v0.33.0 (earlier in this
-  release: medical-common v0.2.0 and cli-common v0.31.1). `records export -o`
+- From `--files`, `patients list` lists no `label` (a label belongs to a
+  profile, medical-common DESIGN.md §1.1), and `--patient` takes a
+  member's id only; a first name is exit 4. `records export` needs no
+  `--patient` when there is one member, from either source; with several
+  it is exit 2 naming their ids. A member has the same `organization` and
+  `patient.id` from either source, and a records store merges the two.
+- On medical-common v0.6.2 and cli-common v0.33.2 (earlier in this
+  release: medical-common v0.2.0 and cli-common v0.31.1). The config file,
+  which holds the profile names, is written owner-only (`0600`) by rename.
+  `documents download` writes through `pk_cli_core::private_file`: an
+  `--overwrite` replaces a file by rename, so a failed write keeps the old
+  one, and never leaves a partial file. `records export -o`
   renames the stream into place only once it is written: a complete one
   replaces `records.ndjson`, an incomplete one goes to
   `records.incomplete.ndjson` and the last complete export stays, and a

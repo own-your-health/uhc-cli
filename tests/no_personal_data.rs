@@ -99,6 +99,35 @@ fn scan_line(line: &str) -> Vec<String> {
     findings
 }
 
+/// `<commit>:<path>:<rule>:<line>`: a 40-character hex commit, a path with
+/// no space, a lowercase rule id and a line number.
+fn is_fingerprint(line: &str) -> bool {
+    let parts: Vec<&str> = line.split(':').collect();
+    let [commit, path, rule, number] = parts.as_slice() else {
+        return false;
+    };
+    commit.len() == 40
+        && commit.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        && !path.is_empty()
+        && !path.contains(char::is_whitespace)
+        && !rule.is_empty()
+        && rule.bytes().all(|b| b.is_ascii_lowercase() || b == b'-')
+        && !number.is_empty()
+        && number.bytes().all(|b| b.is_ascii_digit())
+}
+
+#[test]
+fn a_fingerprint_is_only_a_fingerprint() {
+    assert!(is_fingerprint(
+        "865517eb837b9fb4fc7d1983f6cc1de7376015f8:src/portal.rs:generic-api-key:1205"
+    ));
+    assert!(!is_fingerprint(
+        "865517eb837b9fb4fc7d1983f6cc1de7376015f8:src/portal.rs:generic-api-key:1205 note"
+    ));
+    assert!(!is_fingerprint("call 5551234567"));
+    assert!(!is_fingerprint("865517e:src/portal.rs:generic-api-key:1205"));
+}
+
 #[test]
 fn tracked_files_carry_no_personal_data() {
     let files = tracked_files();
@@ -115,6 +144,15 @@ fn tracked_files_carry_no_personal_data() {
             continue;
         };
         for (i, line) in text.lines().enumerate() {
+            // A gitleaks fingerprint's commit hash can hold a phone-length
+            // digit run. Such a line is checked for that shape instead, so
+            // nothing else can ride along in the file uncommented.
+            if file == ".gitleaksignore" && !line.starts_with('#') {
+                if !is_fingerprint(line) {
+                    findings.push(format!("{file}:{}: not a gitleaks fingerprint", i + 1));
+                }
+                continue;
+            }
             for f in scan_line(line) {
                 findings.push(format!("{file}:{}: {f}", i + 1));
             }
@@ -216,6 +254,67 @@ fn identity_fields_in_fixtures_use_dummy_values() {
     assert!(
         checked >= 30,
         "only {checked} identity fields found; did the fixture layout change?"
+    );
+}
+
+/// Every identity field the member-site fixtures carry, by key, wherever it
+/// is nested: names are the household's dummies, ids the dummy shapes, the
+/// dates of birth January firsts, the providers fictional.
+#[test]
+fn identity_fields_in_site_fixtures_use_dummy_values() {
+    fn walk(name: &str, key: &str, v: &serde_json::Value, checked: &mut usize) {
+        match v {
+            serde_json::Value::Object(map) => {
+                for (k, v) in map {
+                    walk(name, k, v, checked);
+                }
+            }
+            serde_json::Value::Array(items) => items.iter().for_each(|v| walk(name, key, v, checked)),
+            serde_json::Value::String(s) if !s.is_empty() => {
+                let first_name = |s: &str| PEOPLE.contains(&s.to_ascii_uppercase().as_str());
+                let ok = match key {
+                    "firstName" => first_name(s),
+                    "lastName" => s == "Example",
+                    "memberName" => is_dummy_name(s),
+                    "dob" => s.ends_with("-01-01"),
+                    "id" | "subscriberId" => shaped(s, "SYNM", 6),
+                    "groupNumber" => shaped(s, "SYNG", 4),
+                    "groupName" | "providerName" => is_dummy_org(s),
+                    "claimId" => {
+                        let base = s.split('-').next().unwrap();
+                        base.starts_with("SYNC") || (base.bytes().all(|b| b.is_ascii_digit()) && is_dummy_number(base))
+                    }
+                    "prescriptionNumber" => s.bytes().all(|b| b.is_ascii_digit()) && is_dummy_number(s),
+                    "documentId" => s.starts_with("00000000-0000-4000-8000-0000000000"),
+                    "claimKey" => s.starts_with("SYNK-"),
+                    "correlationId" => s.starts_with("example-"),
+                    _ => return,
+                };
+                assert!(ok, "{name}: `{key}` holds `{s}`, not a dummy");
+                *checked += 1;
+            }
+            _ => {}
+        }
+    }
+    let dir = format!("{}/tests/fixtures/site", root());
+    let mut checked = 0;
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let path = entry.unwrap().path();
+        let name = path.display().to_string();
+        let text = std::fs::read_to_string(&path).unwrap();
+        if name.ends_with(".json") {
+            let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+            walk(&name, "", &v, &mut checked);
+        } else {
+            assert!(
+                text.contains("EXAMPLE-REQUEST-ID"),
+                "{name}: an edge page carries a dummy request id"
+            );
+        }
+    }
+    assert!(
+        checked >= 60,
+        "only {checked} identity fields found; did the fixtures change?"
     );
 }
 

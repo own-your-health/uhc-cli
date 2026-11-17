@@ -1,0 +1,117 @@
+{
+  "data": {
+    "claimDetailsAggregate": {
+      "healthCareClaimDetails": {
+        "claimId": "SYNC222222-22",
+        "claimIdSuffix": "22",
+        "claimKey": "SYNK-010",
+        "claimType": "MEDICAL",
+        "claimStatus": "PROCESSED",
+        "claimNetworkStatus": "IN_NETWORK",
+        "providerName": "EXAMPLE LAB",
+        "claimDates": {
+          "dateProcessed": "2026-10-15",
+          "serviceStartDate": "2026-10-01",
+          "lastServiceDate": "2026-10-01"
+        },
+        "balance": {
+          "totalBilledAmount": {
+            "value": "80.00",
+            "iso4217": "USD"
+          },
+          "healthPlanDiscount": {
+            "value": "30.00",
+            "iso4217": "USD"
+          },
+          "healthPlanPay": {
+            "value": "40.00",
+            "iso4217": "USD"
+          },
+          "deductible": {
+            "value": "10.00",
+            "iso4217": "USD"
+          },
+          "copay": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "claimCoinsurance": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "claimMemberNotCovered": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "patientResponsibility": {
+            "value": "10.00",
+            "iso4217": "USD"
+          }
+        },
+        "serviceLines": [
+          {
+            "serviceDate": "2026-10-01",
+            "lastServiceDate": "2026-10-01",
+            "procedures": [
+              {
+                "code": "80053",
+                "description": "Comprehensive metabolic panel"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "80053",
+              "description": "Comprehensive metabolic panel"
+            },
+            "providedServiceInfo": {
+              "code": "80053",
+              "description": "Comprehen metabolic panel"
+            },
+            "serviceRemarks": [
+              {
+                "code": "D1",
+                "description": "You have received a discount for using a health care professional in your plan's network."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "80.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "30.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "40.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "10.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "10.00",
+                "iso4217": "USD"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -67,7 +67,7 @@ smoke: build
 	@$(HERMETIC) ./target/debug/$(BIN) -q auth status --profile smoke --json >/dev/null
 	@for c in "auth login" "auth status" "auth logout" "auth reset" "profiles list" "profiles add" \
 		"profiles remove" "patients list" "records export" "claims list" "claims get" accumulators \
-		"documents list" "documents download" "import check"; do \
+		"documents list" "documents download" "import check" api; do \
 		./target/debug/$(BIN) $$c --help >/dev/null || exit 1; done
 	@if command -v pdftotext >/dev/null; then \
 		want=$$(ls tests/fixtures/eob/*-statement.txt | wc -l | tr -d ' '); \

@@ -7,11 +7,20 @@ Benefits and deductible and out-of-pocket progress, and hands them to the
 household's medical-records system as FHIR (`records-stream/v1`, read by
 `medrec import --from uhc`). It is read-only: nothing it does writes to UHC.
 
-It reads the EOB statement PDFs you download from myuhc.com into a folder.
-The statement commands never contact UnitedHealthcare. Text comes from the
-local `pdftotext` (poppler); nothing is sent anywhere. `docs/api.md` records why: UHC's
-Patient Access API serves Medicare, Medicaid, CHIP and marketplace members,
-not employer plans, and the member site's terms forbid automated access.
+It reads one of two sources, named on each command:
+
+- the member site, member.uhc.com (`--profile <NAME>`): you sign in once in
+  a Chrome window uhc opens, and uhc reads the site's own answers with that
+  session: the claims with their procedure and remark codes, the plan
+  balances, and the EOBs, health statements and letters;
+- the EOB statement PDFs you download from myuhc.com into a folder
+  (`--files <DIR>`): these commands never contact UnitedHealthcare. Text
+  comes from the local `pdftotext` (poppler); nothing is sent anywhere.
+
+`docs/api.md` records why there is no API route (UHC's Patient Access API
+serves Medicare, Medicaid, CHIP and marketplace members, not employer
+plans), what the site's Terms of Use say about automated access (the
+household accepted that risk), and every read uhc makes.
 
 ## Install
 
@@ -22,6 +31,36 @@ cargo install --git https://github.com/piekstra/uhc-cli --locked
 ```
 
 ## Use
+
+From the member site, one profile per member account that signs in:
+
+```sh
+uhc profiles add adult1
+uhc auth login --browser --profile adult1       # sign in in the Chrome window it opens
+uhc --profile adult1 patients list              # subscriber and dependents
+uhc --profile adult1 claims list --since 2026-01-01
+uhc --profile adult1 claims get <claim id>      # with its lines, procedure and remark codes
+uhc --profile adult1 accumulators --year 2026   # deductible and out-of-pocket progress, today
+uhc --profile adult1 documents list             # EOBs, health statements, letters
+uhc --profile adult1 documents download --all -o ~/Archive/UHC
+
+uhc --profile adult1 records export --patient <id> --ndjson | medrec import --from uhc
+
+# One read of the site, printed as the JSON it answers (docs/api.md lists them):
+uhc --profile adult1 api POST '/ce-claims-aggregate-api/graphql?q=getSpendingOverview' \
+  --data '{"query": "query getSpendingOverview { spendingOverviews { __typename } }"}'
+```
+
+`api` is read-only too: it sends a `GET`, or a GraphQL request of queries
+only `POST`ed to a `/graphql` path, on `https://member.uhc.com` only. Any
+other method, host or operation (a `mutation`, a persisted query by hash)
+is exit 2 before a request is sent, and so is a sign-out path.
+
+uhc reads the site one request at a time, a second apart, and only with
+queries: nothing it does writes to UHC. A session that has expired is exit
+3 naming the sign-in that renews it.
+
+From downloaded statements:
 
 ```sh
 # Download each "Claim EOB" PDF from myuhc.com (Claims & Accounts) into one folder.
@@ -40,15 +79,26 @@ uhc --files $F documents download --all -o ~/Archive/UHC   # re-runs save only n
 uhc --files $F records export --patient <id> --ndjson | medrec import --from uhc
 ```
 
-A command that reads records names its source: `--files <DIR>` (alias
-`--dir`, or `UHC_IMPORT_DIR`) for downloaded statements, `--profile <NAME>`
+A command that reads records names its source: `--files <DIR>` (or
+`UHC_FILES`; the older `--dir` and `UHC_IMPORT_DIR` still work) for
+downloaded statements, `--profile <NAME>`
 (or `UHC_PROFILE`) for a member-site sign-in. Without one it is exit 2;
 `config set import_dir` is `import check`'s folder only. A flag wins over
 the other source's variable; both flags, or both variables and no flag, are
 exit 2. A profile must be configured (`uhc profiles add <NAME>`); there is
 no default, and a lone profile is never picked. `import check`, `info`,
 `config`, `profiles`, `auth reset`, `self-update` and `completions` need no
-sign-in and take no `--profile`.
+sign-in and take no `--profile`. `api` reads the site, so it takes
+`--profile` only.
+
+A member is the same patient from either source: organization `uhc`, and
+an id derived from the member id and first name that both the site and a
+statement carry. medrec files the two streams as one patient and merges
+the claims they share. `--patient` takes that id. With `--profile` it also
+takes the member's first name (the label `patients list` shows); with
+`--files` there is no label, since a label belongs to a sign-in, so a first
+name is exit 4. When there is one member, `records export` needs no
+`--patient`; with several it is exit 2, naming their ids.
 
 Every command takes `--json` and prints one schema-tagged document, except
 `records export --ndjson`, whose NDJSON stream is the output (`--json` with
@@ -62,9 +112,10 @@ it is a usage error, exit 2).
 | `accumulators` | `accumulator-list/v1` |
 | `documents list` / `download` | `document-list/v1` / `document-download/v1`, `document-download-batch/v1` |
 | `import check` | `import-check/v1` |
+| `api` | the site's own JSON answer |
 | `auth login` / `status` / `logout` / `reset` | `auth-login/v1` / `auth-status/v1` / `auth-logout/v1` / `auth-reset/v1` |
 | `profiles list` / `add` / `remove` | `profile-list/v1` / `profile-add/v1` / `profile-remove/v1` |
-| `info` | `cli-info/v1`, profiles `health-records/v1`, `documents/v1` and `login-profiles` |
+| `info` | `cli-info/v1`: profiles `health-records/v1` and `documents/v1`; capabilities `login-profiles` and `records-files` (`records export --files <DIR>`, no sign-in); `auth.required` true (without `--files`, a record command signs in) |
 
 Exit codes: 0 ok, 1 other (pdftotext missing), 2 usage, 3 sign-in not
 finished or session refused, 4 not found, 5 the statements could not be
@@ -86,20 +137,30 @@ Per member: `Patient`, the payer `Organization`, `Coverage`, one
 `ExplanationOfBenefit` per claim (CARIN Blue Button categories for every
 amount, processing codes as notes, the plan balances the statement printed as
 `benefitBalance`), and each statement PDF as `DocumentReference` + `Binary`.
-`docs/fhir.md` has the mapping.
+From the site each claim also carries its claim type (professional,
+institutional, pharmacy, oral), each line its CPT, HCPCS or CDT code and
+revenue code, the remark codes as notes, the member's birth date and plan
+period, and every document addressed to the member. A claim and a member
+have the same id from either source, so medrec keeps one record of each.
+`docs/fhir.md` has the mapping. From the site, `--since D` reads the details
+of the claims processed since D only. A claim the plan has not processed
+yet is skipped (`in_process` in the trailer): its id changes once it is.
 
 `-o DIR` writes the stream to `DIR/records.ndjson` instead (mode 0600,
 written under a temporary name and renamed into place; a symbolic link
 there is refused) and prints `records-export/v1`. A stream that ends
 incomplete goes to `DIR/records.incomplete.ndjson` and the last complete
-export stays. It is for folders of synthetic statements only; real
-records go straight into medrec.
+export stays. It is for folders of synthetic statements only, so the site
+refuses it; real records go straight into medrec.
 
 The stream, `patients list` and the `documents/v1` rows are medical-common's
 `health-records/v1` shapes (`pk-med-records`). A `documents list` id is the
 export's `DocumentReference` id: a statement carrying two members' claims
 is listed once for each, both rows naming the one file. `documents download`
-also takes a prefix of the statement id that `claims list` shows.
+also takes a prefix of the statement id that `claims list` shows, or of the
+site's document id. The site's documents are saved as
+`<date>_uhc-<kind>_<document id>.pdf`; `--all` leaves a file of that name
+alone (`exists`) and reads only the new documents.
 
 ## Profiles and the member-site session
 

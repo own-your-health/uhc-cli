@@ -186,7 +186,7 @@ fn client(user_agent: Option<&str>) -> Result<reqwest::blocking::Client, CliErro
 }
 
 /// A URL's path without its query, for a reason: reasons never carry a query.
-fn path_of(url: &str) -> &str {
+pub(crate) fn path_of(url: &str) -> &str {
     let rest = url.split_once("://").map_or(url, |(_, rest)| rest);
     let path = rest.find('/').map_or("/", |i| &rest[i..]);
     path.split(['?', '#']).next().unwrap_or("/")
