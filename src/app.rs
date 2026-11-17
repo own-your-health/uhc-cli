@@ -7,6 +7,7 @@ use clap::{CommandFactory, FromArgMatches};
 use pk_cli_config::profile::{ProfileName, Profiles};
 use pk_cli_config::ConfigStore;
 use pk_cli_core::info::{AuthInfo, CliInfo};
+use pk_cli_core::private_file::{self, Replace};
 use pk_cli_core::{dates, output, CliError, Paged, RangeArgs, Reason};
 use pk_cli_documents::{fs_safe, verify_pdf, Document, DownloadBatch, SavedDocument, SkippedDocument};
 use pk_cli_selfupdate::Updater;
@@ -1106,39 +1107,21 @@ fn find_document<'a>(book: &'a Book, q: &str) -> Result<(&'a StatementFile, Docu
 /// error unless `replace`; a replaced file (or a symlink in its place) is
 /// removed first, so the new one gets the private mode and nothing is
 /// written through a link.
-pub(crate) fn open_private(path: &Path, replace: bool) -> Result<std::fs::File, CliError> {
-    if let Ok(meta) = std::fs::symlink_metadata(path) {
-        if meta.is_dir() {
-            return Err(CliError::Usage(format!("{} is a folder", path.display())));
-        }
-        if !replace {
-            return Err(CliError::Usage(format!(
-                "{} exists; pass --overwrite to replace it",
-                path.display()
-            )));
-        }
-        std::fs::remove_file(path).map_err(|e| CliError::Other(format!("replacing {}: {e}", path.display())))?;
+/// Write `bytes` to `path`, owner-only (`pk_cli_core::private_file`): an
+/// existing file only with `overwrite`, replaced by rename so a failed
+/// write leaves the old file and never a partial one.
+pub(crate) fn write_private(path: &Path, bytes: &[u8], overwrite: bool) -> Result<(), CliError> {
+    if std::fs::symlink_metadata(path).is_ok_and(|m| m.is_dir()) {
+        return Err(CliError::Usage(format!("{} is a folder", path.display())));
     }
-    let mut opts = std::fs::OpenOptions::new();
-    opts.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        opts.mode(0o600);
-    }
-    opts.open(path).map_err(|e| {
+    let replace = if overwrite { Replace::Always } else { Replace::Never };
+    private_file::write(path, bytes, replace).map_err(|e| {
         if e.kind() == std::io::ErrorKind::AlreadyExists {
             CliError::Usage(format!("{} exists; pass --overwrite to replace it", path.display()))
         } else {
             CliError::Other(format!("writing {}: {e}", path.display()))
         }
     })
-}
-
-pub(crate) fn write_private(path: &Path, bytes: &[u8], overwrite: bool) -> Result<(), CliError> {
-    open_private(path, overwrite)?
-        .write_all(bytes)
-        .map_err(|e| CliError::Other(format!("writing {}: {e}", path.display())))
 }
 
 /// Whether the file at `path` holds exactly `bytes`.

@@ -54,8 +54,12 @@
   is `rx` + the first 17 digits of its pharmacy claim number, which the
   statement prints as the patient account number (`docs/fhir.md`).
 
-- On medical-common v0.6.0 and cli-common v0.33.0 (earlier in this
-  release: medical-common v0.2.0 and cli-common v0.31.1). `records export -o`
+- On medical-common v0.6.1 and cli-common v0.33.1 (earlier in this
+  release: medical-common v0.2.0 and cli-common v0.31.1). The config file,
+  which holds the profile names, is written owner-only (`0600`) by rename.
+  `documents download` writes through `pk_cli_core::private_file`: an
+  `--overwrite` replaces a file by rename, so a failed write keeps the old
+  one, and never leaves a partial file. `records export -o`
   renames the stream into place only once it is written: a complete one
   replaces `records.ndjson`, an incomplete one goes to
   `records.incomplete.ndjson` and the last complete export stays, and a
