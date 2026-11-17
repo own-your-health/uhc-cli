@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## v0.2.0
+
+The member site as a source. `uhc auth login --browser --profile <NAME>`
+signs in to myuhc.com in a Chrome window as the member, and every record
+command run with `--profile` reads the site's own data: members, claims with
+their service lines, plan balances and documents. The statement files stay
+a source, named with `--files`. Each login is its own profile, and the
+sessions live in an encrypted vault.
 
 - The member site is a source: every command that reads records reads
   member.uhc.com with `--profile <NAME>` (`patients list`, `claims list`
