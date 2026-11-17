@@ -1,7 +1,8 @@
-//! Black-box tests of the binary's surface. None reads a statement: each
-//! renders help or info, or is refused by argument checks that run before
-//! the import folder is read. The config directory is a temp dir, never
-//! the developer's, and `UHC_IMPORT_DIR` is cleared.
+//! Black-box tests of the binary's surface. None reads a statement or the
+//! member site: each renders help or info, or is refused by argument checks
+//! that run before a source is read. The config directory is a temp dir,
+//! never the developer's, and `UHC_IMPORT_DIR` and `UHC_PROFILE` are
+//! cleared.
 //!
 //! None reaches the real keychain or browser profile: `UHC_KEYCHAIN_SERVICE`
 //! names a service that holds nothing (a missing item needs no approval),
@@ -40,6 +41,7 @@ fn uhc() -> Command {
     hermetic(&mut cmd)
         .env("XDG_CONFIG_HOME", tmp())
         .env_remove("UHC_IMPORT_DIR")
+        .env_remove("UHC_PROFILE")
         .env_remove("NO_COLOR");
     cmd
 }
@@ -111,18 +113,22 @@ fn info_declares_both_profiles_and_the_browser_sign_in() {
     // The files source needs no sign-in; the member site's is a browser one.
     assert_eq!(v["auth"]["required"], false);
     assert_eq!(v["auth"]["method"], "browser-session");
-    assert_eq!(v["auth"]["login_hint"], "uhc auth login --browser");
+    assert_eq!(v["auth"]["login_hint"], "uhc auth login --browser --profile <NAME>");
 }
 
 #[test]
 fn auth_status_when_nothing_is_stored() {
-    let out = uhc().args(["auth", "status", "--json"]).assert().success();
+    let out = uhc()
+        .args(["auth", "status", "--profile", "adult1", "--json"])
+        .assert()
+        .success();
     let v: Value = serde_json::from_slice(&out.get_output().stdout).unwrap();
     assert_eq!(v["schema"], "auth-status/v1");
     assert_eq!(v["required"], false);
     assert_eq!(v["authenticated"], false);
     assert_eq!(v["method"], "browser-session");
     assert_eq!(v["credential_in_keychain"], false);
+    assert_eq!(v["account"], "adult1");
     assert!(v.get("captured_at").is_none(), "{v}");
     assert!(v.get("verified").is_none(), "{v}");
     // Under the test service the real profile is not reported.
@@ -130,6 +136,7 @@ fn auth_status_when_nothing_is_stored() {
     let stderr = String::from_utf8_lossy(&out.get_output().stderr);
     assert!(stderr.contains("UHC_KEYCHAIN_SERVICE is set"), "{stderr}");
     uhc()
+        .env("UHC_PROFILE", "adult1")
         .args(["auth", "status"])
         .assert()
         .success()
@@ -139,14 +146,17 @@ fn auth_status_when_nothing_is_stored() {
 
 #[test]
 fn auth_logout_when_nothing_is_stored() {
-    let out = uhc().args(["auth", "logout", "--json"]).assert().success();
+    let out = uhc()
+        .args(["--profile", "adult1", "auth", "logout", "--json"])
+        .assert()
+        .success();
     let v: Value = serde_json::from_slice(&out.get_output().stdout).unwrap();
     assert_eq!(v["schema"], "auth-logout/v1");
     assert_eq!(v["session_removed"], false);
     // The kept profile is left alone under the test service.
     assert!(v.get("browser_profile_removed").is_none(), "{v}");
     uhc()
-        .args(["auth", "logout"])
+        .args(["auth", "logout", "--profile", "adult1"])
         .assert()
         .success()
         .stderr(predicate::str::contains("no session was stored"))
@@ -164,7 +174,11 @@ fn auth_login_takes_exactly_one_source() {
         // No source at all.
         vec![],
     ] {
-        let out = uhc().args(["auth", "login", "--json"]).args(&args).assert().code(2);
+        let out = uhc()
+            .args(["auth", "login", "--profile", "adult1", "--json"])
+            .args(&args)
+            .assert()
+            .code(2);
         assert_eq!(error_of(&out)["error"]["code"], "usage", "{args:?}");
     }
     for args in [
@@ -172,8 +186,37 @@ fn auth_login_takes_exactly_one_source() {
         vec!["--fresh-profile"],
         vec!["--fresh-profile", "--stdin"],
     ] {
-        uhc().args(["auth", "login"]).args(&args).assert().code(2);
+        uhc()
+            .args(["auth", "login", "--profile", "adult1"])
+            .args(&args)
+            .assert()
+            .code(2);
     }
+}
+
+/// The sign-in is one profile's: none named, a malformed name, or the
+/// files source beside it is exit 2, before the keychain is read.
+#[test]
+fn auth_commands_take_one_well_formed_profile() {
+    let too_long = "a".repeat(33);
+    for args in [
+        vec!["auth", "status"],
+        vec!["auth", "logout"],
+        vec!["auth", "login", "--stdin"],
+        vec!["auth", "status", "--profile", "Adult1"],
+        vec!["auth", "status", "--profile=-x"],
+        vec!["auth", "status", "--profile", "a.b"],
+        vec!["auth", "status", "--profile", &too_long],
+        vec!["--files", "/tmp", "auth", "status", "--profile", "adult1"],
+    ] {
+        let out = uhc().args(&args).arg("--json").assert().code(2);
+        assert_eq!(error_of(&out)["error"]["code"], "usage", "{args:?}");
+    }
+    uhc()
+        .env("UHC_PROFILE", "Not Valid")
+        .args(["auth", "status"])
+        .assert()
+        .code(2);
 }
 
 /// A `--stdin` import checks what it read before anything is stored or
@@ -183,7 +226,15 @@ fn auth_login_takes_exactly_one_source() {
 fn auth_login_stdin_refuses_what_is_not_a_cookie_header() {
     for input in ["", "\n", "not a cookie header", "dummy_a=1\ndummy_b=2"] {
         let out = uhc()
-            .args(["auth", "login", "--stdin", "--no-verify", "--json"])
+            .args([
+                "auth",
+                "login",
+                "--profile",
+                "adult1",
+                "--stdin",
+                "--no-verify",
+                "--json",
+            ])
             .write_stdin(input)
             .assert()
             .code(2);
@@ -201,37 +252,117 @@ fn auth_login_user_agent_goes_with_a_pasted_session() {
         vec!["--browser", "--user-agent", "Mozilla/5.0 (test)"],
         vec!["--user-agent", "Mozilla/5.0 (test)"],
     ] {
-        uhc().args(["auth", "login"]).args(&args).assert().code(2);
+        uhc()
+            .args(["auth", "login", "--profile", "adult1"])
+            .args(&args)
+            .assert()
+            .code(2);
     }
 }
 
+const EITHER_SOURCE: [&[&str]; 7] = [
+    &["patients", "list"],
+    &["claims", "list"],
+    &["claims", "get", "cSYNC00000001"],
+    &["accumulators"],
+    &["documents", "list"],
+    &["documents", "download", "--all", "-o", "never-created"],
+    // -o, not --ndjson: --json with the stream is refused first.
+    &["records", "export", "--patient", "x", "-o", "never-created"],
+];
+
+/// No flag never means the files, and a configured `import_dir` does not
+/// either: a command that reads either source names one or is exit 2.
 #[test]
-fn a_command_without_an_import_folder_says_how_to_set_one() {
-    for args in [
-        vec!["patients", "list"],
-        vec!["claims", "list"],
-        vec!["accumulators"],
-        vec!["documents", "list"],
-        vec!["import", "check"],
-        // -o, not --ndjson: --json with the stream is refused first.
-        vec!["records", "export", "--patient", "x", "-o", "never-created"],
-    ] {
-        let out = uhc().args(&args).arg("--json").assert().code(2);
-        let e = error_of(&out);
+fn a_command_that_reads_either_source_needs_one_named() {
+    let cfg = tmp();
+    let dir = tmp();
+    let run = || {
+        let mut c = uhc();
+        c.env("XDG_CONFIG_HOME", &cfg);
+        c
+    };
+    run()
+        .args(["config", "set", "import_dir", dir.to_str().unwrap()])
+        .assert()
+        .success();
+    for args in EITHER_SOURCE {
+        let out = run().args(args).arg("--json").assert().code(2);
+        let message = error_of(&out)["error"]["message"].as_str().unwrap().to_string();
         assert!(
-            e["error"]["message"]
-                .as_str()
-                .unwrap()
-                .contains("config set import_dir"),
-            "{args:?}: {e}"
+            message.contains("--profile <NAME>") && message.contains("--files <DIR>"),
+            "{args:?}: {message}"
         );
     }
+}
+
+/// Both sources named on the command line, or both through their
+/// variables with neither flag, is no guess; a flag wins over the other
+/// source's variable.
+#[test]
+fn one_source_at_a_time() {
+    let dir = tmp();
+    for args in EITHER_SOURCE {
+        uhc()
+            .args(["--profile", "adult1", "--files"])
+            .arg(&dir)
+            .args(args)
+            .assert()
+            .code(2);
+        uhc()
+            .env("UHC_PROFILE", "adult1")
+            .env("UHC_IMPORT_DIR", &dir)
+            .args(args)
+            .assert()
+            .code(2);
+    }
+    uhc()
+        .env("UHC_PROFILE", "adult1")
+        .arg("--files")
+        .arg(&dir)
+        .args(["patients", "list", "--json"])
+        .assert()
+        .success();
+    uhc().args(["--profile", "Adult 1", "claims", "list"]).assert().code(2);
+}
+
+/// The commands that need no sign-in take no --profile; UHC_PROFILE in the
+/// environment does not stop them.
+#[test]
+fn commands_without_a_sign_in_take_no_profile() {
+    for args in [
+        vec!["info"],
+        vec!["import", "check"],
+        vec!["config", "path"],
+        vec!["completions", "zsh"],
+        vec!["self-update", "--check"],
+    ] {
+        uhc().args(&args).args(["--profile", "adult1"]).assert().code(2);
+    }
+    uhc().env("UHC_PROFILE", "adult1").arg("info").assert().success();
+}
+
+#[test]
+fn import_check_without_a_folder_says_how_to_set_one() {
+    let out = uhc().args(["import", "check", "--json"]).assert().code(2);
+    let e = error_of(&out);
+    assert!(
+        e["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("config set import_dir"),
+        "{e}"
+    );
 }
 
 #[test]
 fn a_folder_that_is_not_there_is_not_found() {
     uhc()
         .args(["--dir", "/nonexistent/uhc-statements", "patients", "list"])
+        .assert()
+        .code(4);
+    uhc()
+        .args(["patients", "list", "--files", "/nonexistent/uhc-statements"])
         .assert()
         .code(4);
     let file = tmp().join("file.txt");
@@ -265,6 +396,7 @@ fn config_set_show_unset() {
         hermetic(&mut c)
             .env("XDG_CONFIG_HOME", &cfg)
             .env_remove("UHC_IMPORT_DIR")
+            .env_remove("UHC_PROFILE")
             .args(args);
         c
     };
@@ -274,9 +406,9 @@ fn config_set_show_unset() {
     let out = run(&["config", "show", "--json"]).assert().success();
     let v: Value = serde_json::from_slice(&out.get_output().stdout).unwrap();
     assert_eq!(v["import_dir"], dir.to_str().unwrap());
-    run(&["patients", "list", "--json"]).assert().success();
+    run(&["import", "check", "--json"]).assert().success();
     run(&["config", "unset", "import_dir"]).assert().success();
-    run(&["patients", "list"]).assert().code(2);
+    run(&["import", "check"]).assert().code(2);
     run(&["config", "path"])
         .assert()
         .success()
@@ -309,6 +441,8 @@ fn records_export_checks_its_arguments_first() {
         .contains("--ndjson"));
     // A bad date, before the folder is read.
     uhc()
+        .arg("--files")
+        .arg(&dir)
         .args([
             "records",
             "export",
@@ -322,6 +456,8 @@ fn records_export_checks_its_arguments_first() {
         .code(2);
     // Both destinations.
     uhc()
+        .arg("--files")
+        .arg(&dir)
         .args(["records", "export", "--patient", "x", "--ndjson", "-o", "/tmp/x"])
         .assert()
         .code(2);
@@ -331,22 +467,37 @@ fn records_export_checks_its_arguments_first() {
 
 #[test]
 fn range_flags_are_checked() {
-    uhc().args(["claims", "list", "--since", "yesterday"]).assert().code(2);
-    uhc()
-        .args(["claims", "list", "--since", "2026-05-01", "--until", "2026-04-01"])
-        .assert()
-        .code(2);
-    uhc()
-        .args(["documents", "list", "--until", "05/01/2026"])
-        .assert()
-        .code(2);
-    uhc().args(["accumulators", "--year", "twenty"]).assert().code(2);
+    let dir = tmp();
+    let files = || {
+        let mut c = uhc();
+        c.arg("--files").arg(&dir);
+        c
+    };
+    for args in [
+        vec!["claims", "list", "--since", "yesterday"],
+        vec!["claims", "list", "--since", "2026-05-01", "--until", "2026-04-01"],
+        vec!["documents", "list", "--until", "05/01/2026"],
+    ] {
+        let out = files().args(&args).arg("--json").assert().code(2);
+        let message = error_of(&out)["error"]["message"].as_str().unwrap().to_string();
+        assert!(!message.contains("--profile <NAME>"), "{args:?}: {message}");
+    }
+    // clap's own check.
+    files().args(["accumulators", "--year", "twenty"]).assert().code(2);
 }
 
 #[test]
 fn documents_download_needs_an_id_or_all() {
-    uhc().args(["documents", "download"]).assert().code(2);
+    let dir = tmp();
     uhc()
+        .arg("--files")
+        .arg(&dir)
+        .args(["documents", "download"])
+        .assert()
+        .code(2);
+    uhc()
+        .arg("--files")
+        .arg(&dir)
         .args(["documents", "download", "abcdef", "--all"])
         .assert()
         .code(2);
@@ -360,7 +511,11 @@ fn an_unknown_command_is_a_usage_error() {
 
 #[test]
 fn no_color_is_accepted_as_any_value() {
-    uhc().env("NO_COLOR", "1").args(["auth", "status"]).assert().success();
+    uhc()
+        .env("NO_COLOR", "1")
+        .args(["auth", "status", "--profile", "adult1"])
+        .assert()
+        .success();
     uhc().args(["--no-color", "info"]).assert().success();
 }
 

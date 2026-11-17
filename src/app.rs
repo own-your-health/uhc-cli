@@ -3,7 +3,7 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use clap::CommandFactory;
+use clap::{CommandFactory, FromArgMatches};
 use pk_cli_config::ConfigStore;
 use pk_cli_core::info::{AuthInfo, CliInfo};
 use pk_cli_core::{dates, output, CliError, Paged, RangeArgs};
@@ -23,6 +23,7 @@ use crate::eob::Issue;
 use crate::fhir;
 use crate::files::{self, Scan};
 use crate::model::{Balances, Book, ClaimRecord, Member, StatementFile, ORGANIZATION, ORGANIZATION_NAME};
+use crate::source;
 
 const REPO: &str = "piekstra/uhc-cli";
 pub const PROFILES: &[&str] = &[pk_med_records::PROFILE, pk_cli_documents::PROFILE];
@@ -42,6 +43,8 @@ pub struct Config {
 struct Ctx<'a> {
     cli: &'a Cli,
     store: ConfigStore,
+    /// The statements folder a files-source command reads.
+    dir: Option<PathBuf>,
 }
 
 impl Ctx<'_> {
@@ -55,8 +58,10 @@ impl Ctx<'_> {
         }
     }
 
+    /// The folder the files source reads: the command's `--files`, else
+    /// (for `import check`) `config set import_dir`.
     fn import_dir(&self) -> Result<PathBuf, CliError> {
-        if let Some(d) = &self.cli.dir {
+        if let Some(d) = &self.dir {
             return Ok(expand(d));
         }
         let cfg: Config = self.store.load()?;
@@ -64,7 +69,7 @@ impl Ctx<'_> {
             Some(d) => Ok(expand(Path::new(&d))),
             None => Err(CliError::Usage(format!(
                 "no import folder: download your EOB statements from myuhc.com into a folder, then \
-                 `{BIN} config set import_dir <DIR>` (or pass --dir)"
+                 `{BIN} config set import_dir <DIR>` (or pass --files <DIR>)"
             ))),
         }
     }
@@ -124,7 +129,9 @@ pub fn main() {
     unsafe {
         libc::signal(libc::SIGPIPE, libc::SIG_DFL);
     }
-    let cli = <Cli as clap::Parser>::parse();
+    let matches = Cli::command().get_matches();
+    let mut cli = Cli::from_arg_matches(&matches).unwrap_or_else(|e| e.exit());
+    cli.given = source::Given::of(&matches);
     if let Err(e) = run(&cli) {
         std::process::exit(fail(&e, cli.common.json));
     }
@@ -148,33 +155,78 @@ fn fail(e: &CliError, json: bool) -> i32 {
 }
 
 pub fn run(cli: &Cli) -> Result<(), CliError> {
-    let ctx = Ctx {
+    let ctx = |dir: Option<PathBuf>| Ctx {
         cli,
         store: ConfigStore::new(BIN).with_override(cli.config.clone()),
+        dir,
+    };
+    // A command that reads either source reads the one named
+    // (`source::source`); the files commands below run as they always have.
+    let files = || -> Result<Result<Ctx, crate::source::Profile>, CliError> {
+        Ok(match source::source(cli)? {
+            source::Source::Files(dir) => Ok(ctx(Some(dir))),
+            source::Source::Site(profile) => Err(profile),
+        })
     };
     match &cli.command {
-        Command::Auth(cmd) => auth(&ctx, cmd),
-        Command::Config(cmd) => config(&ctx, cmd),
-        Command::Patients(PatientsCmd::List) => patients(&ctx),
-        Command::Records(RecordsCmd::Export(args)) => export(&ctx, args),
-        Command::Claims(ClaimsCmd::List(args)) => claims_list(&ctx, args),
-        Command::Claims(ClaimsCmd::Get { claim }) => claims_get(&ctx, claim),
-        Command::Accumulators(args) => accumulators(&ctx, args),
-        Command::Documents(DocumentsCmd::List(range)) => documents_list(&ctx, range),
-        Command::Documents(DocumentsCmd::Download(args)) => documents_download(&ctx, args),
-        Command::Import(ImportCmd::Check) => import_check(&ctx),
-        Command::SelfUpdate(args) => Updater {
-            repo: REPO.into(),
-            binary: BIN.into(),
-            target: env!("BUILD_TARGET").into(),
-            current: env!("CARGO_PKG_VERSION").into(),
+        Command::Auth(cmd) => auth(&ctx(None), cmd),
+        Command::Config(cmd) => {
+            source::no_profile(cli, "config")?;
+            config(&ctx(None), cmd)
         }
-        .run(args, cli.common.json, cli.common.quiet),
+        Command::Patients(PatientsCmd::List) => match files()? {
+            Ok(ctx) => patients(&ctx),
+            Err(profile) => site_pending(&profile),
+        },
+        Command::Records(RecordsCmd::Export(args)) => {
+            // Its own checks come first, whichever the source.
+            export_args(cli, args)?;
+            match files()? {
+                Ok(ctx) => export(&ctx, args),
+                Err(profile) => site_pending(&profile),
+            }
+        }
+        Command::Claims(ClaimsCmd::List(args)) => match files()? {
+            Ok(ctx) => claims_list(&ctx, args),
+            Err(profile) => site_pending(&profile),
+        },
+        Command::Claims(ClaimsCmd::Get { claim }) => match files()? {
+            Ok(ctx) => claims_get(&ctx, claim),
+            Err(profile) => site_pending(&profile),
+        },
+        Command::Accumulators(args) => match files()? {
+            Ok(ctx) => accumulators(&ctx, args),
+            Err(profile) => site_pending(&profile),
+        },
+        Command::Documents(DocumentsCmd::List(range)) => match files()? {
+            Ok(ctx) => documents_list(&ctx, range),
+            Err(profile) => site_pending(&profile),
+        },
+        Command::Documents(DocumentsCmd::Download(args)) => match files()? {
+            Ok(ctx) => documents_download(&ctx, args),
+            Err(profile) => site_pending(&profile),
+        },
+        Command::Import(ImportCmd::Check) => {
+            source::no_profile(cli, "import check")?;
+            import_check(&ctx(cli.dir.clone()))
+        }
+        Command::SelfUpdate(args) => {
+            source::no_profile(cli, "self-update")?;
+            Updater {
+                repo: REPO.into(),
+                binary: BIN.into(),
+                target: env!("BUILD_TARGET").into(),
+                current: env!("CARGO_PKG_VERSION").into(),
+            }
+            .run(args, cli.common.json, cli.common.quiet)
+        }
         Command::Completions { shell } => {
+            source::no_profile(cli, "completions")?;
             clap_complete::generate(*shell, &mut Cli::command(), BIN, &mut std::io::stdout());
             Ok(())
         }
         Command::Info => {
+            source::no_profile(cli, "info")?;
             let info = CliInfo::new(
                 BIN,
                 env!("CARGO_PKG_VERSION"),
@@ -184,7 +236,7 @@ pub fn run(cli: &Cli) -> Result<(), CliError> {
                 AuthInfo {
                     required: false,
                     method: "browser-session".into(),
-                    login_hint: Some(format!("{BIN} auth login --browser")),
+                    login_hint: Some(format!("{BIN} auth login --browser --profile <NAME>")),
                 },
                 &["patients", "records", "claims", "accumulators", "documents", "import"],
             )
@@ -199,10 +251,11 @@ pub fn run(cli: &Cli) -> Result<(), CliError> {
 
 fn auth(ctx: &Ctx, cmd: &AuthCmd) -> Result<(), CliError> {
     let quiet = ctx.cli.common.quiet;
+    let profile = source::site_profile(ctx.cli)?;
     match cmd {
-        AuthCmd::Login(args) => crate::auth::login(args, ctx.json(), quiet),
-        AuthCmd::Status => crate::auth::status(ctx.json(), quiet),
-        AuthCmd::Logout => crate::auth::logout(ctx.json(), quiet),
+        AuthCmd::Login(args) => crate::auth::login(args, &profile, ctx.json(), quiet),
+        AuthCmd::Status => crate::auth::status(&profile, ctx.json(), quiet),
+        AuthCmd::Logout => crate::auth::logout(&profile, ctx.json(), quiet),
     }
 }
 
@@ -493,16 +546,29 @@ pub fn member_resources(book: &Book, m: &Member, sel: &Selection) -> Result<Vec<
     Ok(out)
 }
 
-fn export(ctx: &Ctx, args: &ExportArgs) -> Result<(), CliError> {
-    if args.ndjson && ctx.json() {
+/// `records export`'s argument checks, before any source is read.
+fn export_args(cli: &Cli, args: &ExportArgs) -> Result<(), CliError> {
+    if args.ndjson && cli.common.json {
         return Err(CliError::Usage("--ndjson is the output; drop --json".into()));
     }
-    let since = args.since.as_deref().map(iso).transpose()?;
+    args.since.as_deref().map(iso).transpose()?;
     if !args.ndjson && args.output.is_none() {
         return Err(CliError::Usage(
             "say where the records go: --ndjson for stdout (`| medrec import --from uhc`) or -o <DIR>".into(),
         ));
     }
+    Ok(())
+}
+
+/// Until the member-site source is in place.
+fn site_pending(profile: &crate::source::Profile) -> Result<(), CliError> {
+    Err(CliError::Other(format!(
+        "the member-site source (profile `{profile}`) is not built yet; pass --files <DIR>"
+    )))
+}
+
+fn export(ctx: &Ctx, args: &ExportArgs) -> Result<(), CliError> {
+    let since = args.since.as_deref().map(iso).transpose()?;
     let scan = ctx.records()?;
     let members = scan.book.members();
     let m = find_member(&members, &args.who.patient)?;

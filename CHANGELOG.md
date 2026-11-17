@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- A command that reads records names its source: `--files <DIR>` (new
+  alias of `--dir`; `UHC_IMPORT_DIR`) for downloaded statements, or
+  `--profile <NAME>` (`UHC_PROFILE`) for a member-site sign-in. Without one
+  it is exit 2; before, no flag read `config set import_dir`, which is now
+  `import check`'s folder only. `import check`, `info`, `config`,
+  `self-update` and `completions` take no `--profile`.
+- The member-site session is per profile: `auth login`, `status` and
+  `logout` take `--profile <NAME>` (1 to 32 lowercase letters, digits, `-`,
+  `_`), the session is the keychain item `session/<profile>`, and
+  `--browser` signs in through that profile's own kept Chrome profile,
+  which `auth logout --profile <NAME>` removes. A session stored before
+  this, under account `session`, is no longer read; `auth login` again.
 - A statement's claim block holding several claims, each opening with its
   own "Provider:" line, is read as that many claims (UHC's layout). Before,
   a second claim in a block was folded into the first. A continued page
@@ -21,8 +33,10 @@
   keep a member-site session as one keychain item (`piekstra.uhc`,
   `session`); `auth status` reports it (`method: "browser-session"`, its
   capture time, `browser_profile`) and `auth logout` removes it, then the
-  kept Chrome profile. The session check is not mapped yet, so a checked
-  sign-in is refused until it is; `--no-verify` stores one unchecked.
+  kept Chrome profile. One GraphQL read checks a session before it is
+  stored (401 JSON when signed out); `--no-verify` stores one unchecked.
+  `--user-agent` goes with `--stdin`: the site's edge refuses a request
+  without a browser's.
 
 ## v0.1.0
 

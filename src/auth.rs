@@ -1,137 +1,31 @@
-//! `auth login`, `auth status` and `auth logout`: the member-site session,
-//! kept as one keychain item (DESIGN.md §1.7, §2.2).
+//! `auth login`, `auth status` and `auth logout`: a member-site session per
+//! profile (DESIGN.md §1.7, §2.2), kept through [`SessionStore`], which alone
+//! knows where.
 //!
-//! The item, account [`SESSION_ACCOUNT`] under `piekstra.uhc`, is one JSON
-//! object: the `Cookie` header value, the browser's user agent (none for a
-//! `--stdin` import) and when it was captured. The Chrome profile a
-//! `--browser` sign-in keeps
-//! (`~/Library/Application Support/piekstra.uhc/browser-profile`) is the
-//! browser crate's; `auth logout` removes it after the item.
-//!
-//! [`KEYCHAIN_SERVICE_ENV`] names another service, for the tests and the
-//! smoke run: a service that holds nothing reads as signed out, with no
-//! keychain prompt. It moves the keychain only, so while it is set nothing
-//! touches the real browser profile either: `auth status` does not report
-//! it, `auth logout` leaves it in place, and `auth login --browser` signs in
-//! through a fresh one.
+//! A `--browser` sign-in runs Chrome in the profile's own kept browser
+//! profile (`Launch::profile_name`), so the site remembers each account's
+//! device apart and one account's window never opens signed in as another;
+//! `auth logout --profile <NAME>` removes the session, then that browser
+//! profile. While `UHC_KEYCHAIN_SERVICE` points the store elsewhere
+//! ([`session::hermetic`]), nothing touches the real browser profiles:
+//! `auth status` does not report them, `auth logout` leaves them in place,
+//! and `auth login --browser` signs in through a fresh one.
 
 use pk_cli_auth::{AuthLogin, AuthMethod, AuthStatus};
 use pk_cli_browser::{BrowserError, Confirm, Launch};
 use pk_cli_core::{output, CliError, Reason};
-use pk_cli_secrets::{CredentialStore, Secret};
+use pk_cli_secrets::Secret;
 use reqwest::header::HeaderValue;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::cli::{LoginCmd, BIN};
+use crate::session::{self, Session, SessionStore, KEYCHAIN_SERVICE_ENV};
 use crate::site;
-
-/// Names the keychain service read and written instead of `piekstra.uhc`.
-/// For the tests and the smoke run only; it never carries a session.
-pub const KEYCHAIN_SERVICE_ENV: &str = "UHC_KEYCHAIN_SERVICE";
-/// The one keychain account the session is stored under.
-pub const SESSION_ACCOUNT: &str = "session";
-
-/// The store every auth command uses: `piekstra.uhc`, unless
-/// [`KEYCHAIN_SERVICE_ENV`] names another service.
-pub fn credential_store() -> CredentialStore {
-    credential_store_for(service_env().as_deref())
-}
-
-/// Whether [`KEYCHAIN_SERVICE_ENV`] points the keychain elsewhere.
-pub fn service_overridden() -> bool {
-    service_override(service_env().as_deref()).is_some()
-}
-
-/// The variable's value. One that is not UTF-8 still counts as set, so it
-/// never falls back to the real service.
-fn service_env() -> Option<String> {
-    std::env::var_os(KEYCHAIN_SERVICE_ENV).map(|v| v.to_string_lossy().into_owned())
-}
-
-fn credential_store_for(value: Option<&str>) -> CredentialStore {
-    match service_override(value) {
-        Some(service) => CredentialStore::new(service),
-        None => CredentialStore::for_binary(BIN),
-    }
-}
-
-/// A blank value names no service.
-fn service_override(value: Option<&str>) -> Option<&str> {
-    value.map(str::trim).filter(|s| !s.is_empty())
-}
-
-/// The stored session. The cookie header is the secret; the rest is what
-/// `auth status` reports and what a read sends beside it.
-pub struct Session {
-    pub cookie_header: Secret,
-    pub user_agent: Option<String>,
-    /// RFC 3339, UTC.
-    pub captured_at: String,
-}
-
-#[derive(Serialize)]
-struct ItemOut<'a> {
-    cookie_header: &'a str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    user_agent: Option<&'a str>,
-    captured_at: &'a str,
-}
-
-#[derive(Deserialize)]
-struct ItemIn {
-    cookie_header: String,
-    #[serde(default)]
-    user_agent: Option<String>,
-    captured_at: String,
-}
-
-impl Session {
-    fn new(cookie_header: Secret, user_agent: Option<String>) -> Self {
-        Session {
-            cookie_header,
-            user_agent,
-            captured_at: crate::app::now_rfc3339(),
-        }
-    }
-
-    /// The keychain item's text, held as a secret.
-    pub fn to_item(&self) -> Result<Secret, CliError> {
-        serde_json::to_string(&ItemOut {
-            cookie_header: self.cookie_header.expose(),
-            user_agent: self.user_agent.as_deref(),
-            captured_at: &self.captured_at,
-        })
-        .map(Secret::new)
-        .map_err(|_| CliError::Other("serializing the session item".into()))
-    }
-
-    /// The session an item holds. An item of any other shape is an error
-    /// naming the item, never its contents.
-    pub fn from_item(item: &Secret, service: &str) -> Result<Session, CliError> {
-        let read: ItemIn = serde_json::from_str(item.expose()).map_err(|_| unreadable(service))?;
-        if read.cookie_header.is_empty() {
-            return Err(unreadable(service));
-        }
-        Ok(Session {
-            cookie_header: Secret::new(read.cookie_header),
-            user_agent: read.user_agent,
-            captured_at: read.captured_at,
-        })
-    }
-}
-
-fn unreadable(service: &str) -> CliError {
-    CliError::Keychain(format!(
-        "the stored session (item `{SESSION_ACCOUNT}` under `{service}`) is not the shape this uhc writes; \
-         `{BIN} auth logout` removes it"
-    ))
-    .because(Reason::CredentialUnreadable)
-}
+use crate::source::Profile;
 
 // ----------------------------------------------------------------- login
 
-pub fn login(cmd: &LoginCmd, json: bool, quiet: bool) -> Result<(), CliError> {
+pub fn login(cmd: &LoginCmd, profile: &Profile, json: bool, quiet: bool) -> Result<(), CliError> {
     let LoginCmd {
         login,
         browser,
@@ -162,35 +56,43 @@ pub fn login(cmd: &LoginCmd, json: bool, quiet: bool) -> Result<(), CliError> {
     }
     let verify = !login.no_verify;
     can_confirm(verify, site::SESSION_CHECK_URL)?;
-    let creds = credential_store();
+    let store = SessionStore::open();
     // Before Chrome opens or stdin is read, so no sign-in is spent on a
     // session that would not be stored.
-    if !login.overwrite && creds.get(SESSION_ACCOUNT)?.is_some() {
-        return Err(CliError::Usage(format!(
-            "a member-site session is already stored; pass --overwrite to replace it (`{BIN} auth logout` \
-             removes it)"
-        )));
+    if !login.overwrite {
+        let stored = match store.get(profile) {
+            Ok(found) => found.is_some(),
+            Err(e) if e.reason() == Some(Reason::CredentialUnreadable) => true,
+            Err(e) => return Err(e),
+        };
+        if stored {
+            return Err(CliError::Usage(format!(
+                "a member-site session is already stored for profile `{profile}`; pass --overwrite to replace it \
+                 (`{BIN} auth logout --profile {profile}` removes it)"
+            )));
+        }
     }
     let session = if browser.browser {
-        browser_session(browser.fresh_profile, verify, quiet)?
+        browser_session(profile, browser.fresh_profile, verify, quiet)?
     } else {
         manual_session(
             &login.source.read(None)?,
             user_agent.as_deref(),
             verify,
+            profile,
             site::confirm_session,
         )?
     };
-    creds.set(SESSION_ACCOUNT, &session.to_item()?)?;
+    store.put(profile, &session)?;
     if verify {
         if !quiet {
-            eprintln!("member-site session stored in the OS keychain");
+            eprintln!("member-site session stored for profile `{profile}`");
         }
     } else {
         // Even under -q: the session is stored with nothing to show it works.
         eprintln!(
             "warning: the session was stored unverified (--no-verify): no member-site read checked it. \
-             `{BIN} auth login --browser --overwrite` replaces it"
+             `{BIN} auth login --browser --profile {profile} --overwrite` replaces it"
         );
     }
     if json {
@@ -216,8 +118,8 @@ fn can_confirm(verify: bool, check: Option<&str>) -> Result<(), CliError> {
 /// The session from a Chrome window: the owner signs in on the site's own
 /// page, and the capture hands over the `uhc.com` jar once a signed-in page
 /// is open and, with `verify`, [`site::confirm_candidate`] accepts it.
-fn browser_session(fresh: bool, verify: bool, quiet: bool) -> Result<Session, CliError> {
-    let scratch = fresh || service_overridden();
+fn browser_session(profile: &Profile, fresh: bool, verify: bool, quiet: bool) -> Result<Session, CliError> {
+    let scratch = fresh || session::hermetic();
     if scratch && !fresh && !quiet {
         eprintln!(
             "{KEYCHAIN_SERVICE_ENV} is set, so this sign-in uses a fresh browser profile and leaves the kept one alone"
@@ -225,7 +127,9 @@ fn browser_session(fresh: bool, verify: bool, quiet: bool) -> Result<Session, Cl
     }
     let launch = Launch::new(BIN)
         .url(site::START_URL)
+        .profile_name(profile.name())
         .fresh_profile(scratch)
+        .login_hint(format!("{BIN} auth login --browser --profile {profile}"))
         .quiet(quiet);
     let captured = pk_cli_browser::capture(launch, &site::capture(verify)?, pk_cli_browser::DEFAULT_TIMEOUT).map_err(
         |e| match e {
@@ -249,6 +153,7 @@ fn manual_session(
     raw: &Secret,
     user_agent: Option<&str>,
     verify: bool,
+    profile: &Profile,
     confirm: impl FnOnce(&str, Option<&str>) -> Confirm,
 ) -> Result<Session, CliError> {
     let cookie_header = cookie_header_from(raw)?;
@@ -260,7 +165,8 @@ fn manual_session(
                     "the member site did not accept the session ({reason}); nothing was stored"
                 ))
                 .with_remedy(format!(
-                    "sign in with `{BIN} auth login --browser`; --no-verify stores the header unchecked"
+                    "sign in with `{BIN} auth login --browser --profile {profile}`; --no-verify stores the header \
+                     unchecked"
                 )))
             }
             Confirm::Undecided { reason, .. } => {
@@ -306,25 +212,27 @@ fn cookie_header_from(raw: &Secret) -> Result<Secret, CliError> {
 
 /// `auth status`: local facts only, no request. `required` is false
 /// because the files source needs no sign-in.
-pub fn status(json: bool, quiet: bool) -> Result<(), CliError> {
-    let creds = credential_store();
-    let item = creds.get(SESSION_ACCOUNT)?;
-    let session = item.as_ref().map(|item| Session::from_item(item, creds.service()));
-    let mut status = AuthStatus::new(false, matches!(session, Some(Ok(_))), AuthMethod::BrowserSession);
-    status.credential_in_keychain = Some(item.is_some());
-    let (profile, line) = browser_profile_status(service_overridden(), || pk_cli_browser::profile_exists(BIN));
-    status.browser_profile = profile;
+pub fn status(profile: &Profile, json: bool, quiet: bool) -> Result<(), CliError> {
+    let store = SessionStore::open();
+    let (stored, session) = match store.get(profile) {
+        Ok(session) => (session.is_some(), session),
+        Err(e) if e.reason() == Some(Reason::CredentialUnreadable) => {
+            eprintln!("warning: {}", e.message());
+            (true, None)
+        }
+        Err(e) => return Err(e),
+    };
+    let mut status = AuthStatus::new(false, session.is_some(), AuthMethod::BrowserSession);
+    status.account = Some(profile.name().to_string());
+    status.credential_in_keychain = Some(stored);
+    let (kept, line) = browser_profile_status(session::hermetic(), || {
+        pk_cli_browser::named_profile_exists(BIN, profile.name())
+    });
+    status.browser_profile = kept;
     if let (Some(line), false) = (line, quiet) {
         eprintln!("{line}");
     }
-    let captured_at = match &session {
-        Some(Ok(s)) => Some(s.captured_at.clone()),
-        Some(Err(e)) => {
-            eprintln!("warning: {}", e.message());
-            None
-        }
-        None => None,
-    };
+    let captured_at = session.as_ref().map(|s| s.captured_at.clone());
     if json {
         let mut v = status.to_json();
         if let Some(at) = &captured_at {
@@ -366,10 +274,10 @@ fn browser_profile_status(
 
 // ---------------------------------------------------------------- logout
 
-pub fn logout(json: bool, quiet: bool) -> Result<(), CliError> {
-    let creds = credential_store();
-    let forget = (!service_overridden()).then_some(|| pk_cli_browser::forget_profile(BIN));
-    let done = run_logout(|| creds.delete(SESSION_ACCOUNT), forget)?;
+pub fn logout(profile: &Profile, json: bool, quiet: bool) -> Result<(), CliError> {
+    let store = SessionStore::open();
+    let forget = (!session::hermetic()).then_some(|| pk_cli_browser::forget_named_profile(BIN, profile.name()));
+    let done = run_logout(|| store.delete(profile), forget, profile)?;
     if json {
         output::json(&done.to_json());
     } else if !quiet {
@@ -420,15 +328,17 @@ fn profile_said(removed: Option<bool>) -> String {
     }
 }
 
-/// `auth logout`'s two removals: the keychain item first, then the browser
+/// `auth logout`'s two removals: the session first, then the browser
 /// profile (`None` leaves it alone). Both are attempted whatever the other
 /// did, so a refusal of one leaves the other done, and the error says what
-/// was. They are passed in: the binary binds them to the keychain and to
-/// `forget_profile(BIN)`, the tests to fakes and to `forget_profile_in`
-/// under a temp dir, so a test never removes the owner's session or profile.
+/// was. They are passed in: the binary binds them to the session store and
+/// to `forget_named_profile(BIN, profile)`, the tests to fakes and to
+/// `forget_named_profile_in` under a temp dir, so a test never removes the
+/// owner's session or profile.
 fn run_logout(
     delete_session: impl FnOnce() -> Result<bool, CliError>,
     forget_profile: Option<impl FnOnce() -> Result<bool, BrowserError>>,
+    who: &Profile,
 ) -> Result<LoggedOut, CliError> {
     let session = delete_session();
     let profile = forget_profile.map(|forget| forget().map_err(CliError::from));
@@ -451,7 +361,7 @@ fn run_logout(
                 Some(Ok(removed)) => profile_said(Some(removed)),
                 Some(Err(_)) => "the browser profile was not removed either".into(),
             };
-            Err(e.with_remedy(format!("{profile}; run `{BIN} auth logout` again")))
+            Err(e.with_remedy(format!("{profile}; run `{BIN} auth logout --profile {who}` again")))
         }
     }
 }
@@ -460,59 +370,8 @@ fn run_logout(
 mod tests {
     use super::*;
 
-    #[test]
-    fn the_service_is_piekstra_uhc_unless_the_variable_names_another() {
-        assert_eq!(credential_store_for(None).service(), "piekstra.uhc");
-        assert_eq!(credential_store_for(Some("  ")).service(), "piekstra.uhc");
-        assert_eq!(
-            credential_store_for(Some("piekstra.uhc.hermetic-tests")).service(),
-            "piekstra.uhc.hermetic-tests"
-        );
-    }
-
-    /// One item, one JSON object, read back whole; the user agent is left out
-    /// when there is none.
-    #[test]
-    fn the_session_is_one_json_item() {
-        let session = Session {
-            cookie_header: Secret::new("dummy_a=1; dummy_b=2"),
-            user_agent: Some("Mozilla/5.0 (test)".into()),
-            captured_at: "2026-01-02T03:04:05Z".into(),
-        };
-        let item = session.to_item().unwrap();
-        let v: Value = serde_json::from_str(item.expose()).unwrap();
-        assert_eq!(
-            v,
-            json!({
-                "cookie_header": "dummy_a=1; dummy_b=2",
-                "user_agent": "Mozilla/5.0 (test)",
-                "captured_at": "2026-01-02T03:04:05Z",
-            })
-        );
-        let read = Session::from_item(&item, "svc").unwrap();
-        assert_eq!(read.cookie_header.expose(), "dummy_a=1; dummy_b=2");
-        assert_eq!(read.user_agent.as_deref(), Some("Mozilla/5.0 (test)"));
-        assert_eq!(read.captured_at, "2026-01-02T03:04:05Z");
-
-        let bare = Session::new(Secret::new("dummy_a=1"), None).to_item().unwrap();
-        let v: Value = serde_json::from_str(bare.expose()).unwrap();
-        assert!(v.get("user_agent").is_none());
-        assert!(v["captured_at"].as_str().unwrap().ends_with('Z'));
-    }
-
-    /// An item of another shape names the item and never what it holds.
-    #[test]
-    fn an_unreadable_item_is_named_not_quoted() {
-        for raw in [
-            "dummy_secret=1",
-            r#"{"cookie_header":"","captured_at":"x"}"#,
-            r#"{"token":"dummy_secret"}"#,
-        ] {
-            let e = Session::from_item(&Secret::new(raw), "svc").err().unwrap();
-            assert_eq!(e.exit_code(), 1);
-            assert!(e.message().contains("`session` under `svc`"), "{}", e.message());
-            assert!(!e.message().contains("dummy_secret"), "{}", e.message());
-        }
+    fn adult1() -> Profile {
+        crate::source::resolve_profile("adult1").unwrap()
     }
 
     #[test]
@@ -544,7 +403,7 @@ mod tests {
     fn a_manual_import_stores_only_an_accepted_session() {
         let raw = Secret::new("dummy_a=1");
         let agent = Some("Mozilla/5.0 (test)");
-        let ok = manual_session(&raw, agent, true, |h, a| {
+        let ok = manual_session(&raw, agent, true, &adult1(), |h, a| {
             assert_eq!(h, "dummy_a=1");
             assert_eq!(a, Some("Mozilla/5.0 (test)"));
             Confirm::Ready
@@ -554,29 +413,36 @@ mod tests {
         assert_eq!(ok.user_agent.as_deref(), Some("Mozilla/5.0 (test)"));
 
         let not_signed_in = "POST /x answered HTTP 401: not signed in";
-        let refused = manual_session(&raw, None, true, |_, _| Confirm::NotYet(not_signed_in.into()))
-            .err()
-            .unwrap();
+        let refused = manual_session(&raw, None, true, &adult1(), |_, _| {
+            Confirm::NotYet(not_signed_in.into())
+        })
+        .err()
+        .unwrap();
         assert_eq!(refused.exit_code(), 3);
         assert!(refused.message().contains(not_signed_in), "{}", refused.message());
         assert!(refused.to_string().contains("--no-verify"));
 
-        let undecided = manual_session(&raw, None, true, |_, _| Confirm::undecided("POST /x answered HTTP 503"))
-            .err()
-            .unwrap();
+        let undecided = manual_session(&raw, None, true, &adult1(), |_, _| {
+            Confirm::undecided("POST /x answered HTTP 503")
+        })
+        .err()
+        .unwrap();
         assert_eq!(undecided.exit_code(), 5);
 
-        let failed = manual_session(&raw, None, true, |_, _| Confirm::Fail(CliError::Other("x".into())))
-            .err()
-            .unwrap();
+        let failed = manual_session(&raw, None, true, &adult1(), |_, _| {
+            Confirm::Fail(CliError::Other("x".into()))
+        })
+        .err()
+        .unwrap();
         assert_eq!(failed.exit_code(), 1);
 
-        let unchecked = manual_session(&raw, None, false, |_, _| panic!("--no-verify makes no read")).unwrap();
+        let unchecked =
+            manual_session(&raw, None, false, &adult1(), |_, _| panic!("--no-verify makes no read")).unwrap();
         assert_eq!(unchecked.cookie_header.expose(), "dummy_a=1");
         assert!(unchecked.user_agent.is_none());
 
         // The header is checked before any read.
-        let bad = manual_session(&Secret::new("nonsense"), None, true, |_, _| {
+        let bad = manual_session(&Secret::new("nonsense"), None, true, &adult1(), |_, _| {
             panic!("no read for a bad header")
         });
         assert_eq!(bad.err().unwrap().exit_code(), 2);
@@ -605,8 +471,9 @@ mod tests {
     /// so the test never reads the owner's real data dir.
     #[test]
     fn auth_status_reports_the_kept_browser_profile() {
-        let (root, profile) = temp_root("status");
-        let exists = || pk_cli_browser::profile_exists_in(&root, BIN);
+        let (root, _) = temp_root("status");
+        let profile = root.join(format!("piekstra.{BIN}")).join("browser-profile-adult1");
+        let exists = || pk_cli_browser::named_profile_exists_in(&root, BIN, "adult1");
         assert_eq!(browser_profile_status(false, exists), (Some(false), None));
         assert!(!root.exists(), "asking creates nothing");
 
@@ -636,7 +503,8 @@ mod tests {
     /// reported.
     #[test]
     fn logout_removes_the_session_then_the_kept_profile() {
-        let (root, profile) = temp_root("logout");
+        let (root, _) = temp_root("logout");
+        let profile = root.join(format!("piekstra.{BIN}")).join("browser-profile-adult1");
         std::fs::create_dir_all(profile.join("Default")).unwrap();
         let order = std::cell::RefCell::new(Vec::new());
         let done = run_logout(
@@ -646,8 +514,9 @@ mod tests {
             },
             Some(|| {
                 order.borrow_mut().push("profile");
-                pk_cli_browser::forget_profile_in(&root, BIN)
+                pk_cli_browser::forget_named_profile_in(&root, BIN, "adult1")
             }),
+            &adult1(),
         )
         .unwrap();
         assert_eq!(*order.borrow(), ["keychain", "profile"]);
@@ -668,13 +537,18 @@ mod tests {
             "logged out: the session was removed from the keychain; the browser profile was removed"
         );
 
-        let nothing = run_logout(|| Ok(false), Some(|| pk_cli_browser::forget_profile_in(&root, BIN))).unwrap();
+        let nothing = run_logout(
+            || Ok(false),
+            Some(|| pk_cli_browser::forget_named_profile_in(&root, BIN, "adult1")),
+            &adult1(),
+        )
+        .unwrap();
         assert_eq!(
             nothing.line(),
             "logged out: no session was stored; no browser profile was kept"
         );
 
-        let left = run_logout(|| Ok(false), None::<fn() -> Result<bool, BrowserError>>).unwrap();
+        let left = run_logout(|| Ok(false), None::<fn() -> Result<bool, BrowserError>>, &adult1()).unwrap();
         assert!(left.to_json().get("browser_profile_removed").is_none());
         assert!(left.line().contains("left alone"));
         let _ = std::fs::remove_dir_all(&root);
@@ -687,6 +561,7 @@ mod tests {
         let e = run_logout(
             || Ok(true),
             Some(|| Err(BrowserError::ProfileInUse("a Chrome has it".into()))),
+            &adult1(),
         )
         .err()
         .unwrap();
@@ -700,10 +575,12 @@ mod tests {
                 profile_ran.set(true);
                 Ok(true)
             }),
+            &adult1(),
         )
         .err()
         .unwrap();
         assert!(profile_ran.get());
         assert!(e.to_string().contains("the browser profile was removed"), "{e}");
+        assert!(e.to_string().contains("auth logout --profile adult1"), "{e}");
     }
 }

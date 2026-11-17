@@ -17,7 +17,9 @@ owns the records stream, the export file and the profile's DTOs. Every
 |---|---|
 | `src/cli.rs` | the clap tree |
 | `src/app.rs` | the commands, argument checks, output |
-| `src/auth.rs` | `auth login`, `status`, `logout`: the session's one keychain item, the profile seams |
+| `src/auth.rs` | `auth login`, `status`, `logout` of one `--profile`: the browser-profile seams |
+| `src/session.rs` | `SessionStore`: get, put and delete a profile's session; the only code that knows where it lives |
+| `src/source.rs` | which source a command reads (`--files` or `--profile`), profile names (`resolve_profile`) |
 | `src/site.rs` | the member site: the browser capture, the session check (`SESSION_CHECK_URL`, `judge`) |
 | `src/files.rs` | the import folder: which PDFs, `pdftotext` bounded in time and size |
 | `src/eob.rs` | the statement parser (UHC's STD-EOB layout) and its issue codes |
@@ -67,13 +69,21 @@ These come from the household's plan and are not negotiable.
 
 ## Sources
 
-The files source is the only one that reads records. The member-site
-sign-in is in place (`auth login --browser` through `pk-cli-browser`, or
-`--stdin`): one keychain item (`piekstra.uhc`, account `session`), the kept
-Chrome profile, a `UHC_KEYCHAIN_SERVICE` test-only override, and every
-`make` target signs. Its session check is not mapped yet:
-`site::SESSION_CHECK_URL` is `None` and `site::judge` answers `NotYet`, so a
-checked sign-in is refused before Chrome opens. The household chose the
+A command that reads records reads the source it is given, never a
+default (`source::source`): `--files <DIR>` (alias `--dir`,
+`UHC_IMPORT_DIR`) or `--profile <NAME>` (`UHC_PROFILE`); neither is exit 2,
+and `config set import_dir` is `import check`'s folder only. This is
+provisional until cli-common v0.33.0: its `pk_cli_config::profile::resolve`
+replaces `source::resolve_profile` (an unknown name becomes exit 2), and its
+`pk_cli_auth::vault::Vault` replaces `session::SessionStore`'s body (entries
+`<profile>/session`). Until then a session is the keychain item
+`piekstra.uhc` / `session/<profile>`, and a `--browser` sign-in runs in
+the profile's own kept Chrome profile (`Launch::profile_name`).
+
+The member-site sign-in is in place (`auth login --browser` through
+`pk-cli-browser`, or `--stdin`), with a `UHC_KEYCHAIN_SERVICE` test-only
+override, and every `make` target signs. Its session check is one GraphQL
+read (`site::SESSION_CHECK_URL`, judged by `site::judge`). The household chose the
 member site (uhc signs in as the owner in a browser and
 reads the site's own data, accepting the risk under its Terms of Use;
 `docs/api.md` § Route). Map it by driving the signed-in site directly, with
@@ -88,12 +98,13 @@ for `docs/api.md`.
 session, contacts nothing beyond loopback, and reads no real statement.
 Every test that runs a credential-reading command sets
 `UHC_KEYCHAIN_SERVICE=piekstra.uhc.hermetic-tests`, a service that holds
-nothing, under which uhc leaves the kept profile alone; unit tests fill the
-profile seams with `profile_exists_in` and `forget_profile_in` under a temp
-dir.
+nothing, under which uhc leaves the kept profiles alone; unit tests fill the
+profile seams with `named_profile_exists_in` and `forget_named_profile_in`
+under a temp dir.
 
 - `tests/cli_surface.rs`: every `--help`, exit codes, JSON errors, argument
-  checks before the folder is read, `NO_COLOR`, a per-test `XDG_CONFIG_HOME`.
+  checks before a source is read, source and profile selection, `NO_COLOR`,
+  a per-test `XDG_CONFIG_HOME`.
 - `tests/fixture_shapes.rs`: the parser over `tests/fixtures/eob/*.txt`.
 - `tests/e2e.rs`: the binary over the fixtures written as PDFs at test time
   and read back through the real `pdftotext` (skipped where poppler is not

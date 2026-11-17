@@ -9,6 +9,8 @@ pub mod eob;
 pub mod fhir;
 pub mod files;
 pub mod model;
+pub mod session;
 pub mod shape;
 pub mod site;
+pub mod source;
 pub mod synth;

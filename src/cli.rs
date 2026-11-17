@@ -12,7 +12,8 @@ use pk_cli_selfupdate::SelfUpdateArgs;
 pub const BIN: &str = "uhc";
 
 /// UnitedHealthcare coverage, claims, EOBs and deductible progress, read from
-/// the EOB statements you download from myuhc.com. Read-only; unofficial.
+/// the member site (myuhc.com) or from the EOB statements you download from
+/// it. Read-only; unofficial.
 #[derive(Parser, Debug)]
 #[command(name = BIN, version, about, long_about = None)]
 pub struct Cli {
@@ -23,10 +24,28 @@ pub struct Cli {
     #[arg(long, global = true, value_name = "PATH")]
     pub config: Option<PathBuf>,
 
-    /// The folder holding your downloaded EOB statement PDFs (overrides
-    /// `config set import_dir`).
-    #[arg(long, global = true, env = "UHC_IMPORT_DIR", value_name = "DIR")]
+    /// Read the member site as this profile: the account signed in with
+    /// `uhc auth login --browser --profile <NAME>` (1 to 32 lowercase
+    /// letters, digits, `-` or `_`).
+    #[arg(long, global = true, env = "UHC_PROFILE", value_name = "NAME")]
+    pub profile: Option<String>,
+
+    /// Read the EOB statement PDFs downloaded into this folder (the files
+    /// source) instead of the member site. `import check` falls back to
+    /// `config set import_dir`.
+    #[arg(
+        long,
+        visible_alias = "files",
+        global = true,
+        env = "UHC_IMPORT_DIR",
+        value_name = "DIR"
+    )]
     pub dir: Option<PathBuf>,
+
+    /// Which of --profile and --dir were given as flags, not variables
+    /// (`source::Given::of`).
+    #[arg(skip)]
+    pub given: crate::source::Given,
 
     #[command(subcommand)]
     pub command: Command,
@@ -34,25 +53,27 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    /// The member-site sign-in (myuhc.com). The files source needs none.
+    /// The member-site sign-in (myuhc.com), one per --profile. The files
+    /// source needs none.
     #[command(subcommand)]
     Auth(AuthCmd),
     /// Non-secret settings (`import_dir`).
     #[command(subcommand)]
     Config(ConfigCmd),
-    /// The members the statements name: subscriber and dependents (patient-list/v1).
+    /// The members on the plan: subscriber and dependents (patient-list/v1).
     #[command(subcommand)]
     Patients(PatientsCmd),
     /// Coverage and claims as records-stream/v1, for `medrec import --from uhc`.
     #[command(subcommand)]
     Records(RecordsCmd),
-    /// Claims, each once, as its latest statement prints it.
+    /// Claims, each once, in their latest version.
     #[command(subcommand)]
     Claims(ClaimsCmd),
     /// Deductible and out-of-pocket progress per member and plan year
     /// (accumulator-list/v1).
     Accumulators(AccumulatorsArgs),
-    /// The EOB statement PDFs (documents/v1).
+    /// The EOB statement PDFs, and on the member site its other letters
+    /// (documents/v1).
     #[command(subcommand)]
     Documents(DocumentsCmd),
     /// Check the import folder: how many statements, claims and balances were
@@ -69,19 +90,20 @@ pub enum Command {
 
 #[derive(Subcommand, Debug)]
 pub enum AuthCmd {
-    /// Sign in to the member site and keep the session in the OS keychain
-    /// (auth-login/v1).
+    /// Sign in to the member site as --profile <NAME> and keep the session
+    /// in the OS keychain (auth-login/v1).
     ///
-    /// --browser opens a Chrome window on member.uhc.com, where you sign in;
-    /// --stdin reads the Cookie header of a member.uhc.com request, copied
-    /// from a signed-in browser's DevTools. One member-site read checks the
-    /// session before it is stored, unless --no-verify.
+    /// --browser opens a Chrome window on member.uhc.com in the profile's
+    /// own browser profile, where you sign in; --stdin reads the Cookie
+    /// header of a member.uhc.com request, copied from a signed-in
+    /// browser's DevTools. One member-site read checks the session before
+    /// it is stored, unless --no-verify.
     Login(LoginCmd),
-    /// Whether a member-site session is stored and when it was captured
-    /// (auth-status/v1). Sends no request.
+    /// Whether the profile's member-site session is stored and when it was
+    /// captured (auth-status/v1). Sends no request.
     Status,
-    /// Remove the stored session, then the browser profile a --browser
-    /// sign-in keeps (auth-logout/v1).
+    /// Remove the profile's stored session, then the browser profile its
+    /// --browser sign-in keeps (auth-logout/v1).
     Logout,
 }
 

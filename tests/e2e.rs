@@ -61,7 +61,9 @@ fn uhc(dir: &Path) -> Command {
         .env("UHC_KEYCHAIN_SERVICE", "piekstra.uhc.hermetic-tests")
         .env_remove("NO_COLOR")
         .env_remove("UHC_PDFTOTEXT")
-        .arg("--dir")
+        .env_remove("UHC_PROFILE")
+        .env_remove("UHC_IMPORT_DIR")
+        .arg("--files")
         .arg(dir);
     cmd
 }
@@ -684,6 +686,7 @@ fn a_closed_pipe_ends_the_export_quietly() {
     let alex = member_id(&dir, "Alex");
     let mut child = std::process::Command::new(assert_cmd::cargo::cargo_bin("uhc"))
         .env("XDG_CONFIG_HOME", tmp("cfg"))
+        .env_remove("UHC_PROFILE")
         .arg("--dir")
         .arg(&dir)
         .args(["records", "export", "--patient", &alex, "--ndjson"])

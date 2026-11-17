@@ -26,18 +26,27 @@ cargo install --git https://github.com/piekstra/uhc-cli --locked
 ```sh
 # Download each "Claim EOB" PDF from myuhc.com (Claims & Accounts) into one folder.
 uhc config set import_dir ~/Documents/UHC-EOBs
-
 uhc import check                 # counts and issue codes only; safe to share
-uhc patients list                # subscriber and dependents
-uhc claims list --since 2026-01-01
-uhc claims get <claim number>
-uhc accumulators --year 2026     # deductible and out-of-pocket progress
-uhc documents list
-uhc documents download <id> -o ~/Desktop
-uhc documents download --all -o ~/Archive/UHC   # re-runs save only new statements
 
-uhc records export --patient <id> --ndjson | medrec import --from uhc
+F=~/Documents/UHC-EOBs
+uhc --files $F patients list     # subscriber and dependents
+uhc --files $F claims list --since 2026-01-01
+uhc --files $F claims get <claim number>
+uhc --files $F accumulators --year 2026     # deductible and out-of-pocket progress
+uhc --files $F documents list
+uhc --files $F documents download <id> -o ~/Desktop
+uhc --files $F documents download --all -o ~/Archive/UHC   # re-runs save only new statements
+
+uhc --files $F records export --patient <id> --ndjson | medrec import --from uhc
 ```
+
+A command that reads records names its source: `--files <DIR>` (alias
+`--dir`, or `UHC_IMPORT_DIR`) for downloaded statements, `--profile <NAME>`
+(or `UHC_PROFILE`) for a member-site sign-in. Without one it is exit 2;
+`config set import_dir` is `import check`'s folder only. A flag wins over
+the other source's variable; both flags, or both variables and no flag, are
+exit 2. `import check`, `info`, `config`, `self-update` and `completions`
+need no sign-in and take no `--profile`.
 
 Every command takes `--json` and prints one schema-tagged document, except
 `records export --ndjson`, whose NDJSON stream is the output (`--json` with
@@ -89,28 +98,29 @@ also takes a prefix of the statement id that `claims list` shows.
 
 ## auth: the member-site session
 
-The statement commands need no sign-in. `uhc auth` keeps a session for the
-member site, member.uhc.com, whose API is being mapped (`docs/api.md`); no
-command reads it yet.
+The files source needs no sign-in. `uhc auth` keeps one member-site
+(member.uhc.com) session per profile: a name of 1 to 32 lowercase letters,
+digits, `-` or `_`, one per member account that signs in.
 
 ```sh
-uhc auth login --browser                  # a Chrome window on member.uhc.com; sign in there
-uhc auth login --browser --fresh-profile  # one sign-in in a scratch profile, removed afterwards
-pbpaste | uhc auth login --stdin          # the Cookie header of a member.uhc.com request, from DevTools
-uhc auth status                           # stored or not, and when; sends no request
-uhc auth logout                           # removes the session, then the browser profile
+uhc auth login --browser --profile adult1     # a Chrome window on member.uhc.com; sign in there
+uhc auth login --browser --fresh-profile --profile adult1   # a scratch browser profile, removed afterwards
+pbpaste | uhc auth login --stdin --user-agent "<the browser's>" --profile adult1   # a Cookie header from DevTools
+uhc auth status --profile adult1              # stored or not, and when; sends no request
+uhc auth logout --profile adult1              # removes the session, then the browser profile
 ```
 
-Before a session is stored, one member-site read checks it. That check is
-not mapped yet, so for now `auth login` refuses (exit 1) before Chrome opens
-unless `--no-verify` is given, which stores the session unchecked
-(`"verified": false` in `auth-login/v1`). With a session stored, `auth login`
-refuses before Chrome opens unless `--overwrite`.
+Before a session is stored, one member-site read checks it (a one-field
+GraphQL query; a 401 is not signed in); `--no-verify` stores it unchecked
+(`"verified": false` in `auth-login/v1`). With a session stored for the
+profile, `auth login` refuses before Chrome opens unless `--overwrite`. The
+site's edge refuses a request without a browser's user agent, so a
+`--stdin` session needs `--user-agent`.
 
 | What | Where | Removed by |
 | --- | --- | --- |
-| The session: the `Cookie` header, the browser's user agent and when it was captured, as one JSON item | the OS keychain, service `piekstra.uhc`, account `session` | `uhc auth logout`, first |
-| The Chrome profile `--browser` signs in through, kept so the site remembers this device: the site's cookies (encrypted by Chrome), its site storage and the window's history | `~/Library/Application Support/piekstra.uhc/browser-profile`, owner-only (`0700`); under `$XDG_DATA_HOME` on Linux | `uhc auth logout`, after the keychain item |
+| The session: the `Cookie` header, the browser's user agent and when it was captured, as one JSON item | the OS keychain, service `piekstra.uhc`, account `session/<profile>` | `uhc auth logout --profile <NAME>`, first |
+| The Chrome profile `--browser` signs in through, one per profile, kept so the site remembers this device: the site's cookies (encrypted by Chrome), its site storage and the window's history | `~/Library/Application Support/piekstra.uhc/browser-profile-<profile>`, owner-only (`0700`); under `$XDG_DATA_HOME` on Linux | `uhc auth logout --profile <NAME>`, after the session |
 
 `--fresh-profile` signs in without the kept profile and leaves it as it is.
 The session never goes on a command line, into a log or into a file of
@@ -120,7 +130,8 @@ uhc's.
 
 ```sh
 make synth                       # target/synth/*.pdf, from tests/fixtures/eob/
-uhc --dir target/synth import check
+uhc --files target/synth import check
+uhc --files target/synth claims list
 ```
 
 ## Development

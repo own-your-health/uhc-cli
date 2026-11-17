@@ -59,9 +59,9 @@ HERMETIC := UHC_KEYCHAIN_SERVICE=piekstra.uhc.hermetic-tests XDG_DATA_HOME=$(CUR
 	XDG_CONFIG_HOME=$(CURDIR)/target/smoke-config
 smoke: build
 	@./target/debug/$(BIN) --version >/dev/null
-	@./target/debug/$(BIN) info >/dev/null
-	@./target/debug/$(BIN) completions bash >/dev/null
-	@$(HERMETIC) ./target/debug/$(BIN) -q auth status --json >/dev/null
+	@env -u UHC_PROFILE ./target/debug/$(BIN) info >/dev/null
+	@env -u UHC_PROFILE ./target/debug/$(BIN) completions bash >/dev/null
+	@$(HERMETIC) ./target/debug/$(BIN) -q auth status --profile smoke --json >/dev/null
 	@for c in "auth login" "auth status" "auth logout" \
 		"patients list" "records export" "claims list" "claims get" accumulators \
 		"documents list" "documents download" "import check"; do \
@@ -71,6 +71,8 @@ smoke: build
 		$(CARGO) run -q --example synth-eob -- target/smoke >/dev/null && \
 		XDG_CONFIG_HOME=target/smoke-config ./target/debug/$(BIN) --dir target/smoke import check --json \
 			| grep -q "\"statements\": $$want," || { echo "smoke: the $$want synthetic statements did not read"; exit 1; }; \
+		XDG_CONFIG_HOME=target/smoke-config env -u UHC_PROFILE ./target/debug/$(BIN) --files target/smoke claims list --json \
+			| grep -q '"schema": "claim-list/v1"' || { echo "smoke: claims list --files did not read"; exit 1; }; \
 	else echo "smoke: pdftotext not installed; skipped the statement round trip"; fi
 	@echo "smoke ok"
 
