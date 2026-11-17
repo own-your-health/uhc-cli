@@ -35,10 +35,16 @@ These come from the household's plan and are not negotiable.
   pull requests or issues. Fixtures are synthetic (`tests/fixtures/README.md`);
   `tests/no_personal_data.rs` scans every tracked file and checks every
   identity field in the fixtures against its dummy shape.
-- An agent session is a third-party service. Never read, print or summarize a
-  real statement, record or member name in one. Develop and dogfood on the
-  synthetic statements (`make synth`). A check against real statements is
-  `uhc import check`: counts and issue codes only, never a value.
+- Records and their contents are never sent to an outside service: no
+  health-data aggregator, cloud OCR or other company's API. A Claude session
+  is not one of these (the household's decision, 2026-11-17). A session may
+  read, print and summarize the household's real statements, records and
+  names when the work needs it: debugging a real export, mapping the member
+  site with real answers, checking a pull, answering the owner. Real data
+  stays out of tracked files, commits, pull requests and issues, and out of
+  messages to other sessions unless they need it. Tests and fixtures stay
+  synthetic (`make synth`), and a raw capture is deleted from `/tmp` once it
+  has served.
 - `records export -o DIR` refuses statements without the synthetic marker;
   real records go straight into medrec through a pipe.
 - No FHIR, SMART or PDF libraries, no aggregators, no cloud OCR or AI.
@@ -67,11 +73,14 @@ sign-in is in place (`auth login --browser` through `pk-cli-browser`, or
 Chrome profile, a `UHC_KEYCHAIN_SERVICE` test-only override, and every
 `make` target signs. Its session check is not mapped yet:
 `site::SESSION_CHECK_URL` is `None` and `site::judge` answers `NotYet`, so a
-checked sign-in is refused before Chrome opens. A member-site source that
-reads records waits on the household's ruling on myuhc.com's terms;
-`docs/api.md` § Route. For it: request logs through `Capture::request_log`
-(method, host, path, status; no bodies or queries), shapes only from real
-responses.
+checked sign-in is refused before Chrome opens. The household chose the
+member site (uhc signs in as the owner in a browser and
+reads the site's own data, accepting the risk under its Terms of Use;
+`docs/api.md` § Route). Map it by driving the signed-in site directly, with
+the browser-explore loop or the session's own requests, and read real
+answers as the work needs. Be gentle with it: one request at a time, no bulk
+crawling. `examples/map-site.rs` prints an endpoint list and answer shapes
+for `docs/api.md`.
 
 ## Tests are offline, always
 

@@ -2,9 +2,9 @@
 //! types of a JSON document, and an endpoint path with every segment that
 //! could carry a value replaced by `{id}`.
 //!
-//! This is what mapping the site's API may print (docs/api.md): a session
-//! that maps it must never see a value, so a key or a path segment is
-//! printed only when it reads as a name the API gives a thing. A member
+//! This is what `docs/api.md` records of the site's API, since a tracked
+//! file carries no personal data: a key or a path segment is printed only
+//! when it reads as a name the API gives a thing. A member
 //! number, a claim number, an id, a capitalized name (`Alex`, `ALEX`),
 //! anything with a space in it, a slug of three or more parts
 //! (`jane-doe-md`) and anything holding one of the household's own names
