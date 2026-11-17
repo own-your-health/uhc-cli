@@ -92,9 +92,10 @@ fn run() -> Result<(), CliError> {
     let path = Redactor::default_path().ok_or_else(|| CliError::Usage("no home directory".into()))?;
     let mut redact = Redactor::from_file_if_present(&path)?;
     let from_file = redact.len();
-    let from_account = redact.add_names(&account_name());
+    redact.add_names(&account_name());
+    // Nothing derived from the account name is printed, not even a count.
     eprintln!(
-        "{from_file} deny word(s) from {}, {from_account} from this account's name",
+        "{from_file} deny word(s) from {}, plus this account's name",
         path.display()
     );
     let capture = Capture::new(LABEL, HostRule::exact(HOST)?)
