@@ -21,7 +21,7 @@ use serde_json::Value;
 
 use crate::app::{
     balance_json, claim_json, context, export_args, find_member, header, incomplete_exit, iso, now_rfc3339,
-    write_private, PatientRow, Window, BALANCE_COLUMNS, CLAIM_COLUMNS, PATIENT_COLUMNS,
+    pick_member, write_private, PatientRow, Window, BALANCE_COLUMNS, CLAIM_COLUMNS, PATIENT_COLUMNS,
 };
 use crate::cli::*;
 use crate::fhir;
@@ -173,13 +173,15 @@ fn household_with_documents(ctx: &Ctx) -> Result<(Household, Vec<SiteDocument>),
     Ok((house, docs))
 }
 
+fn no_member() -> CliError {
+    CliError::NotFound("the member site lists no member for this profile".into())
+}
+
 fn member<'a>(members: &'a [Member], q: &str) -> Result<&'a Member, CliError> {
     if members.is_empty() {
-        return Err(CliError::NotFound(
-            "the member site lists no member for this profile".into(),
-        ));
+        return Err(no_member());
     }
-    find_member(members, q)
+    find_member(members, q, true)
 }
 
 // -------------------------------------------------------------- patients
@@ -452,7 +454,10 @@ fn export(ctx: &Ctx, args: &ExportArgs, out: &mut dyn Write) -> Result<i32, CliE
     let since = args.since.as_deref().map(iso).transpose()?;
     let since = since.as_deref();
     let (house, docs) = household_with_documents(ctx)?;
-    let m = member(&house.members, &args.who.patient)?.clone();
+    if house.members.is_empty() {
+        return Err(no_member());
+    }
+    let m = pick_member(&house.members, args.who.patient.as_deref(), true)?.clone();
     let after = |d: Option<&str>| since.is_none_or(|s| d.is_some_and(|d| d >= s));
     let selected_docs: Vec<&SiteDocument> = docs
         .iter()
@@ -460,7 +465,7 @@ fn export(ctx: &Ctx, args: &ExportArgs, out: &mut dyn Write) -> Result<i32, CliE
         .collect();
     let exported_doc = |id: &str| selected_docs.iter().any(|d| d.id == id);
 
-    let mut w = RecordsWriter::start(out, &header(&m, since))?;
+    let mut w = RecordsWriter::start(out, &header(context(&m, None), since))?;
     let mut claims: Vec<ClaimRecord> = Vec::new();
     for c in house.claims.iter().filter(|c| c.patient == m.id) {
         if c.status.as_deref() == Some(IN_PROCESS) {

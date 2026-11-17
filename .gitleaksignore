@@ -1,0 +1,49 @@
+# gitleaks false positives, one fingerprint per finding (commit:file:rule:line).
+# The synthetic claimKey values of two commits on the member-site branch
+# (U1lOLWNsYWltLWtleS0NN, then SYN-claim-key-0NN) matched generic-api-key.
+# They are made-up claim keys in test fixtures, not credentials; the fixtures
+# now use SYNK-0NN, too short for the rule. No other finding is ignored.
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:src/portal.rs:generic-api-key:1205
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/claim-detail-denied.json:generic-api-key:7
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/claim-detail-dental.json:generic-api-key:7
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/claim-detail-institutional.json:generic-api-key:7
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/claim-detail-medical.json:generic-api-key:7
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/claim-detail-office.json:generic-api-key:7
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/claim-detail-reprocessed.json:generic-api-key:7
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/claims.json:generic-api-key:121
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/claims.json:generic-api-key:169
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/claims.json:generic-api-key:217
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/claims.json:generic-api-key:262
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/claims.json:generic-api-key:310
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/claims.json:generic-api-key:355
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/claims.json:generic-api-key:400
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/claims.json:generic-api-key:442
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/claims.json:generic-api-key:475
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/claims.json:generic-api-key:523
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/claims.json:generic-api-key:571
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/documents.json:generic-api-key:16
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/documents.json:generic-api-key:29
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/documents.json:generic-api-key:53
+865517eb837b9fb4fc7d1983f6cc1de7376015f8:tests/fixtures/site/documents.json:generic-api-key:66
+fc44d2017743bac172ca61ed2ffdff8921699bc5:src/portal.rs:generic-api-key:1193
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/claim-detail-denied.json:generic-api-key:7
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/claim-detail-dental.json:generic-api-key:7
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/claim-detail-institutional.json:generic-api-key:7
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/claim-detail-medical.json:generic-api-key:7
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/claim-detail-office.json:generic-api-key:7
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/claim-detail-reprocessed.json:generic-api-key:7
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/claims.json:generic-api-key:121
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/claims.json:generic-api-key:169
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/claims.json:generic-api-key:217
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/claims.json:generic-api-key:262
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/claims.json:generic-api-key:310
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/claims.json:generic-api-key:355
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/claims.json:generic-api-key:400
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/claims.json:generic-api-key:442
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/claims.json:generic-api-key:475
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/claims.json:generic-api-key:523
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/claims.json:generic-api-key:571
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/documents.json:generic-api-key:16
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/documents.json:generic-api-key:29
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/documents.json:generic-api-key:53
+fc44d2017743bac172ca61ed2ffdff8921699bc5:tests/fixtures/site/documents.json:generic-api-key:66

@@ -75,7 +75,13 @@ sessions live in an encrypted vault.
   is `rx` + the first 17 digits of its pharmacy claim number, which the
   statement prints as the patient account number (`docs/fhir.md`).
 
-- On medical-common v0.6.1 and cli-common v0.33.1 (earlier in this
+- From `--files`, `patients list` lists no `label` (a label belongs to a
+  profile, medical-common DESIGN.md §1.1), and `--patient` takes a
+  member's id only; a first name is exit 4. `records export` needs no
+  `--patient` when there is one member, from either source; with several
+  it is exit 2 naming their ids. A member has the same `organization` and
+  `patient.id` from either source, and a records store merges the two.
+- On medical-common v0.6.2 and cli-common v0.33.2 (earlier in this
   release: medical-common v0.2.0 and cli-common v0.31.1). The config file,
   which holds the profile names, is written owner-only (`0600`) by rename.
   `documents download` writes through `pk_cli_core::private_file`: an

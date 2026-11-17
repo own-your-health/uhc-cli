@@ -751,6 +751,29 @@ fn no_session_stored_is_exit_3_before_any_request() {
     assert!(h.server.seen().is_empty());
 }
 
+/// From the site, --patient takes a member's id or first name (the label
+/// its grant shows), and without it a household of three is exit 2 naming
+/// ids only. The id is the files source's, so a store merges the two.
+#[test]
+fn records_export_takes_an_id_or_a_first_name() {
+    let h = Household::new();
+    let (code, by_name) = h.stream(&["records", "export", "--patient", "Sam", "--ndjson"]);
+    assert_eq!(code, 0);
+    let (code, by_id) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
+    assert_eq!(code, 0);
+    assert_eq!(by_name[0]["patient"]["id"], by_id[0]["patient"]["id"]);
+    assert_eq!(by_id[0]["patient"]["id"], id("SAM"));
+    assert_eq!(by_id[0]["patient"]["organization"], "uhc");
+    assert_eq!(by_id[0]["organization"]["id"], "uhc");
+    let e = h.run(&["records", "export", "--ndjson"]).unwrap_err();
+    assert_eq!(e.exit_code(), 2);
+    let msg = e.to_string();
+    assert!(
+        msg.contains(&id("SAM")) && !msg.contains("Sam") && !msg.contains("SAM"),
+        "{msg}"
+    );
+}
+
 #[test]
 fn records_export_to_a_file_is_refused_before_any_request() {
     let h = Household::new();

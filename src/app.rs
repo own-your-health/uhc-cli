@@ -294,9 +294,8 @@ pub fn run(cli: &Cli) -> Result<(), CliError> {
                     // --profile.
                     pk_med_records::LOGIN_PROFILES,
                     // `records export --files <DIR>` reads the statement
-                    // files with no sign-in (medical-common DESIGN.md §1.1;
-                    // `pk_med_records::RECORDS_FILES` from v0.6.2).
-                    "records-files",
+                    // files with no sign-in (medical-common DESIGN.md §1.1).
+                    pk_med_records::RECORDS_FILES,
                 ],
             )
             .with_profiles(PROFILES);
@@ -463,9 +462,11 @@ fn config(ctx: &Ctx, cmd: &ConfigCmd) -> Result<(), CliError> {
 
 // -------------------------------------------------------------- patients
 
-/// A member by id, or by first name when only one member has it. The
-/// errors name ids only, never another member's name.
-pub(crate) fn find_member<'a>(members: &'a [Member], q: &str) -> Result<&'a Member, CliError> {
+/// A member by id or, with `labels` (the member site's members), by first
+/// name when only one member has it. A label belongs to a profile, so the
+/// files source matches ids only (medical-common DESIGN.md §1.1). The errors
+/// name ids only, never another member's name.
+pub(crate) fn find_member<'a>(members: &'a [Member], q: &str, labels: bool) -> Result<&'a Member, CliError> {
     if members.is_empty() {
         return Err(CliError::NotFound(
             "no member: the import folder holds no UnitedHealthcare EOB statement (`uhc import check`)".into(),
@@ -478,6 +479,11 @@ pub(crate) fn find_member<'a>(members: &'a [Member], q: &str) -> Result<&'a Memb
     if let Some(m) = members.iter().find(|m| m.id == q) {
         return Ok(m);
     }
+    if !labels {
+        return Err(CliError::NotFound(format!(
+            "no member with the id `{q}`; from --files, --patient takes an id from `{BIN} --files <DIR> patients list`"
+        )));
+    }
     let hits: Vec<&Member> = members.iter().filter(|m| m.label.eq_ignore_ascii_case(q)).collect();
     match hits.as_slice() {
         [one] => Ok(one),
@@ -486,6 +492,20 @@ pub(crate) fn find_member<'a>(members: &'a [Member], q: &str) -> Result<&'a Memb
         ))),
         many => Err(CliError::NotFound(format!(
             "`{q}` names {} members ({}); give one id from `{BIN} patients list`",
+            many.len(),
+            many.iter().map(|m| m.id.as_str()).collect::<Vec<_>>().join(", ")
+        ))),
+    }
+}
+
+/// `--patient`'s member: `q`, or with none given the only member there is.
+pub(crate) fn pick_member<'a>(members: &'a [Member], q: Option<&str>, labels: bool) -> Result<&'a Member, CliError> {
+    match (q, members) {
+        (Some(q), _) => find_member(members, q, labels),
+        (None, [one]) => Ok(one),
+        (None, []) => find_member(members, "", labels),
+        (None, many) => Err(CliError::Usage(format!(
+            "pass --patient <ID>: there are {} members ({}; `{BIN} patients list`)",
             many.len(),
             many.iter().map(|m| m.id.as_str()).collect::<Vec<_>>().join(", ")
         ))),
@@ -558,7 +578,7 @@ fn patients(ctx: &Ctx) -> Result<(), CliError> {
         .members()
         .into_iter()
         .map(|m| PatientRow {
-            context: context(&m, book.full_name(&m.id)),
+            context: files_context(&m, book.full_name(&m.id)),
             member_id: m.member_id.clone(),
             coverage_relationship: m.relationship.clone(),
             group_number: m.group_number.clone(),
@@ -594,11 +614,21 @@ pub(crate) fn now_rfc3339() -> String {
     dates::fmt_rfc3339(secs)
 }
 
-pub(crate) fn header(m: &Member, since: Option<&str>) -> Header {
+/// A member's context from the files source: as the site's, the same
+/// `organization` and `id`, with no `label`, which belongs to a profile.
+pub(crate) fn files_context(m: &Member, name: Option<String>) -> PatientContext {
+    PatientContext {
+        label: None,
+        ..context(m, name)
+    }
+}
+
+/// The stream header for `patient`, from either source.
+pub(crate) fn header(patient: PatientContext, since: Option<&str>) -> Header {
     let mut h = Header::new(
         Source::new(BIN, env!("CARGO_PKG_VERSION")),
         organization(),
-        context(m, None),
+        patient,
         now_rfc3339(),
     );
     h.method = Some(method::PORTAL.into());
@@ -716,7 +746,7 @@ fn export(ctx: &Ctx, args: &ExportArgs) -> Result<(), CliError> {
     let since = args.since.as_deref().map(iso).transpose()?;
     let scan = ctx.records()?;
     let members = scan.book.members();
-    let m = find_member(&members, &args.who.patient)?;
+    let m = pick_member(&members, args.who.patient.as_deref(), false)?;
     let since = since.as_deref();
 
     if let Some(dir) = &args.output {
@@ -779,7 +809,7 @@ fn export_to_dir(dir: &Path, book: &Book, m: &Member, since: Option<&str>) -> Re
 }
 
 fn write_stream<W: Write>(out: W, book: &Book, m: &Member, since: Option<&str>) -> Result<Finished, CliError> {
-    let mut w = RecordsWriter::start(out, &header(m, since))?;
+    let mut w = RecordsWriter::start(out, &header(files_context(m, None), since))?;
     let sel = select(book, m, since);
     for (f, _) in &sel.files {
         if !f.statement.issues.is_empty() {
@@ -932,7 +962,11 @@ fn claims_list(ctx: &Ctx, args: &ClaimsListArgs) -> Result<(), CliError> {
     let window = Window::of(&args.range)?;
     let scan = ctx.records()?;
     let members = scan.book.members();
-    let patient = args.patient.as_deref().map(|q| find_member(&members, q)).transpose()?;
+    let patient = args
+        .patient
+        .as_deref()
+        .map(|q| find_member(&members, q, false))
+        .transpose()?;
     let claims: Vec<Value> = scan
         .book
         .claims()
@@ -969,7 +1003,11 @@ fn claims_get(ctx: &Ctx, q: &str) -> Result<(), CliError> {
 fn accumulators(ctx: &Ctx, args: &AccumulatorsArgs) -> Result<(), CliError> {
     let scan = ctx.records()?;
     let members = scan.book.members();
-    let patient = args.patient.as_deref().map(|q| find_member(&members, q)).transpose()?;
+    let patient = args
+        .patient
+        .as_deref()
+        .map(|q| find_member(&members, q, false))
+        .transpose()?;
     let items: Vec<Value> = scan
         .book
         .balances()

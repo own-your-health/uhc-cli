@@ -74,17 +74,22 @@ fn json_of(cmd: &mut Command) -> Value {
     serde_json::from_slice(&out).unwrap()
 }
 
-fn member_id(dir: &Path, label: &str) -> String {
+/// A member's id by first name. The files source lists no `label` (a label
+/// belongs to a profile), so the id is recomputed from the member id and
+/// the first name, as uhc derives it.
+fn member_id(dir: &Path, first: &str) -> String {
     let v = json_of(uhc(dir).args(["patients", "list"]));
-    v["items"]
-        .as_array()
-        .unwrap()
+    let items = v["items"].as_array().unwrap();
+    assert!(items.iter().all(|m| m.get("label").is_none()), "{v}");
+    items
         .iter()
-        .find(|m| m["label"] == label)
-        .unwrap()["id"]
-        .as_str()
-        .unwrap()
-        .to_string()
+        .map(|m| m["id"].as_str().unwrap().to_string())
+        .find(|id| {
+            items.iter().any(|m| {
+                m["id"] == id.as_str() && uhc::model::patient_id(m["member_id"].as_str().unwrap(), first) == *id
+            })
+        })
+        .unwrap_or_else(|| panic!("no member {first} in {v}"))
 }
 
 #[test]
@@ -117,8 +122,15 @@ fn patients_are_the_subscriber_and_dependents() {
     let v = json_of(uhc(&dir).args(["patients", "list"]));
     assert_eq!(v["schema"], "patient-list/v1");
     let items = v["items"].as_array().unwrap();
-    let labels: Vec<&str> = items.iter().map(|m| m["label"].as_str().unwrap()).collect();
-    assert_eq!(labels, ["Alex", "Jordan", "Sam"]);
+    // No label from --files: a label belongs to a profile. The ids are the
+    // member id and first name's, as the member site's.
+    assert!(items.iter().all(|m| m.get("label").is_none()), "{v}");
+    let ids: Vec<&str> = items.iter().map(|m| m["id"].as_str().unwrap()).collect();
+    let expected: Vec<String> = ["ALEX", "JORDAN", "SAM"]
+        .iter()
+        .map(|first| uhc::model::patient_id("SYNM000001", first))
+        .collect();
+    assert_eq!(ids, expected);
     let alex = &items[0];
     assert_eq!(alex["kind"], "member");
     assert_eq!(alex["member_role"], "subscriber");
@@ -289,14 +301,27 @@ fn records_export_to_a_folder_is_for_synthetic_statements_only() {
     assert!(!target.join("records.ndjson").exists());
 }
 
+/// From --files, --patient takes a member's id only: a first name is a
+/// profile's label (medical-common DESIGN.md §1.1). With several members it
+/// is needed; with one, it may be left out.
 #[test]
-fn a_first_name_finds_a_member_and_an_unknown_one_is_not_found() {
+fn an_id_finds_a_member_and_a_first_name_does_not() {
     need_pdftotext!();
     let dir = statements(GOOD);
+    let sam = member_id(&dir, "Sam");
     uhc(&dir)
-        .args(["records", "export", "--patient", "sam", "--ndjson"])
+        .args(["records", "export", "--patient", &sam, "--ndjson"])
         .assert()
         .success();
+    let out = uhc(&dir)
+        .args(["records", "export", "--patient", "sam", "--ndjson"])
+        .assert()
+        .code(4);
+    let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
+    assert!(stderr.contains("takes an id"), "{stderr}");
+    let out = uhc(&dir).args(["records", "export", "--ndjson"]).assert().code(2);
+    let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
+    assert!(stderr.contains(&sam) && !stderr.contains("SAM"), "{stderr}");
     uhc(&dir)
         .args(["records", "export", "--patient", "nobody", "--ndjson"])
         .assert()
@@ -324,7 +349,8 @@ fn claims_list_and_get() {
         serde_json::json!({ "amount": "25.00", "currency": "USD" })
     );
 
-    let v = json_of(uhc(&dir).args(["claims", "list", "--patient", "alex", "--limit", "1"]));
+    let alex = member_id(&dir, "Alex");
+    let v = json_of(uhc(&dir).args(["claims", "list", "--patient", &alex, "--limit", "1"]));
     assert_eq!(v["items"].as_array().unwrap().len(), 1);
     let v = json_of(uhc(&dir).args(["claims", "list", "--since", "2026-04-01", "--until", "2026-04-30"]));
     assert_eq!(v["items"].as_array().unwrap().len(), 1);
@@ -340,7 +366,8 @@ fn claims_list_and_get() {
 fn accumulators_take_the_latest_balances() {
     need_pdftotext!();
     let dir = statements(GOOD);
-    let v = json_of(uhc(&dir).args(["accumulators", "--patient", "alex"]));
+    let alex = member_id(&dir, "Alex");
+    let v = json_of(uhc(&dir).args(["accumulators", "--patient", &alex]));
     assert_eq!(v["schema"], "accumulator-list/v1");
     let items = v["items"].as_array().unwrap();
     assert_eq!(items.len(), 8, "Alex's four rows and the family's four");
@@ -572,8 +599,9 @@ fn a_reprocessed_claim_is_its_latest_statement() {
     let check = json_of(uhc(&dir).args(["import", "check"]));
     assert_eq!(check["reprocessed_claims"], 1);
     // The stream carries the claim once, and both statements.
+    let sam = member_id(&dir, "Sam");
     let out = uhc(&dir)
-        .args(["records", "export", "--patient", "sam", "--ndjson"])
+        .args(["records", "export", "--patient", &sam, "--ndjson"])
         .assert()
         .success();
     let text = String::from_utf8(out.get_output().stdout.clone()).unwrap();
@@ -665,8 +693,10 @@ fn an_export_file_is_private_and_replaced_safely() {
     assert!(std::fs::symlink_metadata(&path).unwrap().file_type().is_symlink());
 }
 
+/// A first name that two members share is no id either, and the error
+/// names no member.
 #[test]
-fn an_ambiguous_first_name_names_ids_only() {
+fn a_shared_first_name_is_not_an_id() {
     need_pdftotext!();
     let dir = statements(&["2026-03-14-statement.txt", "damaged-statement.txt"]);
     let out = uhc(&dir)
@@ -674,8 +704,24 @@ fn an_ambiguous_first_name_names_ids_only() {
         .assert()
         .code(4);
     let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
-    assert!(stderr.contains("names 2 members"), "{stderr}");
+    assert!(stderr.contains("takes an id"), "{stderr}");
     assert!(!stderr.contains("Alex ("), "{stderr}");
+}
+
+/// With one member in the files, records export needs no --patient.
+#[test]
+fn one_member_needs_no_patient() {
+    need_pdftotext!();
+    let dir = statements(&["2026-05-08-statement.txt"]);
+    let v = json_of(uhc(&dir).args(["patients", "list"]));
+    assert_eq!(v["items"].as_array().unwrap().len(), 1, "{v}");
+    let out = uhc(&dir).args(["records", "export", "--ndjson"]).assert().success();
+    let first = String::from_utf8(out.get_output().stdout.clone()).unwrap();
+    let header: Value = serde_json::from_str(first.lines().next().unwrap()).unwrap();
+    assert_eq!(header["patient"]["id"], v["items"][0]["id"]);
+    assert!(header["patient"].get("label").is_none(), "{header}");
+    assert!(header["patient"].get("session").is_none(), "{header}");
+    assert_eq!(header["method"], "portal");
 }
 
 #[cfg(unix)]

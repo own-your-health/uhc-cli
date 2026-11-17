@@ -88,7 +88,17 @@ the other source's variable; both flags, or both variables and no flag, are
 exit 2. A profile must be configured (`uhc profiles add <NAME>`); there is
 no default, and a lone profile is never picked. `import check`, `info`,
 `config`, `profiles`, `auth reset`, `self-update` and `completions` need no
-sign-in and take no `--profile`.
+sign-in and take no `--profile`. `api` reads the site, so it takes
+`--profile` only.
+
+A member is the same patient from either source: organization `uhc`, and
+an id derived from the member id and first name that both the site and a
+statement carry. medrec files the two streams as one patient and merges
+the claims they share. `--patient` takes that id. With `--profile` it also
+takes the member's first name (the label `patients list` shows); with
+`--files` there is no label, since a label belongs to a sign-in, so a first
+name is exit 4. When there is one member, `records export` needs no
+`--patient`; with several it is exit 2, naming their ids.
 
 Every command takes `--json` and prints one schema-tagged document, except
 `records export --ndjson`, whose NDJSON stream is the output (`--json` with

@@ -203,9 +203,10 @@ pub enum PatientsCmd {
 
 #[derive(Args, Debug, Clone)]
 pub struct PatientArg {
-    /// A member: its id from `uhc patients list`, or its first name.
+    /// A member: its id from `uhc patients list` (with --profile, its first
+    /// name too). May be omitted when there is one member.
     #[arg(long, value_name = "ID")]
-    pub patient: String,
+    pub patient: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]
