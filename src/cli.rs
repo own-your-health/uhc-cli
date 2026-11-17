@@ -94,12 +94,13 @@ pub enum Command {
 #[derive(Subcommand, Debug)]
 pub enum AuthCmd {
     /// Sign in to the member site as --profile <NAME> and keep the session
-    /// in the OS keychain (auth-login/v1).
+    /// in uhc's vault: encrypted files under ~/.config/uhc/vault/, sealed
+    /// with a key held in the OS keychain (auth-login/v1).
     ///
     /// --browser opens a Chrome window on member.uhc.com in the profile's
     /// own browser profile, where you sign in; --stdin reads the Cookie
     /// header of a member.uhc.com request, copied from a signed-in
-    /// browser's DevTools. One member-site read checks the session before
+    /// browser's DevTools, with --user-agent from the same request. One member-site read checks the session before
     /// it is stored, unless --no-verify.
     Login(LoginCmd),
     /// Whether the profile's member-site session is stored and when it was
@@ -108,8 +109,8 @@ pub enum AuthCmd {
     /// Remove the profile's stored session, then the browser profile its
     /// --browser sign-in keeps (auth-logout/v1).
     Logout,
-    /// Remove every profile's stored session and the vault's key from the
-    /// keychain (auth-reset/v1): the way out when the key is lost or
+    /// Remove every profile's stored session from the vault and the vault's
+    /// key from the keychain (auth-reset/v1): the way out when the key is lost or
     /// damaged. Asks first; without a terminal it needs --force (exit 6).
     Reset {
         /// Do not ask.

@@ -90,7 +90,11 @@ jobs:
           esac
           "$b" --version
           "$b" info > /dev/null
-          "$b" auth status --json > /dev/null
+          # A scratch config and keychain service, as `make smoke`: a release
+          # check never reads a real sign-in.
+          export XDG_CONFIG_HOME="$(mktemp -d)" UHC_KEYCHAIN_SERVICE=piekstra.uhc.release-check
+          "$b" -q profiles add ci
+          "$b" auth status --profile ci --json > /dev/null
       - uses: actions/upload-artifact@v4
         with:
           name: dist-${{ runner.os }}

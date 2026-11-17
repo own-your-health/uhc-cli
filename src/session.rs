@@ -122,14 +122,13 @@ impl SessionStore {
     /// cannot read is an error naming the profile and the command that
     /// removes it ([`Reason::CredentialUnreadable`]), never what it holds.
     pub fn get(&self, profile: &ProfileName) -> Result<Option<Session>, CliError> {
-        let read = self
-            .vault
-            .get_json::<EntryIn>(&entry(profile))
-            .map_err(|e| remedied(e, profile))?;
-        match read {
-            None => Ok(None),
-            Some(read) => Session::from_entry(read).map(Some).ok_or_else(|| unreadable(profile)),
-        }
+        let Some(raw) = self.vault.get(&entry(profile)).map_err(|e| remedied(e, profile))? else {
+            return Ok(None);
+        };
+        // Parsed here, not by `get_json`, so an entry that decrypts but is
+        // not a session is uhc's own typed case.
+        let read: EntryIn = serde_json::from_str(raw.expose()).map_err(|_| unreadable(profile))?;
+        Session::from_entry(read).map(Some).ok_or_else(|| unreadable(profile))
     }
 
     /// The profile's session, for a command that reads the site: none
@@ -174,8 +173,6 @@ fn remedied(e: CliError, profile: &ProfileName) -> CliError {
         Some(vault::REMEDY_CLEAR) => e.with_remedy(format!(
             "{BIN} auth reset removes every profile's session and the key; then sign in again"
         )),
-        // An entry that decrypts but does not parse as a session.
-        None if e.message().starts_with("a vault entry does not read") => unreadable(profile),
         _ => e,
     }
 }

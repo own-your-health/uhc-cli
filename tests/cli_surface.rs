@@ -357,12 +357,15 @@ fn auth_login_stdin_refuses_what_is_not_a_cookie_header() {
 }
 
 /// `--user-agent` names the browser a pasted Cookie header came from, so
-/// it goes with --stdin or --from-env only.
+/// it goes with --stdin or --from-env, and they need it: the site's edge
+/// refuses a request without a browser's.
 #[test]
 fn auth_login_user_agent_goes_with_a_pasted_session() {
     for args in [
         vec!["--browser", "--user-agent", "Mozilla/5.0 (test)"],
         vec!["--user-agent", "Mozilla/5.0 (test)"],
+        vec!["--stdin"],
+        vec!["--from-env", "UHC_TEST_COOKIE"],
     ] {
         uhc()
             .args(["auth", "login", "--profile", "adult1"])

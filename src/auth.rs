@@ -47,6 +47,14 @@ pub fn login(cmd: &LoginCmd, profile: &ProfileName, json: bool, quiet: bool) -> 
             "--user-agent goes with --stdin or --from-env; --browser reads the browser's own".into(),
         ));
     }
+    if manual && user_agent.is_none() {
+        return Err(CliError::Usage(
+            "--stdin and --from-env need --user-agent: the User-Agent of the browser the Cookie header was \
+             copied from, from the same DevTools request. The site's edge refuses a request without a \
+             browser's, so a session without one can never be used"
+                .into(),
+        ));
+    }
     if !browser.browser && !manual {
         return Err(CliError::Usage(
             "pass --browser to sign in through a Chrome window, or --stdin with the Cookie header of a \
@@ -71,16 +79,9 @@ pub fn login(cmd: &LoginCmd, profile: &ProfileName, json: bool, quiet: bool) -> 
             )));
         }
     }
-    let session = if browser.browser {
-        browser_session(profile, browser.fresh_profile, verify, quiet)?
-    } else {
-        manual_session(
-            &login.source.read(None)?,
-            user_agent.as_deref(),
-            verify,
-            profile,
-            site::confirm_session,
-        )?
+    let session = match user_agent.as_deref() {
+        None => browser_session(profile, browser.fresh_profile, verify, quiet)?,
+        Some(agent) => manual_session(&login.source.read(None)?, agent, verify, profile, site::confirm_session)?,
     };
     store.put(profile, &session)?;
     if verify {
@@ -136,14 +137,14 @@ fn browser_session(profile: &ProfileName, fresh: bool, verify: bool, quiet: bool
 /// stores nothing, because the value can be piped again.
 fn manual_session(
     raw: &Secret,
-    user_agent: Option<&str>,
+    user_agent: &str,
     verify: bool,
     profile: &ProfileName,
     confirm: impl FnOnce(&str, Option<&str>) -> Confirm,
 ) -> Result<Session, CliError> {
     let cookie_header = cookie_header_from(raw)?;
     if verify {
-        match confirm(cookie_header.expose(), user_agent) {
+        match confirm(cookie_header.expose(), Some(user_agent)) {
             Confirm::Ready => {}
             Confirm::NotYet(reason) => {
                 return Err(CliError::Auth(format!(
@@ -168,7 +169,7 @@ fn manual_session(
             }
         }
     }
-    Ok(Session::new(cookie_header, user_agent.map(str::to_string)))
+    Ok(Session::new(cookie_header, Some(user_agent.to_string())))
 }
 
 /// The `Cookie` header value a `--stdin` import read: trimmed, a leading
@@ -420,7 +421,7 @@ mod tests {
     #[test]
     fn a_manual_import_stores_only_an_accepted_session() {
         let raw = Secret::new("dummy_a=1");
-        let agent = Some("Mozilla/5.0 (test)");
+        let agent = "Mozilla/5.0 (test)";
         let ok = manual_session(&raw, agent, true, &adult1(), |h, a| {
             assert_eq!(h, "dummy_a=1");
             assert_eq!(a, Some("Mozilla/5.0 (test)"));
@@ -431,7 +432,7 @@ mod tests {
         assert_eq!(ok.user_agent.as_deref(), Some("Mozilla/5.0 (test)"));
 
         let not_signed_in = "POST /x answered HTTP 401: not signed in";
-        let refused = manual_session(&raw, None, true, &adult1(), |_, _| {
+        let refused = manual_session(&raw, agent, true, &adult1(), |_, _| {
             Confirm::NotYet(not_signed_in.into())
         })
         .err()
@@ -440,27 +441,29 @@ mod tests {
         assert!(refused.message().contains(not_signed_in), "{}", refused.message());
         assert!(refused.to_string().contains("--no-verify"));
 
-        let undecided = manual_session(&raw, None, true, &adult1(), |_, _| {
+        let undecided = manual_session(&raw, agent, true, &adult1(), |_, _| {
             Confirm::undecided("POST /x answered HTTP 503")
         })
         .err()
         .unwrap();
         assert_eq!(undecided.exit_code(), 5);
 
-        let failed = manual_session(&raw, None, true, &adult1(), |_, _| {
+        let failed = manual_session(&raw, agent, true, &adult1(), |_, _| {
             Confirm::Fail(CliError::Other("x".into()))
         })
         .err()
         .unwrap();
         assert_eq!(failed.exit_code(), 1);
 
-        let unchecked =
-            manual_session(&raw, None, false, &adult1(), |_, _| panic!("--no-verify makes no read")).unwrap();
+        let unchecked = manual_session(&raw, agent, false, &adult1(), |_, _| {
+            panic!("--no-verify makes no read")
+        })
+        .unwrap();
         assert_eq!(unchecked.cookie_header.expose(), "dummy_a=1");
-        assert!(unchecked.user_agent.is_none());
+        assert_eq!(unchecked.user_agent.as_deref(), Some(agent));
 
         // The header is checked before any read.
-        let bad = manual_session(&Secret::new("nonsense"), None, true, &adult1(), |_, _| {
+        let bad = manual_session(&Secret::new("nonsense"), agent, true, &adult1(), |_, _| {
             panic!("no read for a bad header")
         });
         assert_eq!(bad.err().unwrap().exit_code(), 2);

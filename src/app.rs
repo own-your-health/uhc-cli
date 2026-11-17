@@ -7,7 +7,7 @@ use clap::{CommandFactory, FromArgMatches};
 use pk_cli_config::profile::{ProfileName, Profiles};
 use pk_cli_config::ConfigStore;
 use pk_cli_core::info::{AuthInfo, CliInfo};
-use pk_cli_core::{dates, output, CliError, Paged, RangeArgs};
+use pk_cli_core::{dates, output, CliError, Paged, RangeArgs, Reason};
 use pk_cli_documents::{fs_safe, verify_pdf, Document, DownloadBatch, SavedDocument, SkippedDocument};
 use pk_cli_selfupdate::Updater;
 use pk_med_records::dto::{kind, member_role, method, relationship};
@@ -117,7 +117,8 @@ impl Ctx<'_> {
                 "{UNREADABLE}{} PDF(s) look like UnitedHealthcare EOB statements, but no claim or balance came \
                  out of any; the statement layout may have changed (`{BIN} import check`)",
                 files.len()
-            )));
+            ))
+            .because(UNREADABLE_STATEMENTS));
         }
         Ok(scan)
     }
@@ -149,12 +150,15 @@ pub fn main() {
 
 /// How the exit 5 for a folder of unreadable statements begins.
 const UNREADABLE: &str = "the statements could not be read: ";
+/// Its cause, which [`fail`] prints without cli-common's "network/upstream
+/// error:" line.
+const UNREADABLE_STATEMENTS: Reason = Reason::Provider("unreadable-statements");
 
 /// `output::fail`, except for statements that could not be read: cli-common
 /// prints every exit 5 as "network/upstream error: …", and reading a folder
 /// involves no network.
 fn fail(e: &CliError, json: bool) -> i32 {
-    if !(e.exit_code() == 5 && e.message().starts_with(UNREADABLE)) {
+    if e.reason() != Some(UNREADABLE_STATEMENTS) {
         return output::fail(e, json);
     }
     if json {

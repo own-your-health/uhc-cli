@@ -47,8 +47,8 @@
   capture time, `browser_profile`) and `auth logout` removes it, then the
   kept Chrome profile. One GraphQL read checks a session before it is
   stored (401 JSON when signed out); `--no-verify` stores one unchecked.
-  `--user-agent` goes with `--stdin`: the site's edge refuses a request
-  without a browser's.
+  `--stdin` and `--from-env` need `--user-agent`, the browser's: the site's
+  edge refuses a request without one.
 
 ## v0.1.0
 
