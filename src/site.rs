@@ -38,17 +38,12 @@ pub const SESSION_COOKIE: &str = "rally-token";
 
 /// The member-site read that shows whether a cookie jar is a signed-in
 /// member's: an `https` URL on a uhc.com host, sent [`SESSION_CHECK_BODY`]
-/// with `POST`. `None` would refuse a checked sign-in before Chrome opens.
-pub const SESSION_CHECK_URL: Option<&str> =
-    Some("https://member.uhc.com/ce-claims-aggregate-api/graphql?q=sessionCheck");
+/// with `POST`.
+pub const SESSION_CHECK_URL: &str = "https://member.uhc.com/ce-claims-aggregate-api/graphql?q=sessionCheck";
 
 /// The GraphQL query [`SESSION_CHECK_URL`] is sent: the smallest read of the
 /// member's own plan balances. It reads; nothing on the site changes.
 pub const SESSION_CHECK_BODY: &str = r#"{"operationName":"sessionCheck","variables":{},"query":"query sessionCheck { spendingOverviews { __typename } }"}"#;
-
-/// The reason every confirmation gives until [`SESSION_CHECK_URL`] and
-/// [`judge`] are filled in.
-pub const NOT_MAPPED: &str = "the member site's session check is not mapped yet";
 
 /// The bound on the whole read, connecting included. The browser crate's poll
 /// (and Ctrl-C) waits for it.
@@ -88,10 +83,7 @@ pub fn confirm_candidate(candidate: &Captured) -> Confirm {
 /// session captured from one. Without it the request names `uhc`, and the
 /// site's edge answers 403 with an HTML page (docs/api.md).
 pub fn confirm_session(cookie_header: &str, user_agent: Option<&str>) -> Confirm {
-    match SESSION_CHECK_URL {
-        Some(url) => confirm_at(url, cookie_header, user_agent),
-        None => Confirm::NotYet(NOT_MAPPED.into()),
-    }
+    confirm_at(SESSION_CHECK_URL, cookie_header, user_agent)
 }
 
 /// How the answer from [`SESSION_CHECK_URL`] shows a signed-in member.
@@ -103,7 +95,7 @@ pub fn confirm_session(cookie_header: &str, user_agent: Option<&str>) -> Confirm
 /// It sees only answers that [`confirm_session`] has not already decided: no
 /// 429, 5xx, 403 with an HTML page or redirect. `body` is at most 1 MiB.
 pub fn judge(status: u16, content_type: Option<&str>, body: &[u8]) -> Confirm {
-    let what = format!("POST {}", path_of(SESSION_CHECK_URL.unwrap_or("/")));
+    let what = format!("POST {}", path_of(SESSION_CHECK_URL));
     if (400..500).contains(&status) {
         return Confirm::NotYet(format!("{what} answered HTTP {status}: not signed in"));
     }
@@ -219,19 +211,17 @@ mod tests {
         assert!(START_URL.starts_with(&format!("https://{HOST}/")));
     }
 
-    /// Whoever fills in the session check keeps it on the member site's own
-    /// hosts, over https.
+    /// The session check stays on the member site's own hosts, over https.
     #[test]
     fn the_session_check_is_an_https_read_on_uhc_com() {
-        if let Some(url) = SESSION_CHECK_URL {
-            let host = url
-                .strip_prefix("https://")
-                .unwrap()
-                .split(['/', '?', ':'])
-                .next()
-                .unwrap();
-            assert!(host == DOMAIN || host.ends_with(".uhc.com"), "{url}");
-        }
+        let url = SESSION_CHECK_URL;
+        let host = url
+            .strip_prefix("https://")
+            .unwrap()
+            .split(['/', '?', ':'])
+            .next()
+            .unwrap();
+        assert!(host == DOMAIN || host.ends_with(".uhc.com"), "{url}");
     }
 
     fn candidate(jar: bool) -> Captured {

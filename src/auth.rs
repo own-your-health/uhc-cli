@@ -55,7 +55,6 @@ pub fn login(cmd: &LoginCmd, profile: &ProfileName, json: bool, quiet: bool) -> 
         ));
     }
     let verify = !login.no_verify;
-    can_confirm(verify, site::SESSION_CHECK_URL)?;
     let store = SessionStore::open()?;
     // Before Chrome opens or stdin is read, so no sign-in is spent on a
     // session that would not be stored.
@@ -97,20 +96,6 @@ pub fn login(cmd: &LoginCmd, profile: &ProfileName, json: bool, quiet: bool) -> 
     }
     if json {
         output::json(&AuthLogin::stored(verify).to_json());
-    }
-    Ok(())
-}
-
-/// Refuses a checked sign-in while the session check is not mapped
-/// (`check` is [`site::SESSION_CHECK_URL`]): every confirmation would be
-/// `NotYet`, so a `--browser` sign-in would be spent and then wait out its
-/// timeout. Off once the check is filled in.
-fn can_confirm(verify: bool, check: Option<&str>) -> Result<(), CliError> {
-    if verify && check.is_none() {
-        return Err(
-            CliError::Other(format!("{}, so a session could not be confirmed", site::NOT_MAPPED))
-                .with_remedy("--no-verify stores it unchecked (`verified: false`)"),
-        );
     }
     Ok(())
 }
@@ -479,18 +464,6 @@ mod tests {
             panic!("no read for a bad header")
         });
         assert_eq!(bad.err().unwrap().exit_code(), 2);
-    }
-
-    /// Until the check is mapped, only --no-verify gets past it, before
-    /// any keychain read or window.
-    #[test]
-    fn a_checked_sign_in_needs_a_mapped_check() {
-        let e = can_confirm(true, None).err().unwrap();
-        assert_eq!(e.exit_code(), 1);
-        assert!(e.message().starts_with(site::NOT_MAPPED), "{e}");
-        assert!(e.to_string().contains("--no-verify"), "{e}");
-        can_confirm(false, None).unwrap();
-        can_confirm(true, Some("https://member.uhc.com/example")).unwrap();
     }
 
     fn temp_root(tag: &str) -> (std::path::PathBuf, std::path::PathBuf) {

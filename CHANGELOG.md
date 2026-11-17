@@ -43,8 +43,7 @@
 - A folder whose statements could not be read (exit 5) says so, as
   "the statements could not be read: …", no longer as a network error.
 - `auth login --browser [--fresh-profile] [--overwrite]` and `--stdin`
-  keep a member-site session as one keychain item (`piekstra.uhc`,
-  `session`); `auth status` reports it (`method: "browser-session"`, its
+  keep a member-site session; `auth status` reports it (`method: "browser-session"`, its
   capture time, `browser_profile`) and `auth logout` removes it, then the
   kept Chrome profile. One GraphQL read checks a session before it is
   stored (401 JSON when signed out); `--no-verify` stores one unchecked.
