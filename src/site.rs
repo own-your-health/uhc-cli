@@ -4,14 +4,10 @@
 //!
 //! The site sets visitor cookies (`AWSALBTG`, `AWSALBTGCORS`,
 //! `X-DashCafe-Canary`) before anyone signs in, so a cookie in the jar proves
-//! nothing. The capture waits for a page that offers a way to sign out
-//! ([`SIGNED_IN`]), then [`confirm_session`] makes one read with the jar.
-//!
-//! Which read, and what in its answer shows a signed-in member, are still
-//! being mapped (docs/api.md). [`SESSION_CHECK_URL`] and [`judge`] are the two
-//! places to fill in. Until then every confirmation answers `NotYet`, and
-//! `auth login` refuses a checked sign-in before Chrome opens; `--no-verify`
-//! stores a session unchecked.
+//! nothing. The capture waits for [`SESSION_COOKIE`], which the site sets
+//! only as the sign-in completes, then [`confirm_session`] makes one read
+//! with the jar: a one-field GraphQL query that a signed-in member gets data
+//! for and anyone else a 401 (docs/api.md).
 
 use std::io::Read;
 use std::time::Duration;
@@ -34,19 +30,21 @@ pub const START_URL: &str = "https://member.uhc.com/myuhc";
 /// What signing in involves, for the opening status line.
 pub const HINT: &str = "your HealthSafe ID password and code";
 
-/// Signed in: the page offers a way to sign out. A signed-out page offers
-/// only a sign-in.
-pub const SIGNED_IN: &str = r#"(() => {
-  const out = [...document.querySelectorAll('a, button')].some(e =>
-    /^\s*(sign|log)\s?out\s*$/i.test(e.textContent || '') ||
-    /(logout|signout|sign-out|log-out)/i.test(e.getAttribute('href') || ''));
-  return out ? 'signed-in' : null;
-})()"#;
+/// A cookie member.uhc.com sets only once a sign-in completes, so the
+/// capture asks [`confirm_session`] once rather than on every poll. The
+/// signed-in pages carry no sign-out link a page script can see: it is
+/// inside the site header's web component.
+pub const SESSION_COOKIE: &str = "rally-token";
 
 /// The member-site read that shows whether a cookie jar is a signed-in
-/// member's: an `https` URL on a uhc.com host, read with `GET`. `None` until
-/// the API is mapped (docs/api.md). Fill it in together with [`judge`].
-pub const SESSION_CHECK_URL: Option<&str> = None;
+/// member's: an `https` URL on a uhc.com host, sent [`SESSION_CHECK_BODY`]
+/// with `POST`. `None` would refuse a checked sign-in before Chrome opens.
+pub const SESSION_CHECK_URL: Option<&str> =
+    Some("https://member.uhc.com/ce-claims-aggregate-api/graphql?q=sessionCheck");
+
+/// The GraphQL query [`SESSION_CHECK_URL`] is sent: the smallest read of the
+/// member's own plan balances. It reads; nothing on the site changes.
+pub const SESSION_CHECK_BODY: &str = r#"{"operationName":"sessionCheck","variables":{},"query":"query sessionCheck { spendingOverviews { __typename } }"}"#;
 
 /// The reason every confirmation gives until [`SESSION_CHECK_URL`] and
 /// [`judge`] are filled in.
@@ -64,7 +62,7 @@ const MAX_BODY: u64 = 1024 * 1024;
 /// stays open until [`confirm_candidate`] says the jar is a signed-in one.
 pub fn capture(verify: bool) -> Result<Capture, BrowserError> {
     let capture = Capture::new(LABEL, HostRule::exact(HOST)?)
-        .expression(SIGNED_IN)
+        .cookie(START_URL, SESSION_COOKIE)
         .cookie_jar(DOMAIN)
         .with_user_agent()
         .hint(HINT);
@@ -87,7 +85,8 @@ pub fn confirm_candidate(candidate: &Captured) -> Confirm {
 /// [`judge`]. A 429, a 5xx, a 403 with an HTML page, no answer or an answer
 /// that does not arrive whole is `Undecided`. A redirect is `NotYet`: the
 /// site sends a visitor to its sign-in. `user_agent` is the browser's, for a
-/// session captured from one; without it the request names `uhc`.
+/// session captured from one. Without it the request names `uhc`, and the
+/// site's edge answers 403 with an HTML page (docs/api.md).
 pub fn confirm_session(cookie_header: &str, user_agent: Option<&str>) -> Confirm {
     match SESSION_CHECK_URL {
         Some(url) => confirm_at(url, cookie_header, user_agent),
@@ -97,23 +96,40 @@ pub fn confirm_session(cookie_header: &str, user_agent: Option<&str>) -> Confirm
 
 /// How the answer from [`SESSION_CHECK_URL`] shows a signed-in member.
 ///
-/// `Ready` for what only a signed-in answer has (the member's own record,
-/// not just a 200). `NotYet` for the answer a visitor gets: a 401, or a
-/// parseable answer with no member in it. `Confirm::undecided` for a 2xx
-/// that is empty, unparseable or an edge page. It sees only answers that
-/// [`confirm_session`] has not already decided: no 429, 5xx, 403 with an
-/// HTML page or redirect. `body` is at most 1 MiB.
-///
-/// Not mapped yet: every answer is `NotYet`.
+/// `Ready` for a JSON answer whose `data.spendingOverviews` is an object:
+/// only a signed-in member's query resolves. `NotYet` for a 401 (the site's
+/// "Credentials missing.") or any other 4xx. `Confirm::undecided` for a 2xx
+/// that is not JSON or holds no `data.spendingOverviews` (a GraphQL error).
+/// It sees only answers that [`confirm_session`] has not already decided: no
+/// 429, 5xx, 403 with an HTML page or redirect. `body` is at most 1 MiB.
 pub fn judge(status: u16, content_type: Option<&str>, body: &[u8]) -> Confirm {
-    let _ = (status, content_type, body);
-    Confirm::NotYet(NOT_MAPPED.into())
+    let what = format!("POST {}", path_of(SESSION_CHECK_URL.unwrap_or("/")));
+    if (400..500).contains(&status) {
+        return Confirm::NotYet(format!("{what} answered HTTP {status}: not signed in"));
+    }
+    if !(200..300).contains(&status) {
+        return Confirm::undecided(format!("{what} answered HTTP {status}"));
+    }
+    if !content_type.is_some_and(|t| t.contains("json")) {
+        return Confirm::undecided(format!("{what} answered HTTP {status} without JSON"));
+    }
+    match serde_json::from_slice::<serde_json::Value>(body) {
+        Ok(doc)
+            if doc
+                .pointer("/data/spendingOverviews")
+                .is_some_and(serde_json::Value::is_object) =>
+        {
+            Confirm::Ready
+        }
+        Ok(_) => Confirm::undecided(format!("{what} answered without the plan balances")),
+        Err(_) => Confirm::undecided(format!("{what} answered HTTP {status} with JSON that does not parse")),
+    }
 }
 
 /// [`confirm_session`]'s read of `url`, apart from the constant so the tests
 /// can point it at a local server.
 fn confirm_at(url: &str, cookie_header: &str, user_agent: Option<&str>) -> Confirm {
-    let what = format!("GET {}", path_of(url));
+    let what = format!("POST {}", path_of(url));
     let client = match client(user_agent) {
         Ok(client) => client,
         Err(e) => return Confirm::Fail(e),
@@ -125,9 +141,11 @@ fn confirm_at(url: &str, cookie_header: &str, user_agent: Option<&str>) -> Confi
     };
     cookie.set_sensitive(true);
     let answer = match client
-        .get(url)
+        .post(url)
         .header(COOKIE, cookie)
         .header(ACCEPT, "application/json")
+        .header(CONTENT_TYPE, "application/json")
+        .body(SESSION_CHECK_BODY)
         .send()
     {
         Ok(answer) => answer,
@@ -229,31 +247,42 @@ mod tests {
         .build()
     }
 
-    /// Until the check is mapped, no candidate is confirmed and no request is
-    /// made: the hook answers before any client is built.
+    /// A candidate without a jar is not read at all.
     #[test]
-    fn the_confirm_hook_waits_until_the_check_is_mapped() {
-        if SESSION_CHECK_URL.is_some() {
-            return;
+    fn no_jar_is_not_signed_in_yet() {
+        match confirm_candidate(&candidate(false)) {
+            Confirm::NotYet(reason) => assert!(reason.contains("no uhc.com cookie"), "{reason}"),
+            other => panic!("{other:?}"),
         }
-        for jar in [true, false] {
-            match confirm_candidate(&candidate(jar)) {
-                Confirm::NotYet(reason) if jar => assert_eq!(reason, NOT_MAPPED),
-                Confirm::NotYet(reason) => assert!(reason.contains("no uhc.com cookie"), "{reason}"),
-                other => panic!("jar {jar}: {other:?}"),
-            }
-        }
-        assert!(matches!(confirm_session("a=b", None), Confirm::NotYet(r) if r == NOT_MAPPED));
     }
 
     #[test]
-    fn judge_is_not_mapped_yet() {
+    fn the_check_query_reads_and_names_no_one() {
+        let body: serde_json::Value = serde_json::from_str(SESSION_CHECK_BODY).unwrap();
+        let query = body["query"].as_str().unwrap();
+        assert!(query.starts_with("query "), "a query, never a mutation: {query}");
+        assert_eq!(body["variables"], serde_json::json!({}));
+    }
+
+    /// What the site answers (docs/api.md), judged.
+    #[test]
+    fn judge_reads_the_sites_answers() {
+        let json = Some("application/json");
+        let signed_in = br#"{"data":{"spendingOverviews":{"__typename":"SpendingOverviewsAggregateResponse"}}}"#;
+        assert!(matches!(judge(200, json, signed_in), Confirm::Ready));
+        let visitor = br#"{"meta":{"success":false,"errors":[{"error":"Credentials missing."}]}}"#;
+        assert!(matches!(judge(401, json, visitor), Confirm::NotYet(r) if r.contains("HTTP 401")));
         for (status, mime, body) in [
-            (200, Some("application/json"), &b"{}"[..]),
-            (401, Some("application/json"), &b"{}"[..]),
-            (200, None, &b""[..]),
+            (200, json, &br#"{"errors":[{"message":"x"}],"data":null}"#[..]),
+            (200, json, &b"{"[..]),
+            (200, Some("text/html"), &b"<p>edge</p>"[..]),
+            (304, None, &b""[..]),
         ] {
-            assert!(matches!(judge(status, mime, body), Confirm::NotYet(r) if r == NOT_MAPPED));
+            assert!(
+                matches!(judge(status, mime, body), Confirm::Undecided { .. }),
+                "{status} {:?}",
+                String::from_utf8_lossy(body)
+            );
         }
     }
 
@@ -264,8 +293,8 @@ mod tests {
         assert_eq!(path_of("http://127.0.0.1:9/a/b"), "/a/b");
     }
 
-    /// Serves one canned answer on loopback and hands back the request's
-    /// head.
+    /// Serves one canned answer on loopback and hands back the request's head
+    /// and body, read whole so the connection closes cleanly.
     fn serve_once(answer: &'static str) -> (String, std::thread::JoinHandle<String>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}/api/check?q=1", listener.local_addr().unwrap());
@@ -276,8 +305,16 @@ mod tests {
             while !head.ends_with(b"\r\n\r\n") && stream.read(&mut byte).unwrap() == 1 {
                 head.push(byte[0]);
             }
+            let head = String::from_utf8_lossy(&head).to_lowercase();
+            let length = head
+                .lines()
+                .find_map(|l| l.strip_prefix("content-length: "))
+                .and_then(|n| n.trim().parse::<usize>().ok())
+                .unwrap_or(0);
+            let mut body = vec![0u8; length];
+            stream.read_exact(&mut body).unwrap();
             stream.write_all(answer.as_bytes()).unwrap();
-            String::from_utf8_lossy(&head).to_lowercase()
+            format!("{head}{}", String::from_utf8_lossy(&body))
         });
         (url, handle)
     }
@@ -292,7 +329,7 @@ mod tests {
             let (url, server) = serve_once(answer);
             match confirm_at(&url, "a=b; c=d", Some("Mozilla/5.0 (test)")) {
                 Confirm::Undecided { reason, retry_after } => {
-                    assert!(reason.starts_with("GET /api/check answered HTTP"), "{reason}");
+                    assert!(reason.starts_with("POST /api/check answered HTTP"), "{reason}");
                     assert!(!reason.contains("q=1"), "{reason}");
                     assert_eq!(retry_after, retry.map(Duration::from_secs));
                 }
@@ -301,7 +338,10 @@ mod tests {
             server.join().unwrap()
         };
         let head = undecided("HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n", None);
+        assert!(head.starts_with("post /api/check?q=1 "), "{head}");
         assert!(head.contains("\r\ncookie: a=b; c=d\r\n"), "{head}");
+        assert!(head.contains("\r\ncontent-type: application/json\r\n"), "{head}");
+        assert!(head.ends_with(SESSION_CHECK_BODY), "{head}");
         assert!(head.contains("\r\nuser-agent: mozilla/5.0 (test)\r\n"), "{head}");
         undecided(
             "HTTP/1.1 429 Too Many Requests\r\nRetry-After: 30\r\nContent-Length: 0\r\n\r\n",
@@ -321,21 +361,22 @@ mod tests {
         let head = server.join().unwrap();
         assert!(head.contains(&format!("\r\nuser-agent: {BIN}/")), "{head}");
 
-        for answer in [
-            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}",
-            "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}",
-        ] {
-            let (url, server) = serve_once(answer);
-            assert!(matches!(confirm_at(&url, "a=b", None), Confirm::NotYet(r) if r == NOT_MAPPED));
-            server.join().unwrap();
-        }
+        let (url, server) =
+            serve_once("HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}");
+        assert!(matches!(confirm_at(&url, "a=b", None), Confirm::NotYet(r) if r.contains("HTTP 401")));
+        server.join().unwrap();
+        let (url, server) = serve_once(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 40\r\n\r\n{\"data\":{\"spendingOverviews\":{\"a\":\"b\"}}}",
+        );
+        assert!(matches!(confirm_at(&url, "a=b", None), Confirm::Ready));
+        server.join().unwrap();
     }
 
     #[test]
     fn no_answer_is_undecided() {
         let port = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
         match confirm_at(&format!("http://127.0.0.1:{port}/api/check"), "a=b", None) {
-            Confirm::Undecided { reason, .. } => assert_eq!(reason, "GET /api/check got no answer"),
+            Confirm::Undecided { reason, .. } => assert_eq!(reason, "POST /api/check got no answer"),
             other => panic!("{other:?}"),
         }
     }

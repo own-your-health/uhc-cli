@@ -132,7 +132,11 @@ fn unreadable(service: &str) -> CliError {
 // ----------------------------------------------------------------- login
 
 pub fn login(cmd: &LoginCmd, json: bool, quiet: bool) -> Result<(), CliError> {
-    let LoginCmd { login, browser } = cmd;
+    let LoginCmd {
+        login,
+        browser,
+        user_agent,
+    } = cmd;
     let manual = login.source.stdin || login.source.from_env.is_some();
     // Flags first: a refused combination reaches neither the keychain nor
     // the site.
@@ -143,6 +147,11 @@ pub fn login(cmd: &LoginCmd, json: bool, quiet: bool) -> Result<(), CliError> {
     }
     if login.source.stdin && login.source.from_env.is_some() {
         return Err(CliError::Usage("pass one of --stdin and --from-env".into()));
+    }
+    if user_agent.is_some() && !manual {
+        return Err(CliError::Usage(
+            "--user-agent goes with --stdin or --from-env; --browser reads the browser's own".into(),
+        ));
     }
     if !browser.browser && !manual {
         return Err(CliError::Usage(
@@ -165,9 +174,12 @@ pub fn login(cmd: &LoginCmd, json: bool, quiet: bool) -> Result<(), CliError> {
     let session = if browser.browser {
         browser_session(browser.fresh_profile, verify, quiet)?
     } else {
-        manual_session(&login.source.read(None)?, verify, |header| {
-            site::confirm_session(header, None)
-        })?
+        manual_session(
+            &login.source.read(None)?,
+            user_agent.as_deref(),
+            verify,
+            site::confirm_session,
+        )?
     };
     creds.set(SESSION_ACCOUNT, &session.to_item()?)?;
     if verify {
@@ -233,10 +245,15 @@ fn browser_session(fresh: bool, verify: bool, quiet: bool) -> Result<Session, Cl
 /// A `--stdin` (or `--from-env`) import, checked with `confirm` unless
 /// `verify` is off. Unlike a browser capture, any answer short of `Ready`
 /// stores nothing, because the value can be piped again.
-fn manual_session(raw: &Secret, verify: bool, confirm: impl FnOnce(&str) -> Confirm) -> Result<Session, CliError> {
+fn manual_session(
+    raw: &Secret,
+    user_agent: Option<&str>,
+    verify: bool,
+    confirm: impl FnOnce(&str, Option<&str>) -> Confirm,
+) -> Result<Session, CliError> {
     let cookie_header = cookie_header_from(raw)?;
     if verify {
-        match confirm(cookie_header.expose()) {
+        match confirm(cookie_header.expose(), user_agent) {
             Confirm::Ready => {}
             Confirm::NotYet(reason) => {
                 return Err(CliError::Auth(format!(
@@ -260,7 +277,7 @@ fn manual_session(raw: &Secret, verify: bool, confirm: impl FnOnce(&str) -> Conf
             }
         }
     }
-    Ok(Session::new(cookie_header, None))
+    Ok(Session::new(cookie_header, user_agent.map(str::to_string)))
 }
 
 /// The `Cookie` header value a `--stdin` import read: trimmed, a leading
@@ -526,36 +543,42 @@ mod tests {
     #[test]
     fn a_manual_import_stores_only_an_accepted_session() {
         let raw = Secret::new("dummy_a=1");
-        let ok = manual_session(&raw, true, |h| {
+        let agent = Some("Mozilla/5.0 (test)");
+        let ok = manual_session(&raw, agent, true, |h, a| {
             assert_eq!(h, "dummy_a=1");
+            assert_eq!(a, Some("Mozilla/5.0 (test)"));
             Confirm::Ready
         })
         .unwrap();
         assert_eq!(ok.cookie_header.expose(), "dummy_a=1");
-        assert!(ok.user_agent.is_none());
+        assert_eq!(ok.user_agent.as_deref(), Some("Mozilla/5.0 (test)"));
 
-        let refused = manual_session(&raw, true, |_| Confirm::NotYet(site::NOT_MAPPED.into()))
+        let not_signed_in = "POST /x answered HTTP 401: not signed in";
+        let refused = manual_session(&raw, None, true, |_, _| Confirm::NotYet(not_signed_in.into()))
             .err()
             .unwrap();
         assert_eq!(refused.exit_code(), 3);
-        assert!(refused.message().contains(site::NOT_MAPPED), "{}", refused.message());
+        assert!(refused.message().contains(not_signed_in), "{}", refused.message());
         assert!(refused.to_string().contains("--no-verify"));
 
-        let undecided = manual_session(&raw, true, |_| Confirm::undecided("GET /x answered HTTP 503"))
+        let undecided = manual_session(&raw, None, true, |_, _| Confirm::undecided("POST /x answered HTTP 503"))
             .err()
             .unwrap();
         assert_eq!(undecided.exit_code(), 5);
 
-        let failed = manual_session(&raw, true, |_| Confirm::Fail(CliError::Other("x".into())))
+        let failed = manual_session(&raw, None, true, |_, _| Confirm::Fail(CliError::Other("x".into())))
             .err()
             .unwrap();
         assert_eq!(failed.exit_code(), 1);
 
-        let unchecked = manual_session(&raw, false, |_| panic!("--no-verify makes no read")).unwrap();
+        let unchecked = manual_session(&raw, None, false, |_, _| panic!("--no-verify makes no read")).unwrap();
         assert_eq!(unchecked.cookie_header.expose(), "dummy_a=1");
+        assert!(unchecked.user_agent.is_none());
 
         // The header is checked before any read.
-        let bad = manual_session(&Secret::new("nonsense"), true, |_| panic!("no read for a bad header"));
+        let bad = manual_session(&Secret::new("nonsense"), None, true, |_, _| {
+            panic!("no read for a bad header")
+        });
         assert_eq!(bad.err().unwrap().exit_code(), 2);
     }
 

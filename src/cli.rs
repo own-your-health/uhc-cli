@@ -93,6 +93,11 @@ pub struct LoginCmd {
     pub login: LoginArgs,
     #[command(flatten)]
     pub browser: BrowserArgs,
+    /// With --stdin or --from-env: the User-Agent of the browser the Cookie
+    /// header was copied from. The site's edge refuses requests without a
+    /// browser's, so the check and every later read send it.
+    #[arg(long, value_name = "UA")]
+    pub user_agent: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]

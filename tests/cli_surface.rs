@@ -193,23 +193,15 @@ fn auth_login_stdin_refuses_what_is_not_a_cookie_header() {
     }
 }
 
-/// While the member site's session check is not mapped, a checked sign-in
-/// is refused before the keychain, stdin or Chrome. Once it is mapped this
-/// would send a request, so it stops here.
+/// `--user-agent` names the browser a pasted Cookie header came from, so
+/// it goes with --stdin or --from-env only.
 #[test]
-fn auth_login_refuses_a_check_that_is_not_mapped() {
-    if uhc::site::SESSION_CHECK_URL.is_some() {
-        return;
-    }
-    for source in ["--browser", "--stdin"] {
-        let out = uhc()
-            .args(["auth", "login", "--json", source])
-            .write_stdin("dummy_a=1")
-            .assert()
-            .code(1);
-        let message = error_of(&out)["error"]["message"].as_str().unwrap().to_string();
-        assert!(message.contains(uhc::site::NOT_MAPPED), "{message}");
-        assert!(message.contains("--no-verify"), "{message}");
+fn auth_login_user_agent_goes_with_a_pasted_session() {
+    for args in [
+        vec!["--browser", "--user-agent", "Mozilla/5.0 (test)"],
+        vec!["--user-agent", "Mozilla/5.0 (test)"],
+    ] {
+        uhc().args(["auth", "login"]).args(&args).assert().code(2);
     }
 }
 

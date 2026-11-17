@@ -39,7 +39,7 @@ use std::time::Duration;
 use pk_cli_browser::{Capture, HostRule, Launch, RequestKind};
 use pk_cli_core::CliError;
 use uhc::shape::Redactor;
-use uhc::site::{DOMAIN, HINT, HOST, LABEL, SIGNED_IN, START_URL};
+use uhc::site::{DOMAIN, HINT, HOST, LABEL, SESSION_COOKIE, START_URL};
 
 /// Re-reads at most, and the pause between two.
 const MAX_READS: usize = 60;
@@ -98,7 +98,7 @@ fn run() -> Result<(), CliError> {
         path.display()
     );
     let capture = Capture::new(LABEL, HostRule::exact(HOST)?)
-        .expression(SIGNED_IN)
+        .cookie(START_URL, SESSION_COOKIE)
         .cookie_jar(DOMAIN)
         .with_user_agent()
         .request_log(DOMAIN, Duration::from_secs(minutes * 60))
