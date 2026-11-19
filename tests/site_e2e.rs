@@ -751,24 +751,36 @@ fn no_session_stored_is_exit_3_before_any_request() {
     assert!(h.server.seen().is_empty());
 }
 
-/// From the site, --patient takes a member's id or first name (the label
-/// its grant shows), and without it a household of three is exit 2 naming
-/// ids only. The id is the files source's, so a store merges the two.
-/// Every resource from the site carries `meta.lastUpdated`: the time the
-/// site was read, the stream header's `pulled_at`.
+/// The site's resources carry no `meta.lastUpdated`: they hold as of the
+/// stream's `pulled_at`. Read twice, at two times, every resource is the
+/// same bytes, so a store sees an unchanged claim or document as unchanged.
 #[test]
-fn site_resources_are_dated_by_the_read() {
+fn a_second_read_gives_the_same_resources() {
     let h = Household::new();
-    let (code, stream) = h.stream(&["records", "export", "--patient", "Sam", "--ndjson"]);
+    let resources = |stream: &[Value]| -> Vec<String> {
+        stream
+            .iter()
+            .filter(|r| r.get("resourceType").is_some())
+            .map(|r| r.to_string())
+            .collect()
+    };
+    let (code, first) = h.stream(&["records", "export", "--patient", "Sam", "--ndjson"]);
     assert_eq!(code, 0);
-    let pulled_at = stream[0]["pulled_at"].as_str().unwrap();
-    let resources: Vec<&Value> = stream.iter().filter(|r| r.get("resourceType").is_some()).collect();
-    assert!(resources.len() > 3);
-    for r in resources {
-        assert_eq!(r["meta"]["lastUpdated"], pulled_at, "{r}");
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    let (code, second) = h.stream(&["records", "export", "--patient", "Sam", "--ndjson"]);
+    assert_eq!(code, 0);
+    assert_ne!(first[0]["pulled_at"], second[0]["pulled_at"], "two reads at two times");
+    let (a, b) = (resources(&first), resources(&second));
+    assert!(a.len() > 3);
+    assert_eq!(a, b);
+    for r in &first[1..] {
+        assert!(r["meta"].get("lastUpdated").is_none(), "{r}");
     }
 }
 
+/// From the site, --patient takes a member's id or first name (the label
+/// its grant shows), and without it a household of three is exit 2 naming
+/// ids only. The id is the files source's, so a store merges the two.
 #[test]
 fn records_export_takes_an_id_or_a_first_name() {
     let h = Household::new();

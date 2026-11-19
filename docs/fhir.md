@@ -12,17 +12,21 @@ No FHIR library is involved; `src/fhir.rs` writes the JSON.
 | Statements | `uhc:eob-pdf` | `mapped-from-eob-statement` |
 | Member site | `uhc:member-site` | `mapped-from-member-site` |
 
-`meta.lastUpdated` says when a resource's content held, so a store that
-gets one resource from both sources keeps the newer:
+`meta.lastUpdated` says when a resource's content held, where that is a
+fixed date:
 
 | Source | `meta.lastUpdated` |
 | --- | --- |
-| Member site | the time the site was read: the stream header's `pulled_at`, on every resource |
 | Statements | an `ExplanationOfBenefit`, `DocumentReference` or `Binary`: its statement's date, as that day's start in UTC; `Patient`, `Coverage` and `Organization`: the member's latest statement's. A statement with no date (`no_statement_date` in `import check`) leaves it out |
+| Member site | none: every resource holds as of the stream header's `pulled_at` |
 
-So the site read after a statement wins over it, in either import order,
-and a statement dated after the last site read (a claim reprocessed since)
-wins over the site's version.
+A statement's resources carry the same stamp on every export. The site's
+carry none because a stamp of each read would change every resource's
+bytes on every read, and a store would file each unchanged claim and
+document again. A store that keeps the newer of two versions takes a
+resource's `meta.lastUpdated`, else its stream's `pulled_at`. The site read
+after a statement then wins over it, and a statement dated after the last
+site read (a claim reprocessed since) wins over the site's version.
 
 ## Identity
 

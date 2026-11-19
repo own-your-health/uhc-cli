@@ -465,11 +465,7 @@ fn export(ctx: &Ctx, args: &ExportArgs, out: &mut dyn Write) -> Result<i32, CliE
         .collect();
     let exported_doc = |id: &str| selected_docs.iter().any(|d| d.id == id);
 
-    let head = header(context(&m, None), since);
-    // Every resource holds as of this read of the site.
-    let read_at = Some(head.pulled_at.clone());
-    let read_at = read_at.as_deref();
-    let mut w = RecordsWriter::start(out, &head)?;
+    let mut w = RecordsWriter::start(out, &header(context(&m, None), since))?;
     let mut claims: Vec<ClaimRecord> = Vec::new();
     for c in house.claims.iter().filter(|c| c.patient == m.id) {
         if c.status.as_deref() == Some(IN_PROCESS) {
@@ -496,7 +492,7 @@ fn export(ctx: &Ctx, args: &ExportArgs, out: &mut dyn Write) -> Result<i32, CliE
             fhir::patient(&m, full_name.as_deref()),
             fhir::coverage(&m),
         ] {
-            w.resource(&RawResource::from_value(&fhir::last_updated(r, read_at))?)?;
+            w.resource(&RawResource::from_value(&r)?)?;
         }
         for c in &mut claims {
             ctx.site.detail(&house, c)?;
@@ -504,20 +500,18 @@ fn export(ctx: &Ctx, args: &ExportArgs, out: &mut dyn Write) -> Result<i32, CliE
             if c.document.as_deref().is_some_and(|d| !exported_doc(d)) {
                 c.document = None;
             }
-            w.resource(&RawResource::from_value(&fhir::last_updated(
-                fhir::explanation_of_benefit(c, &coverage, &[]),
-                read_at,
+            w.resource(&RawResource::from_value(&fhir::explanation_of_benefit(
+                c,
+                &coverage,
+                &[],
             ))?)?;
         }
         for d in &selected_docs {
             let bytes = ctx.site.pdf(d)?;
             let related: Vec<&ClaimRecord> = claims.iter().filter(|c| c.documents.contains(&d.id)).collect();
             let doc_ref = fhir::site_document_reference(d, &m.id, &related, bytes.len() as u64);
-            w.resource(&RawResource::from_value(&fhir::last_updated(doc_ref, read_at))?)?;
-            w.resource(&RawResource::from_value(&fhir::last_updated(
-                fhir::site_binary(d, &m.id, &bytes),
-                read_at,
-            ))?)?;
+            w.resource(&RawResource::from_value(&doc_ref)?)?;
+            w.resource(&RawResource::from_value(&fhir::site_binary(d, &m.id, &bytes))?)?;
         }
         Ok(())
     })();

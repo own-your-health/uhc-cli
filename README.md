@@ -136,8 +136,8 @@ code `name_taken`. `--overwrite` replaces both.
 
 ### What the export carries
 
-Every resource carries `meta.lastUpdated`: when the site was read, or the
-statement's date, so a store keeps the newer of two versions
+A resource from statements carries its statement's date as
+`meta.lastUpdated`; one from the site holds as of the stream's `pulled_at`
 (`docs/fhir.md`). Per member: `Patient`, the payer `Organization`, `Coverage`, one
 `ExplanationOfBenefit` per claim (CARIN Blue Button categories for every
 amount, processing codes as notes, the plan balances the statement printed as

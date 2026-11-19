@@ -2,14 +2,13 @@
 
 ## v0.2.2
 
-- Every exported resource carries `meta.lastUpdated`: from the member site,
-  the time it was read (the stream's `pulled_at`); from statements, the
-  statement's date (a claim and a document their own statement's, the
-  member, plan and payer the latest statement's). A records store that gets
-  one claim from both sources keeps the newer version instead of whichever
-  it imported last, so a statement imported after the site no longer
-  replaces the site's procedure codes and claim type. medrec applies it from
-  0.2.7.
+- A resource exported from statements carries `meta.lastUpdated`: its own
+  statement's date for a claim and a document, the member's latest
+  statement's for the member, the plan and the payer, as that day's start
+  in UTC. A missing or impossible date leaves it out. The site's resources
+  carry none, so their bytes stay the same from one read to the next; they
+  hold as of the stream's `pulled_at`. A store can then keep the newer of a
+  claim's two versions rather than whichever it imported last.
 
 ## v0.2.1
 

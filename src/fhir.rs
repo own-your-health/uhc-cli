@@ -52,22 +52,32 @@ fn absent() -> Value {
     json!({ "extension": [{ "url": DATA_ABSENT_REASON, "valueCode": "unknown" }] })
 }
 
-/// `v` with `meta.lastUpdated`: when its content held. The member site's
-/// is the time it was read; a statement's is its date (that day's start in
-/// UTC). A store keeps a newer version over an older one by it, so the site
-/// read after a statement wins, and a statement newer than the last read
-/// (a claim reprocessed since) wins over it. `None` (a statement with no
-/// date) leaves it out.
-pub fn last_updated(mut v: Value, at: Option<&str>) -> Value {
-    if let Some(at) = at {
-        let instant = if at.len() == 10 {
-            format!("{at}T00:00:00Z")
-        } else {
-            at.to_string()
-        };
-        v["meta"]["lastUpdated"] = instant.into();
+/// `v` with `meta.lastUpdated` set to a statement's date, as that day's
+/// start in UTC: a statement's content holds as of the day it was issued,
+/// and stays the same on every export, so a store sees an unchanged
+/// statement as unchanged. A missing or malformed date leaves it out. The
+/// member site's resources carry none: they hold as of the stream's
+/// `pulled_at`, and a stamp of each read would change every resource's
+/// bytes on every read.
+pub fn statement_dated(mut v: Value, date: Option<&str>) -> Value {
+    if let Some(day) = date.and_then(calendar_date) {
+        v["meta"]["lastUpdated"] = format!("{}T00:00:00Z", pk_cli_core::dates::fmt_iso(day)).into();
     }
     v
+}
+
+/// `d` as a date that exists. `pk_cli_core::dates::parse_iso` checks only
+/// that the day is 1 to 31, so it takes `2026-02-30`.
+fn calendar_date(d: &str) -> Option<pk_cli_core::dates::Civil> {
+    let (y, m, day) = pk_cli_core::dates::parse_iso(d).ok()?;
+    let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+    let last = match m {
+        2 if leap => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    };
+    (day <= last).then_some((y, m, day))
 }
 
 fn meta(origin: Origin) -> Value {
@@ -535,4 +545,30 @@ pub fn site_binary(doc: &SiteDocument, patient: &str, content: &[u8]) -> Value {
         "contentType": "application/pdf",
         "data": base64::engine::general_purpose::STANDARD.encode(content),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A statement's date is that day's start in UTC; no date, or one that is
+    /// not a real `YYYY-MM-DD` date, leaves `meta.lastUpdated` out and the
+    /// rest of `meta` as it was.
+    #[test]
+    fn a_statement_date_is_its_day_start_and_nothing_else_is() {
+        let base = || json!({ "resourceType": "Coverage", "meta": { "source": "uhc:eob-pdf" } });
+        let dated = statement_dated(base(), Some("2026-03-04"));
+        assert_eq!(dated["meta"]["lastUpdated"], "2026-03-04T00:00:00Z");
+        assert_eq!(dated["meta"]["source"], "uhc:eob-pdf");
+        for bad in [
+            None,
+            Some(""),
+            Some("2026-13-04"),
+            Some("2026-02-30"),
+            Some("03/04/2026"),
+            Some("2026-03-04T10:00:00Z"),
+        ] {
+            assert_eq!(statement_dated(base(), bad), base(), "{bad:?}");
+        }
+    }
 }
