@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.2.3
+
+- Error text names no member, by id or by name (medical-common DESIGN §1.3,
+  e4ef786: a member id derived from a nine-digit member id is handled as
+  that member id). With several members and no `--patient`, a shared first
+  name, or no match, the error says how many and points at `patients list`
+  instead of listing ids. A statement read with issues is named in the
+  stream by its own id and date, not by its `DocumentReference` id, which
+  carries the member's.
+- docs/fhir.md says the member id is §1.3's form; AGENTS.md says how a
+  member id is handled.
+
 ## v0.2.2
 
 - Every exported resource carries `meta.lastUpdated`, by medical-common

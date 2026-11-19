@@ -350,8 +350,21 @@ fn an_id_finds_a_member_and_a_first_name_does_not() {
     assert!(stderr.contains("takes an id"), "{stderr}");
     let out = uhc(&dir).args(["records", "export", "--ndjson"]).assert().code(2);
     let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
-    assert!(stderr.contains(&sam) && !stderr.contains("SAM"), "{stderr}");
+    // Error text names no member, by id or by name (DESIGN §1.3).
+    for member in ["Alex", "Sam"] {
+        let id = member_id(&dir, member);
+        assert!(
+            !stderr.contains(&id) && !stderr.to_lowercase().contains(&member.to_lowercase()),
+            "{stderr}"
+        );
+    }
     assert!(stderr.contains("`uhc --files <DIR> patients list`"), "{stderr}");
+    let out = uhc(&dir)
+        .args(["records", "export", "--patient", &format!("{sam}0"), "--ndjson"])
+        .assert()
+        .code(4);
+    let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
+    assert!(!stderr.contains(&sam), "{stderr}");
     uhc(&dir)
         .args(["records", "export", "--patient", "nobody", "--ndjson"])
         .assert()
@@ -585,7 +598,18 @@ fn a_statement_read_with_issues_is_noted_in_the_stream() {
     assert_eq!(trailer["complete"], true);
     let skip = &trailer["skipped"][0];
     assert_eq!(skip["code"], "statement_issues");
-    assert!(skip["reason"].as_str().unwrap().contains("claim_total_mismatch"));
+    let reason = skip["reason"].as_str().unwrap();
+    assert!(reason.contains("claim_total_mismatch"), "{reason}");
+    // The statement by its own id, never the member's (DESIGN §1.3).
+    assert!(!reason.contains(&id), "{reason}");
+    let docs = json_of(uhc(&dir).args(["documents", "list"]));
+    // `documents list` shows `doc-<statement>-<member>`.
+    let doc = docs["items"][0]["id"].as_str().unwrap();
+    let statement = doc.strip_prefix("doc-").unwrap().split('-').next().unwrap();
+    assert!(
+        reason.contains(&format!("statement {statement} ")),
+        "{reason} names {statement}"
+    );
 }
 
 #[test]
