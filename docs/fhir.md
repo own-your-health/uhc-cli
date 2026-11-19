@@ -16,7 +16,7 @@ No FHIR library is involved; `src/fhir.rs` writes the JSON.
 
 | Thing | Id | Why |
 | --- | --- | --- |
-| Member | `m` + 12 hex of SHA-256(member id \| first name) | one per person on the plan; the same across statements; no name in it |
+| Member | `m` + 12 hex of SHA-256(member id \| first name) | one per person on the plan; the same across statements; no name in it. The member id is the site's form: statements into 2025 printed one letter before its digits (`A` + nine digits where the site and later statements have the nine digits), and that letter is dropped (`eob::canonical_member_id`) |
 | Family | `family-` + 12 hex of SHA-256(member id \| "") | the family rows of the plan balances |
 | Coverage | `cov-` + 12 hex of SHA-256(member id \| member \| group) | one per member and group |
 | Claim | `c` + the claim number | stable across reprocessing |
@@ -50,6 +50,22 @@ The site lists a reprocessed claim once per version (the same id, a later
 `processedDate`) and a reversed pharmacy claim again with negative
 amounts. Each is one record: the latest version's, and a reversal
 `status` `cancelled` with the original's amounts.
+
+### Where the sources still differ
+
+A statement and the site carry the same claim number and member for
+almost every claim. Three kinds of claim a statement cannot match to the
+site:
+
+| Case | Why | What a store sees |
+| --- | --- | --- |
+| A newborn's claim on a statement printed before the child was named | the statement's patient is "Newborn", a first name of its own | a second patient id; medrec asks `--person` on its first import |
+| A pharmacy row whose "Patient account number" is 15 digits + `RV`, with $0.00 billed and a negative amount owed | it is not the 17-digit pharmacy number the `rx` rule reads, so it keeps its claim number. The site lists the same 15 digits + `99` as a processed pharmacy claim for that amount | two records for one fill: the statement's credit and the site's claim |
+| A claim the plan reprocessed under a new claim number | an older statement prints the old number; the site lists only the new one | the old claim beside the new |
+
+The `RV` rows look like reversals the site does not show, but that does
+not settle whether the credit and the site's claim are one
+record, so they are kept apart rather than merged on a guess.
 
 ## Resources
 

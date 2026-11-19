@@ -411,7 +411,7 @@ fn member(raw: &RawMember) -> Option<Member> {
                 .is_some_and(|t| t.eq_ignore_ascii_case("MEDICAL"))
         })
         .or_else(|| coverages.first())?;
-    let member_id = medical.member_id.as_ref().and_then(|m| text(&m.id))?;
+    let member_id = crate::eob::canonical_member_id(&medical.member_id.as_ref().and_then(|m| text(&m.id))?);
     let relationship_code = text(&raw.relationship_type);
     let period = medical.plan_period.as_ref();
     let gender = text(&info.gender).map(|g| match g.to_ascii_uppercase().as_str() {

@@ -94,7 +94,10 @@ sign-in and take no `--profile`. `api` reads the site, so it takes
 A member is the same patient from either source: organization `uhc`, and
 an id derived from the member id and first name that both the site and a
 statement carry. medrec files the two streams as one patient and merges
-the claims they share. `--patient` takes that id. With `--profile` it also
+the claims they share (statements print a few claims differently from the
+site: a newborn before naming, pharmacy reversals, a claim reprocessed
+under a new number; `docs/fhir.md` § Where the sources still differ).
+`--patient` takes that id. With `--profile` it also
 takes the member's first name (the label `patients list` shows); with
 `--files` there is no label, since a label belongs to a sign-in, so a first
 name is exit 4. When there is one member, `records export` needs no

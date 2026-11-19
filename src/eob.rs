@@ -325,7 +325,7 @@ pub fn parse(text: &str) -> Statement {
 
         // Header fields can appear anywhere before the claims.
         if st.member.member_id.is_none() {
-            st.member.member_id = field(line, "Member ID:").map(|v| first_word(&v));
+            st.member.member_id = field(line, "Member ID:").map(|v| canonical_member_id(&first_word(&v)));
         }
         if st.member.name.is_none() {
             st.member.name = field(line, "Member/Patient:");
@@ -656,6 +656,24 @@ fn field(line: &str, label: &str) -> Option<String> {
     (!value.is_empty()).then(|| value.to_string())
 }
 
+/// A member id as the member site and current statements print it.
+/// Statements into 2025 printed the same id with one letter before its
+/// digits (`A` + nine digits where the site has the nine digits), which
+/// would give each member a second patient id; that letter is dropped. An
+/// id of any other shape is kept as printed.
+pub fn canonical_member_id(printed: &str) -> String {
+    let id = printed.trim();
+    let mut chars = id.chars();
+    match (chars.next(), chars.as_str()) {
+        (Some(c), digits)
+            if c.is_ascii_alphabetic() && digits.len() >= 6 && digits.bytes().all(|b| b.is_ascii_digit()) =>
+        {
+            digits.to_string()
+        }
+        _ => id.to_string(),
+    }
+}
+
 fn first_word(s: &str) -> String {
     s.split_whitespace()
         .next()
@@ -853,6 +871,16 @@ fn is_description_text(t: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_letter_before_the_digits_is_dropped() {
+        assert_eq!(canonical_member_id("A555000001"), "555000001");
+        assert_eq!(canonical_member_id(" 555000001 "), "555000001");
+        // Other shapes are kept as printed.
+        assert_eq!(canonical_member_id("SYNM000001"), "SYNM000001");
+        assert_eq!(canonical_member_id("A12345"), "A12345");
+        assert_eq!(canonical_member_id("A5550000X1"), "A5550000X1");
+    }
 
     #[test]
     fn dates_read_both_ways() {
