@@ -42,6 +42,15 @@ statements dated the same day are ordered by statement id, so which is
 Statements print first names only. Two members of one plan with the same
 first name are one member to `uhc`.
 
+A statement without a member ID gets a stand-in (`unknown-…`) to group its
+claims. It is never exported as UHC's identifier: that `Patient` has no
+`identifier` and that `Coverage` no `subscriberId`.
+
+The site lists a reprocessed claim once per version (the same id, a later
+`processedDate`) and a reversed pharmacy claim again with negative
+amounts. Each is one record: the latest version's, and a reversal
+`status` `cancelled` with the original's amounts.
+
 ### Where the sources still differ
 
 A statement and the site carry the same claim number and member for
@@ -57,15 +66,6 @@ site:
 The `RV` rows look like reversals the site does not show, but that does
 not settle whether the credit and the site's claim are one
 record, so they are kept apart rather than merged on a guess.
-
-A statement without a member ID gets a stand-in (`unknown-…`) to group its
-claims. It is never exported as UHC's identifier: that `Patient` has no
-`identifier` and that `Coverage` no `subscriberId`.
-
-The site lists a reprocessed claim once per version (the same id, a later
-`processedDate`) and a reversed pharmacy claim again with negative
-amounts. Each is one record: the latest version's, and a reversal
-`status` `cancelled` with the original's amounts.
 
 ## Resources
 
