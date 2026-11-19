@@ -712,9 +712,9 @@ pub fn member_resources(book: &Book, m: &Member, sel: &Selection) -> Result<Vec<
     // The member, the plan and the payer as of the member's latest statement.
     let latest = m.latest_statement.as_deref();
     let mut out = vec![
-        fhir::statement_dated(fhir::organization(crate::model::Origin::Statements), latest),
-        fhir::statement_dated(fhir::patient(m, book.full_name(&m.id).as_deref()), latest),
-        fhir::statement_dated(fhir::coverage(m), latest),
+        fhir::issued(fhir::organization(crate::model::Origin::Statements), latest),
+        fhir::issued(fhir::patient(m, book.full_name(&m.id).as_deref()), latest),
+        fhir::issued(fhir::coverage(m), latest),
     ];
     for c in &sel.claims {
         let balances = c
@@ -723,7 +723,7 @@ pub fn member_resources(book: &Book, m: &Member, sel: &Selection) -> Result<Vec<
             .map(|d| book.balances_in(d, &c.claim.patient))
             .unwrap_or_default();
         let refs: Vec<&Balances> = balances.iter().collect();
-        out.push(fhir::statement_dated(
+        out.push(fhir::issued(
             fhir::explanation_of_benefit(c, &coverage, &refs),
             c.statement_date.as_deref(),
         ));
@@ -732,11 +732,8 @@ pub fn member_resources(book: &Book, m: &Member, sel: &Selection) -> Result<Vec<
         let related: Vec<&ClaimRecord> = related.iter().map(|&i| &sel.claims[i]).collect();
         let bytes = std::fs::read(&f.path).map_err(|e| CliError::Other(format!("reading a statement again: {e}")))?;
         let dated = f.statement.statement_date.as_deref();
-        out.push(fhir::statement_dated(
-            fhir::document_reference(f, &m.id, &related),
-            dated,
-        ));
-        out.push(fhir::statement_dated(fhir::binary(f, &m.id, &bytes), dated));
+        out.push(fhir::issued(fhir::document_reference(f, &m.id, &related), dated));
+        out.push(fhir::issued(fhir::binary(f, &m.id, &bytes), dated));
     }
     Ok(out)
 }

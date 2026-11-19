@@ -52,16 +52,24 @@ fn absent() -> Value {
     json!({ "extension": [{ "url": DATA_ABSENT_REASON, "valueCode": "unknown" }] })
 }
 
-/// `v` with `meta.lastUpdated` set to a statement's date, as that day's
-/// start in UTC: a statement's content holds as of the day it was issued,
-/// and stays the same on every export, so a store sees an unchanged
-/// statement as unchanged. A missing or malformed date leaves it out. The
-/// member site's resources carry none: they hold as of the stream's
-/// `pulled_at`, and a stamp of each read would change every resource's
-/// bytes on every read.
-pub fn statement_dated(mut v: Value, date: Option<&str>) -> Value {
+/// `v` with `meta.lastUpdated` set to the day a document was issued (a
+/// statement's date, or a site document's creation date), written as that
+/// day at `00:00:00Z` with no time-zone conversion (medical-common DESIGN
+/// §1.4). A document is the same on every export, and so is its stamp. A
+/// missing or impossible date leaves it out.
+pub fn issued(mut v: Value, date: Option<&str>) -> Value {
     if let Some(day) = date.and_then(calendar_date) {
         v["meta"]["lastUpdated"] = format!("{}T00:00:00Z", pk_cli_core::dates::fmt_iso(day)).into();
+    }
+    v
+}
+
+/// `v` with `meta.lastUpdated` set to when the member site was read, the
+/// stream header's `pulled_at` (DESIGN §1.4): the site shows a claim, the
+/// member and the plan as they are at that read.
+pub fn read_at(mut v: Value, pulled_at: &str) -> Value {
+    if pk_med_records::Timestamp::parse(pulled_at).is_some() {
+        v["meta"]["lastUpdated"] = pulled_at.into();
     }
     v
 }
@@ -555,9 +563,9 @@ mod tests {
     /// not a real `YYYY-MM-DD` date, leaves `meta.lastUpdated` out and the
     /// rest of `meta` as it was.
     #[test]
-    fn a_statement_date_is_its_day_start_and_nothing_else_is() {
+    fn an_issue_date_is_its_day_start_and_nothing_else_is() {
         let base = || json!({ "resourceType": "Coverage", "meta": { "source": "uhc:eob-pdf" } });
-        let dated = statement_dated(base(), Some("2026-03-04"));
+        let dated = issued(base(), Some("2026-03-04"));
         assert_eq!(dated["meta"]["lastUpdated"], "2026-03-04T00:00:00Z");
         assert_eq!(dated["meta"]["source"], "uhc:eob-pdf");
         for bad in [
@@ -568,7 +576,20 @@ mod tests {
             Some("03/04/2026"),
             Some("2026-03-04T10:00:00Z"),
         ] {
-            assert_eq!(statement_dated(base(), bad), base(), "{bad:?}");
+            assert_eq!(issued(base(), bad), base(), "{bad:?}");
         }
+    }
+
+    /// A read's time is written as the header gives it; one that is not an
+    /// instant is left out.
+    #[test]
+    fn a_read_is_stamped_with_its_time() {
+        let base = || json!({ "resourceType": "Patient", "meta": { "source": "uhc:member-site" } });
+        assert_eq!(
+            read_at(base(), "2026-03-04T15:06:07Z")["meta"]["lastUpdated"],
+            "2026-03-04T15:06:07Z"
+        );
+        assert_eq!(read_at(base(), "2026-03-04"), base());
+        assert_eq!(read_at(base(), "soon"), base());
     }
 }

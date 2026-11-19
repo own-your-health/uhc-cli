@@ -758,6 +758,7 @@ fn statement_resources_are_dated_by_their_statement() {
             .as_str()
             .unwrap_or_else(|| panic!("undated: {r}"));
         assert!(at.ends_with("T00:00:00Z") && at.len() == 20, "{at}");
+        assert!(pk_med_records::Timestamp::parse(at).is_some(), "{at}");
         match r["resourceType"].as_str().unwrap() {
             "Patient" | "Coverage" | "Organization" => assert_eq!(at, format!("{latest}T00:00:00Z")),
             _ => {
