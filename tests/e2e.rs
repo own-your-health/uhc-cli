@@ -266,6 +266,35 @@ fn records_export_since_is_what_changed_since() {
     // After the last statement, nothing changed.
     let lines = export("2026-05-01");
     assert!(lines.last().unwrap()["counts"].get("ExplanationOfBenefit").is_none());
+
+    // The member, the plan and the payer are built from the whole folder,
+    // never from the range --since covers, so they are the same resource,
+    // stamp included, whatever the range (medical-common DESIGN §1.4).
+    let members = |lines: &[Value]| -> Vec<String> {
+        lines
+            .iter()
+            .filter(|r| {
+                matches!(
+                    r["resourceType"].as_str(),
+                    Some("Patient" | "Coverage" | "Organization")
+                )
+            })
+            .map(|r| r.to_string())
+            .collect()
+    };
+    let out = uhc(&dir)
+        .args(["records", "export", "--patient", &alex, "--ndjson"])
+        .assert()
+        .success();
+    let whole: Vec<Value> = String::from_utf8(out.get_output().stdout.clone())
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    assert_eq!(members(&whole).len(), 3);
+    for since in ["2026-04-15", "2026-05-01", "2020-01-01"] {
+        assert_eq!(members(&export(since)), members(&whole), "--since {since}");
+    }
 }
 
 #[test]

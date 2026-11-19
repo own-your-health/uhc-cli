@@ -3,7 +3,7 @@
 ## v0.2.2
 
 - Every exported resource carries `meta.lastUpdated`, by medical-common
-  v0.6.4's DESIGN §1.4:
+  v0.6.6's DESIGN §1.4:
   - from statements, a claim and a document carry their own statement's
     date, and the member, plan and payer carry the latest statement's date;
   - from the member site, a claim, the member, plan and payer carry the
@@ -15,9 +15,11 @@
   the newer version instead of whichever it imported last, so a statement
   imported after the site no longer replaces the site's procedure codes and
   claim type.
-- medical-common v0.6.4. Its store library treats a site re-read that
+- medical-common v0.6.6. Its store library treats a site re-read that
   changed only `meta.lastUpdated` as the same version, refreshed in place,
-  so a store files no new copy.
+  so a store files no new copy. The member, plan and payer built from
+  statements come from the whole folder, never from `--since`'s range, as
+  its DESIGN §1.4 requires; a test now holds that.
 
 ## v0.2.1
 
