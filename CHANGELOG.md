@@ -15,6 +15,9 @@
   the newer version instead of whichever it imported last, so a statement
   imported after the site no longer replaces the site's procedure codes and
   claim type.
+- docs/fhir.md says how the member id meets medical-common's patient id
+  rule (DESIGN §1.3) and why its form stays as it is: a new derivation
+  would make a store file every member again.
 - medical-common v0.6.6. Its store library treats a site re-read that
   changed only `meta.lastUpdated` as the same version, refreshed in place,
   so a store files no new copy. The member, plan and payer built from
