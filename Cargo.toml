@@ -28,7 +28,7 @@ pk-cli-secrets = { git = "https://github.com/piekstra/cli-common", tag = "v0.33.
 pk-cli-browser = { git = "https://github.com/piekstra/cli-common", tag = "v0.33.2" }
 pk-cli-http = { git = "https://github.com/piekstra/cli-common", tag = "v0.33.2" }
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
-pk-med-records = { git = "https://github.com/piekstra/medical-common", tag = "v0.6.3" }
+pk-med-records = { git = "https://github.com/piekstra/medical-common", tag = "v0.6.4" }
 clap = { version = "4", features = ["derive", "env"] }
 clap_complete = "4"
 serde = { version = "1", features = ["derive"] }
