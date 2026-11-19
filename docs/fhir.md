@@ -18,7 +18,7 @@ medical-common DESIGN §1.4. A store keeps the version with the later time:
 | Source | Resources | `meta.lastUpdated` |
 | --- | --- | --- |
 | Statements | `ExplanationOfBenefit`, `DocumentReference`, `Binary` | the statement's date: the date printed in its footer, else the "as of" date printed over the plan balances |
-| Statements | `Patient`, `Coverage`, `Organization` | the member's latest statement's date, taken the same way |
+| Statements | `Patient`, `Coverage`, `Organization` | the member's latest statement's date, taken the same way. They are built from every statement in the folder, whatever `--since` covers: each field is the newest statement's that prints it (the full name and relationship from those addressed to the member) |
 | Member site | `Patient`, `Coverage`, `Organization`, `ExplanationOfBenefit` | the time the site was read: the stream header's `pulled_at` |
 | Member site | `DocumentReference`, `Binary` | the document's creation date, as the documents read lists it |
 
