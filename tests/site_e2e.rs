@@ -751,6 +751,62 @@ fn no_session_stored_is_exit_3_before_any_request() {
     assert!(h.server.seen().is_empty());
 }
 
+/// From the site, a claim, the member, the plan and the payer carry the
+/// read's time (the header's `pulled_at`) as `meta.lastUpdated`, and a
+/// document and its bytes the document's creation date at 00:00:00Z. Read
+/// twice, at two times, a document is the same bytes both times.
+#[test]
+fn site_resources_are_dated_by_the_read_and_documents_by_their_date() {
+    let h = Household::new();
+    let read = || {
+        let (code, stream) = h.stream(&["records", "export", "--patient", "Sam", "--ndjson"]);
+        assert_eq!(code, 0);
+        stream
+    };
+    let first = read();
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    let second = read();
+    assert_ne!(first[0]["pulled_at"], second[0]["pulled_at"], "two reads at two times");
+    let documents = |stream: &[Value]| -> Vec<String> {
+        stream
+            .iter()
+            .filter(|r| matches!(r["resourceType"].as_str(), Some("DocumentReference" | "Binary")))
+            .map(|r| r.to_string())
+            .collect()
+    };
+    assert!(!documents(&first).is_empty());
+    assert_eq!(documents(&first), documents(&second));
+    for stream in [&first, &second] {
+        let pulled_at = stream[0]["pulled_at"].as_str().unwrap();
+        let mut kinds = std::collections::BTreeSet::new();
+        for r in stream.iter().filter(|r| r.get("resourceType").is_some()) {
+            let kind = r["resourceType"].as_str().unwrap();
+            kinds.insert(kind);
+            let at = r["meta"]["lastUpdated"]
+                .as_str()
+                .unwrap_or_else(|| panic!("undated: {r}"));
+            assert!(pk_med_records::Timestamp::parse(at).is_some(), "{at}");
+            match kind {
+                "DocumentReference" | "Binary" => {
+                    assert!(at.ends_with("T00:00:00Z") && at.len() == 20, "{at}");
+                    assert_ne!(at, pulled_at);
+                }
+                _ => assert_eq!(at, pulled_at, "{r}"),
+            }
+        }
+        for k in [
+            "Patient",
+            "Coverage",
+            "Organization",
+            "ExplanationOfBenefit",
+            "DocumentReference",
+            "Binary",
+        ] {
+            assert!(kinds.contains(k), "{k} in {kinds:?}");
+        }
+    }
+}
+
 /// From the site, --patient takes a member's id or first name (the label
 /// its grant shows), and without it a household of three is exit 2 naming
 /// ids only. The id is the files source's, so a store merges the two.

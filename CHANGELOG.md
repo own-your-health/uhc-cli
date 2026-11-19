@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.2.2
+
+- Every exported resource carries `meta.lastUpdated`, by medical-common
+  v0.6.3's DESIGN §1.4:
+  - from statements, a claim and a document carry their own statement's
+    date, and the member, plan and payer carry the latest statement's date;
+  - from the member site, a claim, the member, plan and payer carry the
+    time of the read (the stream's `pulled_at`), and a document carries its
+    creation date, so it stays the same resource from one read to the next.
+
+  A date is that day at `00:00:00Z`; a missing or impossible one leaves the
+  stamp out. A records store that gets one claim from both sources keeps
+  the newer version instead of whichever it imported last, so a statement
+  imported after the site no longer replaces the site's procedure codes and
+  claim type.
+- medical-common v0.6.3.
+
 ## v0.2.1
 
 The statements and the site now agree on who a member is.

@@ -12,6 +12,25 @@ No FHIR library is involved; `src/fhir.rs` writes the JSON.
 | Statements | `uhc:eob-pdf` | `mapped-from-eob-statement` |
 | Member site | `uhc:member-site` | `mapped-from-member-site` |
 
+`meta.lastUpdated` says when a resource's content was current, by
+medical-common DESIGN §1.4. A store keeps the version with the later time:
+
+| Source | Resources | `meta.lastUpdated` |
+| --- | --- | --- |
+| Statements | `ExplanationOfBenefit`, `DocumentReference`, `Binary` | the statement's date: the date printed in its footer, else the "as of" date printed over the plan balances |
+| Statements | `Patient`, `Coverage`, `Organization` | the member's latest statement's date, taken the same way |
+| Member site | `Patient`, `Coverage`, `Organization`, `ExplanationOfBenefit` | the time the site was read: the stream header's `pulled_at` |
+| Member site | `DocumentReference`, `Binary` | the document's creation date, as the documents read lists it |
+
+A date is written as that day at `00:00:00Z`, as printed, with no
+time-zone conversion. A statement with no date (`no_statement_date` in
+`import check`), or a site document with none, leaves it out. A document
+keeps the same stamp on every read, so the same document is the same
+resource. A claim read from the site again carries the new read's time.
+The site read after a statement therefore wins over it in either import
+order, and a statement dated after the last site read (a claim reprocessed
+since) wins over the site's version.
+
 ## Identity
 
 | Thing | Id | Why |

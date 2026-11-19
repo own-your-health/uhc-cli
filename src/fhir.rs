@@ -52,6 +52,42 @@ fn absent() -> Value {
     json!({ "extension": [{ "url": DATA_ABSENT_REASON, "valueCode": "unknown" }] })
 }
 
+/// `v` with `meta.lastUpdated` set to the day a document was issued (a
+/// statement's date, or a site document's creation date), written as that
+/// day at `00:00:00Z` with no time-zone conversion (medical-common DESIGN
+/// §1.4). A document is the same on every export, and so is its stamp. A
+/// missing or impossible date leaves it out.
+pub fn issued(mut v: Value, date: Option<&str>) -> Value {
+    if let Some(day) = date.and_then(calendar_date) {
+        v["meta"]["lastUpdated"] = format!("{}T00:00:00Z", pk_cli_core::dates::fmt_iso(day)).into();
+    }
+    v
+}
+
+/// `v` with `meta.lastUpdated` set to when the member site was read, the
+/// stream header's `pulled_at` (DESIGN §1.4): the site shows a claim, the
+/// member and the plan as they are at that read.
+pub fn read_at(mut v: Value, pulled_at: &str) -> Value {
+    if pk_med_records::Timestamp::parse(pulled_at).is_some() {
+        v["meta"]["lastUpdated"] = pulled_at.into();
+    }
+    v
+}
+
+/// `d` as a date that exists. `pk_cli_core::dates::parse_iso` checks only
+/// that the day is 1 to 31, so it takes `2026-02-30`.
+fn calendar_date(d: &str) -> Option<pk_cli_core::dates::Civil> {
+    let (y, m, day) = pk_cli_core::dates::parse_iso(d).ok()?;
+    let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+    let last = match m {
+        2 if leap => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    };
+    (day <= last).then_some((y, m, day))
+}
+
 fn meta(origin: Origin) -> Value {
     match origin {
         Origin::Statements => json!({
@@ -517,4 +553,43 @@ pub fn site_binary(doc: &SiteDocument, patient: &str, content: &[u8]) -> Value {
         "contentType": "application/pdf",
         "data": base64::engine::general_purpose::STANDARD.encode(content),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A statement's date is that day's start in UTC; no date, or one that is
+    /// not a real `YYYY-MM-DD` date, leaves `meta.lastUpdated` out and the
+    /// rest of `meta` as it was.
+    #[test]
+    fn an_issue_date_is_its_day_start_and_nothing_else_is() {
+        let base = || json!({ "resourceType": "Coverage", "meta": { "source": "uhc:eob-pdf" } });
+        let dated = issued(base(), Some("2026-03-04"));
+        assert_eq!(dated["meta"]["lastUpdated"], "2026-03-04T00:00:00Z");
+        assert_eq!(dated["meta"]["source"], "uhc:eob-pdf");
+        for bad in [
+            None,
+            Some(""),
+            Some("2026-13-04"),
+            Some("2026-02-30"),
+            Some("03/04/2026"),
+            Some("2026-03-04T10:00:00Z"),
+        ] {
+            assert_eq!(issued(base(), bad), base(), "{bad:?}");
+        }
+    }
+
+    /// A read's time is written as the header gives it; one that is not an
+    /// instant is left out.
+    #[test]
+    fn a_read_is_stamped_with_its_time() {
+        let base = || json!({ "resourceType": "Patient", "meta": { "source": "uhc:member-site" } });
+        assert_eq!(
+            read_at(base(), "2026-03-04T15:06:07Z")["meta"]["lastUpdated"],
+            "2026-03-04T15:06:07Z"
+        );
+        assert_eq!(read_at(base(), "2026-03-04"), base());
+        assert_eq!(read_at(base(), "soon"), base());
+    }
 }
