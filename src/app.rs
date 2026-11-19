@@ -496,7 +496,7 @@ pub(crate) fn find_member<'a>(members: &'a [Member], q: &str, labels: bool) -> R
             list_hint(labels)
         ))),
         many => Err(CliError::NotFound(format!(
-            "that first name is {} members'; give one's id from {}",
+            "that first name matches {} members; pass one member's id from {}",
             many.len(),
             list_hint(labels)
         ))),

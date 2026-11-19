@@ -101,7 +101,9 @@ under a new number; `docs/fhir.md` § Where the sources still differ).
 takes the member's first name (the label `patients list` shows); with
 `--files` there is no label, since a label belongs to a sign-in, so a first
 name is exit 4. When there is one member, `records export` needs no
-`--patient`; with several it is exit 2, naming their ids.
+`--patient`; with several it is exit 2, saying how many there are and
+pointing at `patients list`, which shows their ids and first names. Error
+text names no member, by id or by name.
 
 Every command takes `--json` and prints one schema-tagged document, except
 `records export --ndjson`, whose NDJSON stream is the output (`--json` with

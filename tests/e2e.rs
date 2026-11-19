@@ -342,12 +342,15 @@ fn an_id_finds_a_member_and_a_first_name_does_not() {
         .args(["records", "export", "--patient", &sam, "--ndjson"])
         .assert()
         .success();
+    // A typed --patient is not echoed (the check is case-blind, and "sam"
+    // is in no word of the message).
     let out = uhc(&dir)
         .args(["records", "export", "--patient", "sam", "--ndjson"])
         .assert()
         .code(4);
     let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
     assert!(stderr.contains("takes an id"), "{stderr}");
+    assert!(!stderr.to_lowercase().contains("sam"), "{stderr}");
     let out = uhc(&dir).args(["records", "export", "--ndjson"]).assert().code(2);
     let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
     // Error text names no member, by id or by name (DESIGN §1.3).
@@ -365,14 +368,14 @@ fn an_id_finds_a_member_and_a_first_name_does_not() {
         .code(4);
     let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
     assert!(!stderr.contains(&sam), "{stderr}");
-    uhc(&dir)
-        .args(["records", "export", "--patient", "nobody", "--ndjson"])
-        .assert()
-        .code(4);
-    uhc(&dir)
-        .args(["claims", "list", "--patient", "nobody"])
-        .assert()
-        .code(4);
+    for args in [
+        &["records", "export", "--patient", "nobody", "--ndjson"][..],
+        &["claims", "list", "--patient", "nobody"][..],
+    ] {
+        let out = uhc(&dir).args(args).assert().code(4);
+        let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
+        assert!(!stderr.contains("nobody"), "{stderr}");
+    }
 }
 
 #[test]
