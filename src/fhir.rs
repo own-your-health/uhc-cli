@@ -56,20 +56,11 @@ fn absent() -> Value {
 /// statement's date, or a site document's creation date), written as that
 /// day at `00:00:00Z` with no time-zone conversion (medical-common DESIGN
 /// §1.4). A document is the same on every export, and so is its stamp. A
-/// missing or impossible date leaves it out.
+/// missing or impossible date leaves it out. The site's other resources
+/// carry none: a store takes the `portal` stream's `pulled_at` for them.
 pub fn issued(mut v: Value, date: Option<&str>) -> Value {
     if let Some(day) = date.and_then(calendar_date) {
         v["meta"]["lastUpdated"] = format!("{}T00:00:00Z", pk_cli_core::dates::fmt_iso(day)).into();
-    }
-    v
-}
-
-/// `v` with `meta.lastUpdated` set to when the member site was read, the
-/// stream header's `pulled_at` (DESIGN §1.4): the site shows a claim, the
-/// member and the plan as they are at that read.
-pub fn read_at(mut v: Value, pulled_at: &str) -> Value {
-    if pk_med_records::Timestamp::parse(pulled_at).is_some() {
-        v["meta"]["lastUpdated"] = pulled_at.into();
     }
     v
 }
@@ -578,18 +569,5 @@ mod tests {
         ] {
             assert_eq!(issued(base(), bad), base(), "{bad:?}");
         }
-    }
-
-    /// A read's time is written as the header gives it; one that is not an
-    /// instant is left out.
-    #[test]
-    fn a_read_is_stamped_with_its_time() {
-        let base = || json!({ "resourceType": "Patient", "meta": { "source": "uhc:member-site" } });
-        assert_eq!(
-            read_at(base(), "2026-03-04T15:06:07Z")["meta"]["lastUpdated"],
-            "2026-03-04T15:06:07Z"
-        );
-        assert_eq!(read_at(base(), "2026-03-04"), base());
-        assert_eq!(read_at(base(), "soon"), base());
     }
 }

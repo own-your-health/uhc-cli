@@ -465,9 +465,7 @@ fn export(ctx: &Ctx, args: &ExportArgs, out: &mut dyn Write) -> Result<i32, CliE
         .collect();
     let exported_doc = |id: &str| selected_docs.iter().any(|d| d.id == id);
 
-    let head = header(context(&m, None), since);
-    let read = head.pulled_at.clone();
-    let mut w = RecordsWriter::start(out, &head)?;
+    let mut w = RecordsWriter::start(out, &header(context(&m, None), since, Origin::Site))?;
     let mut claims: Vec<ClaimRecord> = Vec::new();
     for c in house.claims.iter().filter(|c| c.patient == m.id) {
         if c.status.as_deref() == Some(IN_PROCESS) {
@@ -494,7 +492,7 @@ fn export(ctx: &Ctx, args: &ExportArgs, out: &mut dyn Write) -> Result<i32, CliE
             fhir::patient(&m, full_name.as_deref()),
             fhir::coverage(&m),
         ] {
-            w.resource(&RawResource::from_value(&fhir::read_at(r, &read))?)?;
+            w.resource(&RawResource::from_value(&r)?)?;
         }
         for c in &mut claims {
             ctx.site.detail(&house, c)?;
@@ -502,9 +500,10 @@ fn export(ctx: &Ctx, args: &ExportArgs, out: &mut dyn Write) -> Result<i32, CliE
             if c.document.as_deref().is_some_and(|d| !exported_doc(d)) {
                 c.document = None;
             }
-            w.resource(&RawResource::from_value(&fhir::read_at(
-                fhir::explanation_of_benefit(c, &coverage, &[]),
-                &read,
+            w.resource(&RawResource::from_value(&fhir::explanation_of_benefit(
+                c,
+                &coverage,
+                &[],
             ))?)?;
         }
         for d in &selected_docs {

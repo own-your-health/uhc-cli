@@ -638,15 +638,24 @@ pub(crate) fn files_context(m: &Member, name: Option<String>) -> PatientContext 
     }
 }
 
-/// The stream header for `patient`, from either source.
-pub(crate) fn header(patient: PatientContext, since: Option<&str>) -> Header {
+/// The stream header for `patient`, from either source: `method` is
+/// `portal` for a read of the member site and `file` for statements the
+/// owner downloaded (medical-common DESIGN §1.4), so a store dates an
+/// undated site resource by this read and gives a statement no such time.
+pub(crate) fn header(patient: PatientContext, since: Option<&str>, from: crate::model::Origin) -> Header {
     let mut h = Header::new(
         Source::new(BIN, env!("CARGO_PKG_VERSION")),
         organization(),
         patient,
         now_rfc3339(),
     );
-    h.method = Some(method::PORTAL.into());
+    h.method = Some(
+        match from {
+            crate::model::Origin::Site => method::PORTAL,
+            crate::model::Origin::Statements => method::FILE,
+        }
+        .into(),
+    );
     if let Some(s) = since {
         h.since = Some(s.into());
         // Exported whatever the date: the member, the plan and the payer.
@@ -830,7 +839,10 @@ fn export_to_dir(dir: &Path, book: &Book, m: &Member, since: Option<&str>) -> Re
 }
 
 fn write_stream<W: Write>(out: W, book: &Book, m: &Member, since: Option<&str>) -> Result<Finished, CliError> {
-    let mut w = RecordsWriter::start(out, &header(files_context(m, None), since))?;
+    let mut w = RecordsWriter::start(
+        out,
+        &header(files_context(m, None), since, crate::model::Origin::Statements),
+    )?;
     let sel = select(book, m, since);
     for (f, _) in &sel.files {
         if !f.statement.issues.is_empty() {

@@ -19,17 +19,16 @@ medical-common DESIGN §1.4. A store keeps the version with the later time:
 | --- | --- | --- |
 | Statements | `ExplanationOfBenefit`, `DocumentReference`, `Binary` | the statement's date: the date printed in its footer, else the "as of" date printed over the plan balances |
 | Statements | `Patient`, `Coverage`, `Organization` | the member's latest statement's date, taken the same way |
-| Member site | `Patient`, `Coverage`, `Organization`, `ExplanationOfBenefit` | the time the site was read: the stream header's `pulled_at` |
 | Member site | `DocumentReference`, `Binary` | the document's creation date, as the documents read lists it |
+| Member site | `Patient`, `Coverage`, `Organization`, `ExplanationOfBenefit` | none: the site shows them as they are when read, and a store takes the stream's `pulled_at` |
 
 A date is written as that day at `00:00:00Z`, as printed, with no
 time-zone conversion. A statement with no date (`no_statement_date` in
-`import check`), or a site document with none, leaves it out. A document
-keeps the same stamp on every read, so the same document is the same
-resource. A claim read from the site again carries the new read's time.
-The site read after a statement therefore wins over it in either import
-order, and a statement dated after the last site read (a claim reprocessed
-since) wins over the site's version.
+`import check`), or a site document with none, leaves it out. Read again,
+every resource is the same bytes, so a store files nothing twice. The
+site read after a statement therefore wins over it in either import order,
+and a statement dated after the last site read (a claim reprocessed since)
+wins over the site's version.
 
 ## Identity
 
@@ -157,7 +156,9 @@ and the text "Out-of-pocket limit".
 ## The stream
 
 `records-stream/v1`, written by medical-common's `RecordsWriter`
-(`pk-med-records`): a header with `method` `portal`, the organization
+(`pk-med-records`): a header with `method` `portal` for a site read or
+`file` for `--files` (§1.4: a store dates an undated `portal` resource by
+the stream's `pulled_at`, and a `file` one by nothing), the organization
 `{id: "uhc", name: "UnitedHealthcare", fhir_base: "https://member.uhc.com/myuhc", vendor: "uhc"}`
 and the patient (`PatientContext`: `id`, `organization`, `label`, `kind`
 `member`, `member_role` `subscriber` or `dependent`, `relationship` `self`

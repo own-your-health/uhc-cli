@@ -751,12 +751,13 @@ fn no_session_stored_is_exit_3_before_any_request() {
     assert!(h.server.seen().is_empty());
 }
 
-/// From the site, a claim, the member, the plan and the payer carry the
-/// read's time (the header's `pulled_at`) as `meta.lastUpdated`, and a
-/// document and its bytes the document's creation date at 00:00:00Z. Read
-/// twice, at two times, a document is the same bytes both times.
+/// From the site, a document and its bytes carry the document's creation
+/// date at 00:00:00Z as `meta.lastUpdated`; a claim, the member, the plan
+/// and the payer carry none, and a store takes the `portal` stream's
+/// `pulled_at` for them (DESIGN §1.4). Read twice, at two times, every
+/// resource is the same bytes both times.
 #[test]
-fn site_resources_are_dated_by_the_read_and_documents_by_their_date() {
+fn a_second_read_gives_the_same_resources() {
     let h = Household::new();
     let read = || {
         let (code, stream) = h.stream(&["records", "export", "--patient", "Sam", "--ndjson"]);
@@ -767,43 +768,39 @@ fn site_resources_are_dated_by_the_read_and_documents_by_their_date() {
     std::thread::sleep(std::time::Duration::from_millis(1100));
     let second = read();
     assert_ne!(first[0]["pulled_at"], second[0]["pulled_at"], "two reads at two times");
-    let documents = |stream: &[Value]| -> Vec<String> {
+    assert_eq!(first[0]["method"], "portal");
+    let resources = |stream: &[Value]| -> Vec<String> {
         stream
             .iter()
-            .filter(|r| matches!(r["resourceType"].as_str(), Some("DocumentReference" | "Binary")))
+            .filter(|r| r.get("resourceType").is_some())
             .map(|r| r.to_string())
             .collect()
     };
-    assert!(!documents(&first).is_empty());
-    assert_eq!(documents(&first), documents(&second));
-    for stream in [&first, &second] {
-        let pulled_at = stream[0]["pulled_at"].as_str().unwrap();
-        let mut kinds = std::collections::BTreeSet::new();
-        for r in stream.iter().filter(|r| r.get("resourceType").is_some()) {
-            let kind = r["resourceType"].as_str().unwrap();
-            kinds.insert(kind);
-            let at = r["meta"]["lastUpdated"]
-                .as_str()
-                .unwrap_or_else(|| panic!("undated: {r}"));
-            assert!(pk_med_records::Timestamp::parse(at).is_some(), "{at}");
-            match kind {
-                "DocumentReference" | "Binary" => {
-                    assert!(at.ends_with("T00:00:00Z") && at.len() == 20, "{at}");
-                    assert_ne!(at, pulled_at);
-                }
-                _ => assert_eq!(at, pulled_at, "{r}"),
+    assert_eq!(resources(&first), resources(&second));
+    let mut kinds = std::collections::BTreeSet::new();
+    for r in first.iter().filter(|r| r.get("resourceType").is_some()) {
+        let kind = r["resourceType"].as_str().unwrap();
+        kinds.insert(kind);
+        match kind {
+            "DocumentReference" | "Binary" => {
+                let at = r["meta"]["lastUpdated"]
+                    .as_str()
+                    .unwrap_or_else(|| panic!("undated: {r}"));
+                assert!(pk_med_records::Timestamp::parse(at).is_some(), "{at}");
+                assert!(at.ends_with("T00:00:00Z") && at.len() == 20, "{at}");
             }
+            _ => assert!(r["meta"].get("lastUpdated").is_none(), "{r}"),
         }
-        for k in [
-            "Patient",
-            "Coverage",
-            "Organization",
-            "ExplanationOfBenefit",
-            "DocumentReference",
-            "Binary",
-        ] {
-            assert!(kinds.contains(k), "{k} in {kinds:?}");
-        }
+    }
+    for k in [
+        "Patient",
+        "Coverage",
+        "Organization",
+        "ExplanationOfBenefit",
+        "DocumentReference",
+        "Binary",
+    ] {
+        assert!(kinds.contains(k), "{k} in {kinds:?}");
     }
 }
 

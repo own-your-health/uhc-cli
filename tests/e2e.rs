@@ -161,7 +161,8 @@ fn records_export_is_a_complete_stream_whose_references_resolve() {
 
     let header = &lines[0];
     assert_eq!(header["schema"], "records-stream/v1");
-    assert_eq!(header["method"], "portal");
+    // Statements the owner downloaded (DESIGN §1.4): no read time to fall back on.
+    assert_eq!(header["method"], "file");
     assert_eq!(header["patient"]["id"], alex.as_str());
     assert_eq!(header["organization"]["id"], "uhc");
     let trailer = lines.last().unwrap();
@@ -801,7 +802,7 @@ fn one_member_needs_no_patient() {
     assert_eq!(header["patient"]["id"], v["items"][0]["id"]);
     assert!(header["patient"].get("label").is_none(), "{header}");
     assert!(header["patient"].get("session").is_none(), "{header}");
-    assert_eq!(header["method"], "portal");
+    assert_eq!(header["method"], "file");
 }
 
 #[cfg(unix)]
