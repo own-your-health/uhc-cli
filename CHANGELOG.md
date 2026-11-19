@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.2.1
+
+The statements and the site now agree on who a member is.
+
+- A member id printed with a letter before its digits (statements into
+  2025: `A` + nine digits) is the site's nine digits. Each member on
+  those statements had a second patient id, so a store filed their older
+  claims apart from the site's.
+- A missing or unknown `--patient` names the source's own command
+  (`uhc --profile <NAME> patients list` or `uhc --files <DIR> patients
+  list`); plain `uhc patients list` names no source and is exit 2.
+- docs/fhir.md lists the claims the two sources still file differently,
+  and why: a newborn's claim before naming, pharmacy reversal rows, a claim
+  reprocessed under a new number.
+
 ## v0.2.0
 
 The member site as a source. `uhc auth login --browser --profile <NAME>`

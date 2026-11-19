@@ -322,6 +322,7 @@ fn an_id_finds_a_member_and_a_first_name_does_not() {
     let out = uhc(&dir).args(["records", "export", "--ndjson"]).assert().code(2);
     let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
     assert!(stderr.contains(&sam) && !stderr.contains("SAM"), "{stderr}");
+    assert!(stderr.contains("`uhc --files <DIR> patients list`"), "{stderr}");
     uhc(&dir)
         .args(["records", "export", "--patient", "nobody", "--ndjson"])
         .assert()
@@ -691,6 +692,35 @@ fn an_export_file_is_private_and_replaced_safely() {
         .code(2);
     assert_eq!(std::fs::read_to_string(&elsewhere).unwrap(), "untouched");
     assert!(std::fs::symlink_metadata(&path).unwrap().file_type().is_symlink());
+}
+
+/// Statements into 2025 printed the member id with a letter before its
+/// digits, later ones and the member site without it. Both are one member,
+/// with the site's id, and the export carries the digits.
+#[test]
+fn a_member_id_printed_with_a_letter_is_the_same_member() {
+    need_pdftotext!();
+    let dir = tmp("in");
+    for (name, id) in [
+        ("2026-03-14-statement.txt", "A555000001"),
+        ("2026-04-30-statement.txt", "555000001"),
+    ] {
+        let text = fixture_text(name).replace("SYNM000001", id);
+        std::fs::write(dir.join(name.replace(".txt", ".pdf")), uhc::synth::text_pdf(&text)).unwrap();
+    }
+    let v = json_of(uhc(&dir).args(["patients", "list"]));
+    let items = v["items"].as_array().unwrap();
+    let alex = uhc::model::patient_id("555000001", "ALEX");
+    let subscribers: Vec<&Value> = items.iter().filter(|m| m["member_role"] == "subscriber").collect();
+    assert_eq!(subscribers.len(), 1, "{v}");
+    assert_eq!(subscribers[0]["id"], alex.as_str());
+    assert!(items.iter().all(|m| m["member_id"] == "555000001"), "{v}");
+    let out = uhc(&dir)
+        .args(["records", "export", "--patient", &alex, "--ndjson"])
+        .assert()
+        .success();
+    let text = String::from_utf8(out.get_output().stdout.clone()).unwrap();
+    assert!(!text.contains("A555000001"), "the printed form is not exported");
 }
 
 /// A first name that two members share is no id either, and the error

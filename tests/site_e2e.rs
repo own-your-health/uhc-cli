@@ -768,6 +768,7 @@ fn records_export_takes_an_id_or_a_first_name() {
     let e = h.run(&["records", "export", "--ndjson"]).unwrap_err();
     assert_eq!(e.exit_code(), 2);
     let msg = e.to_string();
+    assert!(msg.contains("`uhc --profile <NAME> patients list`"), "{msg}");
     assert!(
         msg.contains(&id("SAM")) && !msg.contains("Sam") && !msg.contains("SAM"),
         "{msg}"

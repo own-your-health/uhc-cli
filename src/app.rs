@@ -481,20 +481,34 @@ pub(crate) fn find_member<'a>(members: &'a [Member], q: &str, labels: bool) -> R
     }
     if !labels {
         return Err(CliError::NotFound(format!(
-            "no member with the id `{q}`; from --files, --patient takes an id from `{BIN} --files <DIR> patients list`"
+            "no member with the id `{q}`; from --files, --patient takes an id from {}",
+            list_hint(labels)
         )));
     }
     let hits: Vec<&Member> = members.iter().filter(|m| m.label.eq_ignore_ascii_case(q)).collect();
     match hits.as_slice() {
         [one] => Ok(one),
         [] => Err(CliError::NotFound(format!(
-            "no member matching `{q}` (`{BIN} patients list`)"
+            "no member matching `{q}` ({})",
+            list_hint(labels)
         ))),
         many => Err(CliError::NotFound(format!(
-            "`{q}` names {} members ({}); give one id from `{BIN} patients list`",
+            "`{q}` names {} members ({}); give one id from {}",
             many.len(),
-            many.iter().map(|m| m.id.as_str()).collect::<Vec<_>>().join(", ")
+            many.iter().map(|m| m.id.as_str()).collect::<Vec<_>>().join(", "),
+            list_hint(labels)
         ))),
+    }
+}
+
+/// The command that lists the members of the source in use: the member
+/// site's (`labels`) or the files'. Plain `patients list` names no source,
+/// so it would be exit 2.
+fn list_hint(labels: bool) -> String {
+    if labels {
+        format!("`{BIN} --profile <NAME> patients list`")
+    } else {
+        format!("`{BIN} --files <DIR> patients list`")
     }
 }
 
@@ -505,9 +519,10 @@ pub(crate) fn pick_member<'a>(members: &'a [Member], q: Option<&str>, labels: bo
         (None, [one]) => Ok(one),
         (None, []) => find_member(members, "", labels),
         (None, many) => Err(CliError::Usage(format!(
-            "pass --patient <ID>: there are {} members ({}; `{BIN} patients list`)",
+            "pass --patient <ID>: there are {} members ({}; {})",
             many.len(),
-            many.iter().map(|m| m.id.as_str()).collect::<Vec<_>>().join(", ")
+            many.iter().map(|m| m.id.as_str()).collect::<Vec<_>>().join(", "),
+            list_hint(labels)
         ))),
     }
 }
