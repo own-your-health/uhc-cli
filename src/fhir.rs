@@ -52,6 +52,24 @@ fn absent() -> Value {
     json!({ "extension": [{ "url": DATA_ABSENT_REASON, "valueCode": "unknown" }] })
 }
 
+/// `v` with `meta.lastUpdated`: when its content held. The member site's
+/// is the time it was read; a statement's is its date (that day's start in
+/// UTC). A store keeps a newer version over an older one by it, so the site
+/// read after a statement wins, and a statement newer than the last read
+/// (a claim reprocessed since) wins over it. `None` (a statement with no
+/// date) leaves it out.
+pub fn last_updated(mut v: Value, at: Option<&str>) -> Value {
+    if let Some(at) = at {
+        let instant = if at.len() == 10 {
+            format!("{at}T00:00:00Z")
+        } else {
+            at.to_string()
+        };
+        v["meta"]["lastUpdated"] = instant.into();
+    }
+    v
+}
+
 fn meta(origin: Origin) -> Value {
     match origin {
         Origin::Statements => json!({

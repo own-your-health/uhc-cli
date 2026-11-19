@@ -723,6 +723,55 @@ fn a_member_id_printed_with_a_letter_is_the_same_member() {
     assert!(!text.contains("A555000001"), "the printed form is not exported");
 }
 
+/// Each resource from statements carries `meta.lastUpdated`: its own
+/// statement's date for a claim and a document, the member's latest
+/// statement's for the member, the plan and the payer.
+#[test]
+fn statement_resources_are_dated_by_their_statement() {
+    need_pdftotext!();
+    let dir = statements(GOOD);
+    let alex = member_id(&dir, "Alex");
+    let v = json_of(uhc(&dir).args(["patients", "list"]));
+    let latest = v["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == alex.as_str())
+        .unwrap()["latest_statement"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let out = uhc(&dir)
+        .args(["records", "export", "--patient", &alex, "--ndjson"])
+        .assert()
+        .success();
+    let text = String::from_utf8(out.get_output().stdout.clone()).unwrap();
+    let resources: Vec<Value> = text
+        .lines()
+        .map(|l| serde_json::from_str::<Value>(l).unwrap())
+        .filter(|r| r.get("resourceType").is_some())
+        .collect();
+    assert!(!resources.is_empty());
+    let mut dates = std::collections::BTreeSet::new();
+    for r in &resources {
+        let at = r["meta"]["lastUpdated"]
+            .as_str()
+            .unwrap_or_else(|| panic!("undated: {r}"));
+        assert!(at.ends_with("T00:00:00Z") && at.len() == 20, "{at}");
+        match r["resourceType"].as_str().unwrap() {
+            "Patient" | "Coverage" | "Organization" => assert_eq!(at, format!("{latest}T00:00:00Z")),
+            _ => {
+                assert!(at[..10] <= latest[..], "{at} after {latest}");
+                dates.insert(at.to_string());
+            }
+        }
+    }
+    assert!(
+        dates.len() > 1,
+        "claims and documents carry their own statements' dates: {dates:?}"
+    );
+}
+
 /// A first name that two members share is no id either, and the error
 /// names no member.
 #[test]

@@ -754,6 +754,21 @@ fn no_session_stored_is_exit_3_before_any_request() {
 /// From the site, --patient takes a member's id or first name (the label
 /// its grant shows), and without it a household of three is exit 2 naming
 /// ids only. The id is the files source's, so a store merges the two.
+/// Every resource from the site carries `meta.lastUpdated`: the time the
+/// site was read, the stream header's `pulled_at`.
+#[test]
+fn site_resources_are_dated_by_the_read() {
+    let h = Household::new();
+    let (code, stream) = h.stream(&["records", "export", "--patient", "Sam", "--ndjson"]);
+    assert_eq!(code, 0);
+    let pulled_at = stream[0]["pulled_at"].as_str().unwrap();
+    let resources: Vec<&Value> = stream.iter().filter(|r| r.get("resourceType").is_some()).collect();
+    assert!(resources.len() > 3);
+    for r in resources {
+        assert_eq!(r["meta"]["lastUpdated"], pulled_at, "{r}");
+    }
+}
+
 #[test]
 fn records_export_takes_an_id_or_a_first_name() {
     let h = Household::new();

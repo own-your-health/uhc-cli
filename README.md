@@ -136,7 +136,9 @@ code `name_taken`. `--overwrite` replaces both.
 
 ### What the export carries
 
-Per member: `Patient`, the payer `Organization`, `Coverage`, one
+Every resource carries `meta.lastUpdated`: when the site was read, or the
+statement's date, so a store keeps the newer of two versions
+(`docs/fhir.md`). Per member: `Patient`, the payer `Organization`, `Coverage`, one
 `ExplanationOfBenefit` per claim (CARIN Blue Button categories for every
 amount, processing codes as notes, the plan balances the statement printed as
 `benefitBalance`), and each statement PDF as `DocumentReference` + `Binary`.

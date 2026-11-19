@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.2.2
+
+- Every exported resource carries `meta.lastUpdated`: from the member site,
+  the time it was read (the stream's `pulled_at`); from statements, the
+  statement's date (a claim and a document their own statement's, the
+  member, plan and payer the latest statement's). A records store that gets
+  one claim from both sources keeps the newer version instead of whichever
+  it imported last, so a statement imported after the site no longer
+  replaces the site's procedure codes and claim type. medrec applies it from
+  0.2.7.
+
 ## v0.2.1
 
 The statements and the site now agree on who a member is.

@@ -709,10 +709,12 @@ pub fn select<'a>(book: &'a Book, m: &Member, since: Option<&str>) -> Selection<
 /// Every resource of one member's export, in stream order.
 pub fn member_resources(book: &Book, m: &Member, sel: &Selection) -> Result<Vec<Value>, CliError> {
     let coverage = fhir::coverage_id(m);
+    // The member, the plan and the payer as of the member's latest statement.
+    let latest = m.latest_statement.as_deref();
     let mut out = vec![
-        fhir::organization(crate::model::Origin::Statements),
-        fhir::patient(m, book.full_name(&m.id).as_deref()),
-        fhir::coverage(m),
+        fhir::last_updated(fhir::organization(crate::model::Origin::Statements), latest),
+        fhir::last_updated(fhir::patient(m, book.full_name(&m.id).as_deref()), latest),
+        fhir::last_updated(fhir::coverage(m), latest),
     ];
     for c in &sel.claims {
         let balances = c
@@ -721,13 +723,17 @@ pub fn member_resources(book: &Book, m: &Member, sel: &Selection) -> Result<Vec<
             .map(|d| book.balances_in(d, &c.claim.patient))
             .unwrap_or_default();
         let refs: Vec<&Balances> = balances.iter().collect();
-        out.push(fhir::explanation_of_benefit(c, &coverage, &refs));
+        out.push(fhir::last_updated(
+            fhir::explanation_of_benefit(c, &coverage, &refs),
+            c.statement_date.as_deref(),
+        ));
     }
     for (f, related) in &sel.files {
         let related: Vec<&ClaimRecord> = related.iter().map(|&i| &sel.claims[i]).collect();
         let bytes = std::fs::read(&f.path).map_err(|e| CliError::Other(format!("reading a statement again: {e}")))?;
-        out.push(fhir::document_reference(f, &m.id, &related));
-        out.push(fhir::binary(f, &m.id, &bytes));
+        let dated = f.statement.statement_date.as_deref();
+        out.push(fhir::last_updated(fhir::document_reference(f, &m.id, &related), dated));
+        out.push(fhir::last_updated(fhir::binary(f, &m.id, &bytes), dated));
     }
     Ok(out)
 }
