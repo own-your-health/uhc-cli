@@ -184,7 +184,8 @@ and the text "Out-of-pocket limit".
 `records-stream/v1`, written by medical-common's `RecordsWriter`
 (`pk-med-records`): a header with `method` `portal`, the organization
 `{id: "uhc", name: "UnitedHealthcare", fhir_base: "https://member.uhc.com/myuhc", vendor: "uhc"}`
-and the patient (`PatientContext`: `id`, `organization`, `label`, `kind`
+and the patient (`PatientContext`: `id`, `organization`, `label` when
+`patients label` gave the member one, never its first name, `kind`
 `member`, `member_role` `subscriber` or `dependent`, `relationship` `self`
 for the subscriber); then the
 resources in the order above; then `records-stream-end/v1` with counts. A

@@ -37,7 +37,7 @@ const STATEMENT_ISSUES: &str = "statement_issues";
 const CONFIG_KEYS: &str = "import_dir";
 pub(crate) const CLAIM_COLUMNS: &[&str] = &[
     "service_start",
-    "label",
+    "first_name",
     "provider",
     "billed",
     "plan_paid",
@@ -46,7 +46,7 @@ pub(crate) const CLAIM_COLUMNS: &[&str] = &[
 ];
 pub(crate) const BALANCE_COLUMNS: &[&str] = &[
     "plan_year",
-    "label",
+    "first_name",
     "network",
     "limit",
     "used",
@@ -55,7 +55,7 @@ pub(crate) const BALANCE_COLUMNS: &[&str] = &[
     "met",
     "as_of",
 ];
-pub(crate) const PATIENT_COLUMNS: &[&str] = &["label", "id", "member_role", "claims", "latest_statement"];
+pub(crate) const PATIENT_COLUMNS: &[&str] = &["label", "name", "id", "member_role", "claims", "latest_statement"];
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Config {
@@ -65,6 +65,11 @@ pub struct Config {
     /// The member-site logins, one per account (`uhc profiles add <NAME>`).
     #[serde(default, skip_serializing_if = "Profiles::is_empty")]
     pub profiles: Profiles,
+    /// Keys this release does not know, kept through a rewrite: a site read
+    /// records grants without being asked (`src/grants.rs`), so a newer
+    /// release's keys must survive an older one.
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
 }
 
 struct Ctx<'a> {
@@ -220,6 +225,13 @@ pub fn run(cli: &Cli) -> Result<(), CliError> {
             Ok(ctx) => patients(&ctx),
             Err(profile) => site_exit(cli, &profile),
         },
+        // A label belongs to a profile's grant (medical-common DESIGN §1.1).
+        Command::Patients(PatientsCmd::Label(_)) => match files()? {
+            Ok(_) => Err(CliError::Usage(
+                "patients label takes --profile: a label belongs to a sign-in, and --files has none".into(),
+            )),
+            Err(profile) => site_exit(cli, &profile),
+        },
         Command::Records(RecordsCmd::Export(args)) => {
             // Its own checks come first, whichever the source.
             export_args(cli, args)?;
@@ -296,6 +308,9 @@ pub fn run(cli: &Cli) -> Result<(), CliError> {
                     // `records export --files <DIR>` reads the statement
                     // files with no sign-in (medical-common DESIGN.md §1.1).
                     pk_med_records::RECORDS_FILES,
+                    // `patients label` gives a member the household's own
+                    // name (DESIGN.md §1).
+                    pk_med_records::PATIENT_LABELS,
                 ],
             )
             .with_profiles(PROFILES);
@@ -488,15 +503,20 @@ pub(crate) fn find_member<'a>(members: &'a [Member], q: &str, labels: bool) -> R
             list_hint(labels)
         )));
     }
-    let hits: Vec<&Member> = members.iter().filter(|m| m.label.eq_ignore_ascii_case(q)).collect();
+    // The household's label (`uhc patients label`), never the first name the
+    // site shows: that is the member's `name` (DESIGN §1.3).
+    let hits: Vec<&Member> = members
+        .iter()
+        .filter(|m| m.grant_label.as_deref().is_some_and(|l| crate::grants::same(l, q)))
+        .collect();
     match hits.as_slice() {
         [one] => Ok(one),
         [] => Err(CliError::NotFound(format!(
-            "no member has that id or first name ({})",
+            "no member has that id or label ({}; `{BIN} patients label` gives one a label)",
             list_hint(labels)
         ))),
         many => Err(CliError::NotFound(format!(
-            "that first name matches {} members; pass one member's id from {}",
+            "that label matches {} members; pass one member's id from {}",
             many.len(),
             list_hint(labels)
         ))),
@@ -522,7 +542,7 @@ pub(crate) fn pick_member<'a>(members: &'a [Member], q: Option<&str>, labels: bo
         (None, []) => find_member(members, "", labels),
         (None, many) => Err(CliError::Usage(format!(
             "pass --patient {}: there are {} members, and {} lists them",
-            if labels { "<ID or FIRST NAME>" } else { "<ID>" },
+            if labels { "<ID or LABEL>" } else { "<ID>" },
             many.len(),
             list_hint(labels)
         ))),
@@ -576,7 +596,8 @@ pub(crate) fn context(m: &Member, name: Option<String>) -> PatientContext {
     PatientContext {
         id: m.id.clone(),
         organization: ORGANIZATION.into(),
-        label: Some(m.label.clone()),
+        // The household's label, if it gave one (`uhc patients label`).
+        label: m.grant_label.clone(),
         // The subscriber downloads the statements: their own record. A
         // dependant's claims are read through the subscriber's account.
         relationship: (role == Some(member_role::SUBSCRIBER)).then(|| relationship::SELF.into()),
@@ -595,7 +616,9 @@ fn patients(ctx: &Ctx) -> Result<(), CliError> {
         .members()
         .into_iter()
         .map(|m| PatientRow {
-            context: files_context(&m, book.full_name(&m.id)),
+            // The name the statements print: the addressee's full name, or a
+            // first name.
+            context: files_context(&m, book.full_name(&m.id).or_else(|| Some(m.label.clone()))),
             member_id: m.member_id.clone(),
             coverage_relationship: m.relationship.clone(),
             group_number: m.group_number.clone(),
@@ -879,7 +902,8 @@ pub(crate) fn claim_json(c: &ClaimRecord, detail: bool) -> Value {
         v.insert("claim_number".into(), n.clone().into());
     }
     v.insert("patient".into(), c.patient.clone().into());
-    v.insert("label".into(), c.label.clone().into());
+    // The first name the source prints: the member's name, not a label.
+    v.insert("first_name".into(), c.label.clone().into());
     if let Some(p) = &c.claim.provider {
         v.insert("provider".into(), p.clone().into());
     }
@@ -1058,7 +1082,11 @@ fn accumulators(ctx: &Ctx, args: &AccumulatorsArgs) -> Result<(), CliError> {
 pub(crate) fn balance_json(b: &Balances) -> Value {
     let mut v = Map::new();
     v.insert("patient".into(), b.patient.clone().into());
-    v.insert("label".into(), b.label.clone().into());
+    // The first name the source prints, or none for the family's rows.
+    v.insert(
+        "first_name".into(),
+        if b.family { Value::Null } else { b.label.clone().into() },
+    );
     v.insert("family".into(), b.family.into());
     if let Some(y) = b.plan_year {
         v.insert("plan_year".into(), y.into());

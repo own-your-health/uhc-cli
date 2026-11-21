@@ -49,7 +49,8 @@ contacts UHC.
    member.uhc.com. Sign in there as usual; uhc stores the session when the
    site shows you signed in.
 4. See who is on the plan: `uhc --profile adult1 patients list` prints each
-   member's id.
+   member's id. To pass your own name for a member instead, label it once:
+   `uhc --profile adult1 patients label --patient <ID> Robin`.
 5. Export into medrec, once per member:
    `medrec import --from uhc --from-profile adult1 --patient <ID>`, or
    `uhc --profile adult1 records export --patient <ID> --ndjson | medrec import --from uhc`.
@@ -88,6 +89,7 @@ From the member site, one profile per member account that signs in:
 uhc profiles add adult1
 uhc auth login --browser --profile adult1       # sign in in the Chrome window it opens
 uhc --profile adult1 patients list              # subscriber and dependents
+uhc --profile adult1 patients label --patient <id> Robin   # your own name for one; --clear removes it
 uhc --profile adult1 claims list --since 2026-01-01
 uhc --profile adult1 claims get <claim id>      # with its lines, procedure and remark codes
 uhc --profile adult1 accumulators --year 2026   # deductible and out-of-pocket progress, today
@@ -147,13 +149,26 @@ statement carry. medrec files the two streams as one patient and merges
 the claims they share (statements print a few claims differently from the
 site: a newborn before naming, pharmacy reversals, a claim reprocessed
 under a new number; `docs/fhir.md` § Where the sources still differ).
-`--patient` takes that id. With `--profile` it also
-takes the member's first name (the label `patients list` shows); with
-`--files` there is no label, since a label belongs to a sign-in, so a first
-name is exit 4. When there is one member, `records export` needs no
+`--patient` takes that id. With `--profile` it also takes the member's
+label: your own name for it, which `patients label` sets
+(medical-common DESIGN §1). The first name the site shows is the member's
+`name`, never a label, so a first name is exit 4 until you give a member
+that label. With `--files` there is no label, since a label belongs to a
+sign-in's profile. When there is one member, `records export` needs no
 `--patient`; with several it is exit 2, saying how many there are and
-pointing at `patients list`, which shows their ids and first names. Error
-text names no member, by id or by name.
+pointing at `patients list`, which shows their labels, names and ids.
+Error text names no member, by id or by name.
+
+`patients label --patient <ID or LABEL> (<WHO> | --clear)` takes
+`--profile` and makes no request: it labels a member of that profile that
+a read of the site has listed (`patients list`, or any other read). A
+label is unique within the profile and is never a member's id; either
+collision, an empty label, or both or neither of `<WHO>` and `--clear` is
+exit 2, and a member the profile does not have is exit 4. Setting the label
+a member already has, or clearing one that is not set, changes nothing.
+`--json` prints `patient-list/v1` holding that member. The labels live in
+the profile's settings in uhc's config (owner-only), one grant per member,
+and `profiles remove` removes them.
 
 Every command takes `--json` and prints one schema-tagged document, except
 `records export --ndjson`, whose NDJSON stream is the output (`--json` with
@@ -170,7 +185,7 @@ it is a usage error, exit 2).
 | `api` | the site's own JSON answer |
 | `auth login` / `status` / `logout` / `reset` | `auth-login/v1` / `auth-status/v1` / `auth-logout/v1` / `auth-reset/v1` |
 | `profiles list` / `add` / `remove` | `profile-list/v1` / `profile-add/v1` / `profile-remove/v1` |
-| `info` | `cli-info/v1`: profiles `health-records/v1` and `documents/v1`; capabilities `login-profiles` and `records-files` (`records export --files <DIR>`, no sign-in); `auth.required` true (without `--files`, a record command signs in) |
+| `info` | `cli-info/v1`: profiles `health-records/v1` and `documents/v1`; capabilities `login-profiles`, `records-files` (`records export --files <DIR>`, no sign-in) and `patient-labels` (`patients label`); `auth.required` true (without `--files`, a record command signs in) |
 
 Exit codes: 0 ok, 1 other (pdftotext missing), 2 usage, 3 sign-in not
 finished or session refused, 4 not found, 5 the statements could not be

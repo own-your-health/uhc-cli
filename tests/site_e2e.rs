@@ -322,7 +322,12 @@ fn patients_list() {
     assert_eq!(v["schema"], "patient-list/v1");
     assert_eq!(ids(&v), [id("ALEX"), id("JORDAN"), id("SAM")]);
     let sam = &v["items"][2];
-    assert_eq!(sam["label"], "Sam");
+    // The site's first name is the member's name, never a label (medical-common
+    // DESIGN §1.3): a member has a label once `patients label` gives it one.
+    assert!(
+        v["items"].as_array().unwrap().iter().all(|m| m.get("label").is_none()),
+        "{v}"
+    );
     assert_eq!(sam["name"], "Sam Example");
     assert_eq!(sam["member_role"], "dependent");
     assert_eq!(sam["coverage_relationship"], "spouse");
@@ -381,7 +386,7 @@ fn claims_list_and_get() {
     assert_eq!(office["processed"], "2026-08-15");
     assert!(office.get("lines").is_none(), "a summary has no lines: {office}");
 
-    let sam = h.json(&["claims", "list", "--patient", "Sam", "--since", "2026-08-10"]);
+    let sam = h.json(&["claims", "list", "--patient", &id("SAM"), "--since", "2026-08-10"]);
     assert_eq!(ids(&sam), ["cSYNC33333333", "cSYNC00000008"]);
     assert_eq!(h.server.count("claimDetails"), 0, "claims list reads no detail");
 
@@ -408,12 +413,18 @@ fn accumulators() {
     assert_eq!(v["schema"], "accumulator-list/v1");
     let items = v["items"].as_array().unwrap();
     assert_eq!(items.len(), 16);
-    let alex = h.json(&["accumulators", "--patient", "Alex", "--year", "2026"]);
+    let alex = h.json(&["accumulators", "--patient", &id("ALEX"), "--year", "2026"]);
     let rows = alex["items"].as_array().unwrap();
     assert_eq!(rows.len(), 8, "Alex's and the family's");
+    let family: Vec<&Value> = rows.iter().filter(|r| r["family"] == true).collect();
+    assert!(!family.is_empty());
+    assert!(
+        family.iter().all(|r| r["first_name"].is_null()),
+        "a family row names no one"
+    );
     let ded = rows
         .iter()
-        .find(|r| r["label"] == "Alex" && r["network"] == "in" && r["limit"] == "deductible")
+        .find(|r| r["first_name"] == "Alex" && r["network"] == "in" && r["limit"] == "deductible")
         .unwrap();
     assert_eq!(ded["maximum"]["amount"], "1250.00");
     assert_eq!(ded["used"]["amount"], "50.00");
@@ -502,7 +513,7 @@ fn of_type<'a>(stream: &'a [Value], kind: &str) -> Vec<&'a Value> {
 #[test]
 fn records_export_carries_the_sites_codes() {
     let h = Household::new();
-    let (code, stream) = h.stream(&["records", "export", "--patient", "Sam", "--ndjson"]);
+    let (code, stream) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
     assert_eq!(code, 0);
     let header = &stream[0];
     assert_eq!(header["schema"], "records-stream/v1");
@@ -604,7 +615,7 @@ fn the_ids_are_the_statements() {
     let statement_members: Vec<String> = book.members().into_iter().map(|m| m.id).collect();
 
     let h = Household::new();
-    let (_, stream) = h.stream(&["records", "export", "--patient", "Sam", "--ndjson"]);
+    let (_, stream) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
     let site_claims: Vec<String> = of_type(&stream, "ExplanationOfBenefit")
         .iter()
         .map(|e| e["id"].as_str().unwrap().to_string())
@@ -628,7 +639,7 @@ fn records_export_since_reads_only_what_changed() {
         "records",
         "export",
         "--patient",
-        "Sam",
+        &id("SAM"),
         "--since",
         "2026-08-16",
         "--ndjson",
@@ -648,7 +659,7 @@ fn records_export_since_reads_only_what_changed() {
 #[test]
 fn a_claim_in_process_is_skipped() {
     let h = Household::new();
-    let (code, stream) = h.stream(&["records", "export", "--patient", "Jordan", "--ndjson"]);
+    let (code, stream) = h.stream(&["records", "export", "--patient", &id("JORDAN"), "--ndjson"]);
     assert_eq!(code, 0);
     let trailer = stream.last().unwrap();
     let skipped = trailer["skipped"].as_array().unwrap();
@@ -670,7 +681,7 @@ fn a_claim_in_process_is_skipped() {
 #[test]
 fn the_dental_claim_is_oral() {
     let h = Household::new();
-    let (_, stream) = h.stream(&["records", "export", "--patient", "Alex", "--ndjson"]);
+    let (_, stream) = h.stream(&["records", "export", "--patient", &id("ALEX"), "--ndjson"]);
     let eobs = of_type(&stream, "ExplanationOfBenefit");
     let dental = eobs.iter().find(|e| e["id"] == "c000000000003").unwrap();
     assert_eq!(dental["type"]["coding"][0]["code"], "oral");
@@ -719,7 +730,7 @@ fn a_refusal_partway_ends_the_stream_incomplete() {
     // The claims and the documents answer; the first detail is refused.
     h.server
         .fail_after(2, 401, "application/json", &fixture("unauthorized.json"));
-    let (code, stream) = h.stream(&["records", "export", "--patient", "Sam", "--ndjson"]);
+    let (code, stream) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
     assert_eq!(code, 3);
     let trailer = stream.last().unwrap();
     assert_eq!(trailer["complete"], false);
@@ -759,7 +770,7 @@ fn no_session_stored_is_exit_3_before_any_request() {
 fn site_resources_are_dated_by_the_read_and_documents_by_their_date() {
     let h = Household::new();
     let read = || {
-        let (code, stream) = h.stream(&["records", "export", "--patient", "Sam", "--ndjson"]);
+        let (code, stream) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
         assert_eq!(code, 0);
         stream
     };
@@ -812,23 +823,180 @@ fn site_resources_are_dated_by_the_read_and_documents_by_their_date() {
 /// no member, by id or by name (DESIGN §1.3). The id is the files source's,
 /// so a store merges the two.
 #[test]
-fn records_export_takes_an_id_or_a_first_name() {
+fn records_export_takes_an_id_or_a_label() {
     let h = Household::new();
-    let (code, by_name) = h.stream(&["records", "export", "--patient", "Sam", "--ndjson"]);
+    h.json(&["patients", "list"]);
+    assert_eq!(
+        h.json(&["patients", "label", "--patient", &id("SAM"), "Robin"])["items"][0]["label"],
+        "Robin"
+    );
+    let (code, by_label) = h.stream(&["records", "export", "--patient", "robin", "--ndjson"]);
     assert_eq!(code, 0);
     let (code, by_id) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
     assert_eq!(code, 0);
-    assert_eq!(by_name[0]["patient"]["id"], by_id[0]["patient"]["id"]);
+    assert_eq!(by_label[0]["patient"]["id"], id("SAM"));
     assert_eq!(by_id[0]["patient"]["id"], id("SAM"));
+    assert_eq!(by_id[0]["patient"]["label"], "Robin", "the household's label");
     assert_eq!(by_id[0]["patient"]["organization"], "uhc");
     assert_eq!(by_id[0]["organization"]["id"], "uhc");
+    // The first name the site shows is not a label (medical-common DESIGN
+    // §1.3), and the error repeats neither it nor any member.
+    let e = h
+        .run(&["records", "export", "--patient", "Sam", "--ndjson"])
+        .unwrap_err();
+    assert_eq!(e.exit_code(), 4);
+    let msg = e.to_string();
+    assert!(msg.contains("patients label"), "{msg}");
+    for who in ["SAM", "ALEX", "JORDAN", "ROBIN"] {
+        assert!(!msg.contains(&id(who)) && !msg.to_uppercase().contains(who), "{msg}");
+    }
     let e = h.run(&["records", "export", "--ndjson"]).unwrap_err();
     assert_eq!(e.exit_code(), 2);
     let msg = e.to_string();
     assert!(msg.contains("`uhc --profile <NAME> patients list`"), "{msg}");
-    for who in ["SAM", "ALEX", "JORDAN"] {
+    for who in ["SAM", "ALEX", "JORDAN", "ROBIN"] {
         assert!(!msg.contains(&id(who)) && !msg.to_uppercase().contains(who), "{msg}");
     }
+}
+
+/// `patients label` (medical-common DESIGN §1): the household's own name
+/// for one member, kept in the profile's grant for it. It makes no request
+/// and reads no secret.
+#[test]
+fn patients_label_names_one_member_of_the_profile() {
+    let h = Household::new();
+    // Before any read, the profile knows no member.
+    let e = h
+        .run(&["patients", "label", "--patient", &id("SAM"), "Robin"])
+        .unwrap_err();
+    assert_eq!(e.exit_code(), 4);
+    assert!(e.to_string().contains("patients list"), "{e}");
+    h.json(&["patients", "list"]);
+    let reads = h.server.seen().len();
+
+    let v = h.json(&["patients", "label", "--patient", &id("SAM"), "  Robin "]);
+    assert_eq!(v["schema"], "patient-list/v1");
+    assert_eq!(
+        v["items"],
+        json!([{"id": id("SAM"), "organization": "uhc", "label": "Robin", "kind": "member"}])
+    );
+    let grants = |h: &Household| -> Value {
+        let c: Value = serde_json::from_str(&std::fs::read_to_string(&h.config).unwrap()).unwrap();
+        c["profiles"]["adult1"]["grants"].clone()
+    };
+    assert_eq!(grants(&h).as_array().unwrap().len(), 3, "one grant per member read");
+    let list = h.json(&["patients", "list"]);
+    let sam = list["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == id("SAM"))
+        .unwrap()
+        .clone();
+    assert_eq!(sam["label"], "Robin");
+    assert_eq!(sam["name"], "Sam Example", "the site's name stays the name");
+    let reads = reads + 2;
+    assert_eq!(h.server.seen().len(), reads, "only patients list read the site");
+
+    // By its label, in any case, a new label replaces the old.
+    assert_eq!(
+        h.json(&["patients", "label", "--patient", "ROBIN", "Kit"])["items"][0]["label"],
+        "Kit"
+    );
+    assert_eq!(
+        h.json(&["claims", "list", "--patient", "kit"])["items"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+    let reads = reads + 1;
+
+    // The same label, or clearing an unset one, changes nothing.
+    let before = std::fs::read(&h.config).unwrap();
+    assert_eq!(
+        h.json(&["patients", "label", "--patient", "Kit", "Kit"])["items"][0]["label"],
+        "Kit"
+    );
+    assert_eq!(
+        h.json(&["patients", "label", "--patient", &id("ALEX"), "--clear"])["items"][0].get("label"),
+        None
+    );
+    assert_eq!(std::fs::read(&h.config).unwrap(), before, "the config is not rewritten");
+
+    // Collisions and empty labels are exit 2, and change nothing.
+    let (alex, jordan) = (id("ALEX"), id("JORDAN"));
+    for (who, why) in [
+        ("kit", "another member's label"),
+        (jordan.as_str(), "a member's id"),
+        (" ", "only whitespace"),
+        ("", "empty"),
+    ] {
+        let argv = ["patients", "label", "--patient", alex.as_str(), who];
+        let e = h.run(&argv).unwrap_err();
+        assert_eq!(e.exit_code(), 2, "{why}: {e}");
+        for who in ["SAM", "ALEX", "JORDAN"] {
+            assert!(!e.to_string().contains(&id(who)), "{why}: {e}");
+        }
+    }
+    assert_eq!(std::fs::read(&h.config).unwrap(), before);
+
+    // A member the profile does not have is exit 4, and the error does not
+    // repeat --patient.
+    for q in ["Sam", "nobody", "m000000000000"] {
+        let e = h.run(&["patients", "label", "--patient", q, "Lee"]).unwrap_err();
+        assert_eq!(e.exit_code(), 4, "{q}");
+        assert!(!e.to_string().to_lowercase().contains(&q.to_lowercase()), "{q}: {e}");
+    }
+
+    // Human output is one line, and --clear removes the label.
+    let (code, out) = h.run(&["patients", "label", "--patient", "kit", "--clear"]).unwrap();
+    assert_eq!(code, 0);
+    assert_eq!(String::from_utf8(out).unwrap().lines().count(), 1);
+    assert!(
+        grants(&h).as_array().unwrap().iter().all(|g| g.get("label").is_none()),
+        "{}",
+        grants(&h)
+    );
+    assert_eq!(h.server.seen().len(), reads, "patients label read nothing");
+}
+
+/// A read of the site does not fail on settings it cannot read: it warns,
+/// and `--patient` takes ids only. `patients label`, whose subject they are,
+/// is an error.
+#[test]
+fn unreadable_settings_do_not_stop_a_read() {
+    let h = Household::new();
+    let mut c: Value = serde_json::from_str(&std::fs::read_to_string(&h.config).unwrap()).unwrap();
+    c["profiles"]["adult1"] = json!({"grants": "not a list"});
+    std::fs::write(&h.config, c.to_string()).unwrap();
+    let before = std::fs::read(&h.config).unwrap();
+    let v = h.json(&["patients", "list"]);
+    assert_eq!(ids(&v), [id("ALEX"), id("JORDAN"), id("SAM")]);
+    assert_eq!(
+        h.json(&["claims", "list", "--patient", &id("SAM")])["items"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+    assert_eq!(std::fs::read(&h.config).unwrap(), before, "left as it was");
+    assert!(h.run(&["patients", "label", "--patient", &id("SAM"), "Robin"]).is_err());
+}
+
+#[test]
+fn patients_label_reads_no_secret() {
+    // No session stored: every site read is exit 3, and a label is still set.
+    let h = Household::with_session(false);
+    let mut c: Value = serde_json::from_str(&std::fs::read_to_string(&h.config).unwrap()).unwrap();
+    c["profiles"]["adult1"] = json!({"grants": [{"organization": "uhc", "patient": id("SAM")}]});
+    std::fs::write(&h.config, c.to_string()).unwrap();
+    assert_eq!(
+        h.json(&["patients", "label", "--patient", &id("SAM"), "Robin"])["items"][0]["label"],
+        "Robin"
+    );
+    assert!(h.server.seen().is_empty());
+    assert_eq!(h.run(&["claims", "list"]).unwrap_err().exit_code(), 3);
 }
 
 #[test]
@@ -836,7 +1004,14 @@ fn records_export_to_a_file_is_refused_before_any_request() {
     let h = Household::new();
     let dir = tmp("out");
     let e = h
-        .run(&["records", "export", "--patient", "Sam", "-o", dir.to_str().unwrap()])
+        .run(&[
+            "records",
+            "export",
+            "--patient",
+            &id("SAM"),
+            "-o",
+            dir.to_str().unwrap(),
+        ])
         .unwrap_err();
     assert_eq!(e.exit_code(), 2);
     assert!(h.server.seen().is_empty());
@@ -926,7 +1101,7 @@ fn a_failed_write_back_is_only_a_warning() {
     let lock = h.config.parent().unwrap().join("vault").join(".key.lock");
     std::fs::remove_file(&lock).unwrap();
     std::fs::create_dir(&lock).unwrap();
-    let (code, stream) = h.stream(&["records", "export", "--patient", "Sam", "--ndjson"]);
+    let (code, stream) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
     assert_eq!(code, 0);
     assert_eq!(stream.last().unwrap()["complete"], true);
     assert!(stream.len() > 2, "the whole stream");

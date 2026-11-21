@@ -24,7 +24,8 @@ owns the records stream, the export file and the profile's DTOs. Every
 | `src/site.rs` | the member site's sign-in: the browser capture, the session check (`SESSION_CHECK_URL`, `judge`) |
 | `src/client.rs` | the member-site reads: the queries (`src/site/queries/`), pacing, the cookie jar, `judge` (answers to data or exit codes), and `api_request` / `read_only_graphql`, which check an `api` request is a read before it is sent |
 | `src/portal.rs` | the site's answers into the model, with the files source's ids; `Site`, which writes the session back |
-| `src/site_cmd.rs` | the commands on the site (`Env`: where sessions are kept and which site is read) |
+| `src/site_cmd.rs` | the commands on the site (`Env`: where sessions are kept and which site is read), and `patients label` |
+| `src/grants.rs` | a profile's grants in uhc's config: one per member the site has shown it, with the household's label (`patients label`); the only code that reads or writes them |
 | `src/files.rs` | the import folder: which PDFs, `pdftotext` bounded in time and size |
 | `src/eob.rs` | the statement parser (UHC's STD-EOB layout) and its issue codes |
 | `src/cents.rs` | statement amounts as integer cents |
@@ -92,9 +93,14 @@ profile is never picked). A session is the vault entry `<profile>/session`
 (`pk_cli_auth::vault::Vault::for_binary("uhc")`: one keychain item,
 `vault-key` in `piekstra.uhc`, and an encrypted file per entry under
 `~/.config/uhc/vault/`), and a `--browser` sign-in runs in the profile's own
-kept Chrome profile (`Launch::profile_name`). `profiles remove` removes the
-session and that browser profile before the profile; `auth reset` is
-`Vault::clear`. The vault's remedies are replaced with uhc's commands.
+kept Chrome profile (`Launch::profile_name`). A profile's settings in the
+config hold its grants (`src/grants.rs`, medical-common DESIGN §1.1): a
+site read that lists a member the profile has no grant for records one, so
+reads write uhc's config too (never UHC), and `patients label` sets a
+grant's label. `profiles remove` removes the session and that browser
+profile before the profile, and the grants go with the profile's settings;
+`auth reset` is `Vault::clear`. The vault's remedies are replaced with
+uhc's commands.
 
 The member-site sign-in is in place (`auth login --browser` through
 `pk-cli-browser`, or `--stdin`), with a `UHC_KEYCHAIN_SERVICE` test-only

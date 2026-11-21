@@ -165,6 +165,10 @@ pub struct Member {
     pub origin: Origin,
     #[serde(skip)]
     pub site: Option<SiteMember>,
+    /// The household's own name for the member (`uhc patients label`), from
+    /// the profile's grant; a member from statements has none.
+    #[serde(skip)]
+    pub grant_label: Option<String>,
 }
 
 pub const ORGANIZATION: &str = "uhc";
@@ -350,6 +354,7 @@ impl Book {
                     latest_statement: None,
                     origin: Origin::Statements,
                     site: None,
+                    grant_label: None,
                 });
                 m.group_number = st.member.group_number.clone().or(m.group_number.take());
                 m.group_name = st.member.group_name.clone().or(m.group_name.take());

@@ -144,6 +144,8 @@ fn info_declares_both_profiles_and_the_browser_sign_in() {
     assert!(capabilities.contains(&serde_json::json!("api")), "{v}");
     // A records store passes --files only to a provider listing this.
     assert!(capabilities.contains(&serde_json::json!("records-files")), "{v}");
+    // A store can label one member of a profile (medical-common DESIGN.md §1).
+    assert!(capabilities.contains(&serde_json::json!("patient-labels")), "{v}");
     assert_eq!(v["auth"]["required"], true);
     assert_eq!(v["auth"]["method"], "browser-session");
     assert_eq!(v["auth"]["login_hint"], "uhc auth login --browser --profile <NAME>");
@@ -703,4 +705,31 @@ fn the_stream_is_the_output_so_json_with_ndjson_is_a_usage_error() {
         .assert()
         .code(2);
     assert_eq!(error_of(&out)["error"]["code"], "usage");
+}
+
+/// `patients label` (medical-common DESIGN.md §1) takes a label or
+/// `--clear`, exactly one, and `--profile`, never `--files`: all exit 2,
+/// before any request or secret.
+#[test]
+fn patients_label_takes_a_label_or_clear_and_a_profile() {
+    for args in [
+        &["--profile", "adult1", "patients", "label", "--patient", "x"][..],
+        &[
+            "--profile",
+            "adult1",
+            "patients",
+            "label",
+            "--patient",
+            "x",
+            "Robin",
+            "--clear",
+        ][..],
+        &["patients", "label", "--patient", "x", "Robin"][..],
+        &["--files", "never-read", "patients", "label", "--patient", "x", "Robin"][..],
+    ] {
+        let out = uhc().args(args).assert().code(2);
+        let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
+        assert!(!stderr.is_empty(), "{args:?}");
+    }
+    uhc().args(["patients", "label", "--help"]).assert().success();
 }

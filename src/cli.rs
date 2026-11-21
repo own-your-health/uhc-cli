@@ -199,12 +199,30 @@ pub enum PatientsCmd {
     /// List the members (patient-list/v1).
     #[command(visible_alias = "ls")]
     List,
+    /// Give one member of a profile the household's own name (its label),
+    /// which --patient then takes; --clear removes it. Makes no request.
+    Label(PatientsLabelArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct PatientsLabelArgs {
+    /// The member: its id from `uhc --profile <NAME> patients list`, or its
+    /// current label.
+    #[arg(long, value_name = "ID")]
+    pub patient: String,
+    /// The label to give it.
+    #[arg(value_name = "WHO", required_unless_present = "clear", conflicts_with = "clear")]
+    pub who: Option<String>,
+    /// Remove its label.
+    #[arg(long)]
+    pub clear: bool,
 }
 
 #[derive(Args, Debug, Clone)]
 pub struct PatientArg {
-    /// A member: its id from `uhc patients list` (with --profile, its first
-    /// name too). May be omitted when there is one member.
+    /// A member: its id from `uhc patients list` (with --profile, the label
+    /// `uhc patients label` gave it too). May be omitted when there is one
+    /// member.
     #[arg(long, value_name = "ID")]
     pub patient: Option<String>,
 }
@@ -251,7 +269,7 @@ pub enum ClaimsCmd {
 #[derive(Args, Debug)]
 pub struct ClaimsListArgs {
     /// Only this member's claims: its id from `uhc patients list` (with
-    /// --profile, its first name too).
+    /// --profile, its label too).
     #[arg(long, value_name = "ID")]
     pub patient: Option<String>,
     #[command(flatten)]
@@ -261,7 +279,7 @@ pub struct ClaimsListArgs {
 #[derive(Args, Debug)]
 pub struct AccumulatorsArgs {
     /// Only this member: its id from `uhc patients list` (with --profile, its
-    /// first name too); the family's rows stay.
+    /// label too); the family's rows stay.
     #[arg(long, value_name = "ID")]
     pub patient: Option<String>,
     /// Only this plan year (default: every year the source has, the
