@@ -23,6 +23,11 @@ member that name as its label first.
 - `claims list` and `accumulators` rows name the member's first name as
   `first_name`, not `label`; the family's balance rows have none.
 - Pinned medical-common v0.6.7.
+- README: who uhc is for (any UnitedHealthcare member with a myuhc.com
+  sign-in, no app registration), the site's terms on automated access in
+  plain words, a quick start from `profiles add` to `medrec import`, which
+  steps need a person, and how long a sign-in lasts. docs/api.md no longer
+  describes one household's plan or decision.
 
 ## v0.2.3
 
