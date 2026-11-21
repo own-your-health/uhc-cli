@@ -10,15 +10,15 @@ plan balances. Findings are from UHC's and Optum's public pages, read on
 | Who it serves | The plans under the CMS Patient Access rule; employer plans most likely not (below) | Every UHC member with a HealthSafe ID | Every member |
 | Registration | An organization and an app at `flex.optum.com/portal`, each reviewed (5 business days each) | None | None |
 | Terms | "Terms and Conditions (Patient Data API License)" | HealthSafe ID Terms of Use, which forbid software access ("scrape," "crawl," "spider") | Ordinary member use |
-| `uhc` source | none (SMART standalone launch, if it ever serves the plan) | `--profile <NAME>`: a session signed in through `pk-cli-browser` (the household accepted the terms' risk) | `--files <DIR>` (local files, no network) |
+| `uhc` source | none (SMART standalone launch, if it ever serves the plan) | `--profile <NAME>`: a session signed in through `pk-cli-browser` (the member's decision and risk under the terms) | `--files <DIR>` (local files, no network) |
 
 ## Route
 
 Decided: the member site. uhc signs in to myuhc.com in a browser as the
-owner and reads the site's own data, accepting the risk under its Terms of
-Use. The household's plan is an employer plan, and the evidence below says
-the Patient Access API serves Medicare, Medicaid, CHIP and ACA marketplace
-members.
+member and reads the site's own data, at the member's risk under its Terms
+of Use. It serves employer plans, which the evidence below says the Patient
+Access API does not: that API serves Medicare, Medicaid, CHIP and ACA
+marketplace members.
 
 The files source (v0.1.0) stays: it reads the EOB statement PDFs the member
 downloads from the site (layout below) and never contacts UHC.
@@ -182,7 +182,9 @@ a mutation.
   member site's footer loads (`myoptum.optum.com/content/optum-dashboard/en/footer/uhc/terms.html`)
   say the same: "not to use manual or automated software, devices, scripts,
   robots, backdoors or other means or processes to access ... "scrape,"
-  "crawl" or "spider" any web pages". The household accepted that risk.
+  "crawl" or "spider" any web pages". Using uhc against the member site is
+  the member's decision and risk under these terms (README, "The site's
+  terms, in plain words").
 
 ### The session
 
