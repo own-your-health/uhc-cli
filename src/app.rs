@@ -502,7 +502,7 @@ pub(crate) fn find_member<'a>(members: &'a [Member], q: &str, labels: bool) -> R
     // site shows: that is the member's `name` (DESIGN §1.3).
     let hits: Vec<&Member> = members
         .iter()
-        .filter(|m| m.grant_label.as_deref().is_some_and(|l| l.eq_ignore_ascii_case(q)))
+        .filter(|m| m.grant_label.as_deref().is_some_and(|l| crate::grants::same(l, q)))
         .collect();
     match hits.as_slice() {
         [one] => Ok(one),

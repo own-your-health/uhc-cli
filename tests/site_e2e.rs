@@ -961,6 +961,29 @@ fn patients_label_names_one_member_of_the_profile() {
     assert_eq!(h.server.seen().len(), reads, "patients label read nothing");
 }
 
+/// A read of the site does not fail on settings it cannot read: it warns,
+/// and `--patient` takes ids only. `patients label`, whose subject they are,
+/// is an error.
+#[test]
+fn unreadable_settings_do_not_stop_a_read() {
+    let h = Household::new();
+    let mut c: Value = serde_json::from_str(&std::fs::read_to_string(&h.config).unwrap()).unwrap();
+    c["profiles"]["adult1"] = json!({"grants": "not a list"});
+    std::fs::write(&h.config, c.to_string()).unwrap();
+    let before = std::fs::read(&h.config).unwrap();
+    let v = h.json(&["patients", "list"]);
+    assert_eq!(ids(&v), [id("ALEX"), id("JORDAN"), id("SAM")]);
+    assert_eq!(
+        h.json(&["claims", "list", "--patient", &id("SAM")])["items"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+    assert_eq!(std::fs::read(&h.config).unwrap(), before, "left as it was");
+    assert!(h.run(&["patients", "label", "--patient", &id("SAM"), "Robin"]).is_err());
+}
+
 #[test]
 fn patients_label_reads_no_secret() {
     // No session stored: every site read is exit 3, and a label is still set.

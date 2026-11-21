@@ -178,10 +178,21 @@ fn config_store(cli: &Cli) -> pk_cli_config::ConfigStore {
 
 /// Record a grant for each of `members` the profile has none for, so
 /// `patients label` can name it without reading the site, and give each the
-/// household's label from its grant.
+/// household's label from its grant. Best effort: a read of the site does
+/// not fail on the profile's settings, which only `patients label` must
+/// read.
 fn labelled(ctx: &Ctx, members: &mut [Member]) -> Result<(), CliError> {
     let store = config_store(ctx.cli);
-    let (config, mut settings) = grants::load(&store, ctx.profile)?;
+    let (config, mut settings) = match grants::load(&store, ctx.profile) {
+        Ok(loaded) => loaded,
+        Err(e) => {
+            eprintln!(
+                "warning: the profile's labels were not read, so --patient takes ids only: {}",
+                e.message()
+            );
+            return Ok(());
+        }
+    };
     if settings.record(members.iter().map(|m| m.id.as_str())) {
         // The members were read; a config that cannot be written costs only
         // the next `patients label` a `patients list` first.
@@ -264,11 +275,9 @@ fn label(cli: &Cli, profile: &ProfileName, args: &PatientsLabelArgs, out: &mut d
             name: None,
             session: None,
         };
-        let item = serde_json::to_value(item).unwrap_or_default();
-        return put(
-            out,
-            &serde_json::to_value(Paged::new("patient", vec![item])).unwrap_or_default(),
-        );
+        let doc = serde_json::to_value(pk_med_records::patient_list(vec![item]))
+            .map_err(|e| CliError::Other(format!("serializing the output: {e}")))?;
+        return put(out, &doc);
     }
     let line = match (&grant.label, changed) {
         (Some(l), true) => format!("member {} of profile `{profile}` is labelled `{l}`", grant.patient),

@@ -2,10 +2,21 @@
 
 ## v0.3.0
 
-Breaking for anyone passing a first name to `--patient`: with `--profile`,
-`--patient` takes a member's id or the label `patients label` gave it, not
-the first name the site shows. Use the id from `patients list`, or give the
-member that name as its label first.
+Breaking for anyone passing a first name to `--patient`, or reading `label`
+as a first name:
+
+- With `--profile`, `--patient` takes a member's id or the label `patients
+  label` gave it, not the first name the site shows. Use the id from
+  `patients list`, or give the member that name as its label first.
+- In `patients list` and the records stream's header, `PatientContext.label`
+  keeps its name and changes meaning: it was the site's first name, and is
+  now the household's label, absent until one is set. Read `name` for the
+  name the source shows.
+- On `claims list` and `accumulators` rows, `label` is renamed `first_name`.
+
+The schema ids stay `/v1`: `label` was always medical-common's "the
+household's own name, never read from the record" (DESIGN §1.3), and these
+rows follow it now.
 
 - `uhc patients label --profile <NAME> --patient <ID or LABEL> (<WHO> | --clear)`
   sets the household's own name for one member of a profile, in that

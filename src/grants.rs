@@ -12,6 +12,7 @@ use pk_cli_config::profile::ProfileName;
 use pk_cli_config::ConfigStore;
 use pk_cli_core::CliError;
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 
 use crate::app::Config;
 use crate::model::ORGANIZATION;
@@ -21,6 +22,11 @@ use crate::model::ORGANIZATION;
 pub struct Settings {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub grants: Vec<Grant>,
+    /// Keys this release does not know, kept through a rewrite: a site read
+    /// writes the settings without being asked, so a newer release's keys
+    /// must survive an older one.
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
 }
 
 /// A member the profile's sign-in sees.
@@ -32,6 +38,14 @@ pub struct Grant {
     /// The household's own name for the member.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// Whether two labels, or a label and a typed `--patient`, are the same:
+/// case-insensitive in any script, not only ASCII.
+pub fn same(a: &str, b: &str) -> bool {
+    a == b || a.to_lowercase() == b.to_lowercase()
 }
 
 impl Settings {
@@ -52,6 +66,7 @@ impl Settings {
                     organization: ORGANIZATION.into(),
                     patient: p.to_string(),
                     label: None,
+                    extra: Map::new(),
                 });
                 added = true;
             }
@@ -65,7 +80,7 @@ impl Settings {
         self.grants.iter().position(|g| g.patient == q).or_else(|| {
             self.grants
                 .iter()
-                .position(|g| g.label.as_deref().is_some_and(|l| l.eq_ignore_ascii_case(q)))
+                .position(|g| g.label.as_deref().is_some_and(|l| same(l, q)))
         })
     }
 
@@ -78,14 +93,14 @@ impl Settings {
             Some(w) => Some(valid_label(w)?),
         };
         if let Some(w) = &who {
-            if self.grants.iter().any(|g| g.patient.eq_ignore_ascii_case(w)) {
+            if self.grants.iter().any(|g| same(&g.patient, w)) {
                 return Err(CliError::Usage("a label cannot be a member's id".into()));
             }
             let taken = self
                 .grants
                 .iter()
                 .enumerate()
-                .any(|(j, g)| j != i && g.label.as_deref().is_some_and(|l| l.eq_ignore_ascii_case(w)));
+                .any(|(j, g)| j != i && g.label.as_deref().is_some_and(|l| same(l, w)));
             if taken {
                 return Err(CliError::Usage("another member of the profile has that label".into()));
             }
@@ -168,6 +183,37 @@ mod tests {
             "clearing an unset label changes nothing"
         );
         assert_eq!(s.label("mb"), None);
+    }
+
+    #[test]
+    fn labels_match_in_any_case_in_any_script() {
+        let mut s = three();
+        assert!(s.set_label(0, Some("Élodie")).unwrap());
+        assert_eq!(s.find("élodie"), Some(0));
+        assert_eq!(s.find("ÉLODIE"), Some(0));
+        assert!(
+            s.set_label(1, Some("ÉLODIE")).is_err(),
+            "the same label in another case"
+        );
+        assert!(
+            s.set_label(1, Some("Elodie")).unwrap(),
+            "an unaccented name is another label"
+        );
+    }
+
+    #[test]
+    fn keys_this_release_does_not_know_survive_a_rewrite() {
+        let v = serde_json::json!({
+            "grants": [{"organization": "uhc", "patient": "ma", "label": "Kit", "since": "later"}],
+            "index": 2
+        });
+        let mut s: Settings = serde_json::from_value(v.clone()).unwrap();
+        assert!(!s.record(["ma"]));
+        assert_eq!(serde_json::to_value(&s).unwrap(), v);
+        assert!(s.record(["mb"]));
+        let out = serde_json::to_value(&s).unwrap();
+        assert_eq!(out["index"], 2);
+        assert_eq!(out["grants"][0]["since"], "later");
     }
 
     #[test]

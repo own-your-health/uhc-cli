@@ -185,7 +185,7 @@ it is a usage error, exit 2).
 | `api` | the site's own JSON answer |
 | `auth login` / `status` / `logout` / `reset` | `auth-login/v1` / `auth-status/v1` / `auth-logout/v1` / `auth-reset/v1` |
 | `profiles list` / `add` / `remove` | `profile-list/v1` / `profile-add/v1` / `profile-remove/v1` |
-| `info` | `cli-info/v1`: profiles `health-records/v1` and `documents/v1`; capabilities `login-profiles` and `records-files` (`records export --files <DIR>`, no sign-in); `auth.required` true (without `--files`, a record command signs in) |
+| `info` | `cli-info/v1`: profiles `health-records/v1` and `documents/v1`; capabilities `login-profiles`, `records-files` (`records export --files <DIR>`, no sign-in) and `patient-labels` (`patients label`); `auth.required` true (without `--files`, a record command signs in) |
 
 Exit codes: 0 ok, 1 other (pdftotext missing), 2 usage, 3 sign-in not
 finished or session refused, 4 not found, 5 the statements could not be
