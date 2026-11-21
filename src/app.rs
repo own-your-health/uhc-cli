@@ -498,10 +498,10 @@ pub(crate) fn find_member<'a>(members: &'a [Member], q: &str, labels: bool) -> R
     // derived from, and a first name is the source's (medical-common DESIGN
     // §1.3). The list command shows both, in the owner's terminal.
     if !labels {
-        return Err(CliError::NotFound(format!(
-            "no member has that id; from --files, --patient takes an id from {}",
-            list_hint(labels)
-        )));
+        return Err(
+            CliError::NotFound("no member has that id; from --files, --patient takes an id".into())
+                .with_remedy(format!("{} lists them", list_hint(labels))),
+        );
     }
     // The household's label (`uhc patients label`), never the first name the
     // site shows: that is the member's `name` (DESIGN §1.3).
@@ -511,15 +511,14 @@ pub(crate) fn find_member<'a>(members: &'a [Member], q: &str, labels: bool) -> R
         .collect();
     match hits.as_slice() {
         [one] => Ok(one),
-        [] => Err(CliError::NotFound(format!(
-            "no member has that id or label ({}; `{BIN} patients label` gives one a label)",
-            list_hint(labels)
-        ))),
-        many => Err(CliError::NotFound(format!(
-            "that label matches {} members; pass one member's id from {}",
-            many.len(),
-            list_hint(labels)
-        ))),
+        [] => Err(
+            CliError::NotFound("no member has that id or label".into()).with_remedy(format!(
+                "{} lists them; `{BIN} patients label` gives one a label",
+                list_hint(labels)
+            )),
+        ),
+        many => Err(CliError::NotFound(format!("that label matches {} members", many.len()))
+            .with_remedy(format!("pass one member's id from {}", list_hint(labels)))),
     }
 }
 
@@ -540,12 +539,13 @@ pub(crate) fn pick_member<'a>(members: &'a [Member], q: Option<&str>, labels: bo
         (Some(q), _) => find_member(members, q, labels),
         (None, [one]) => Ok(one),
         (None, []) => find_member(members, "", labels),
-        (None, many) => Err(CliError::Usage(format!(
-            "pass --patient {}: there are {} members, and {} lists them",
-            if labels { "<ID or LABEL>" } else { "<ID>" },
-            many.len(),
-            list_hint(labels)
-        ))),
+        (None, many) => Err(
+            CliError::Usage(format!("there are {} members and no --patient", many.len())).with_remedy(format!(
+                "pass --patient {}; {} lists them",
+                if labels { "<ID or LABEL>" } else { "<ID>" },
+                list_hint(labels)
+            )),
+        ),
     }
 }
 
