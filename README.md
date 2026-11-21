@@ -172,7 +172,10 @@ and `profiles remove` removes them.
 
 Every command takes `--json` and prints one schema-tagged document, except
 `records export --ndjson`, whose NDJSON stream is the output (`--json` with
-it is a usage error, exit 2).
+it is a usage error, exit 2). A failure with `--json` prints
+`{"error": {"code", "message"}}`, with `reason` (a typed cause, such as
+`credential_unreadable`) and `remedy` (the next step, also printed after
+the message) when there is one.
 
 | Command | Output schema |
 | --- | --- |

@@ -845,6 +845,7 @@ fn records_export_takes_an_id_or_a_label() {
         .run(&["records", "export", "--patient", "Sam", "--ndjson"])
         .unwrap_err();
     assert_eq!(e.exit_code(), 4);
+    assert!(e.remedy().is_some_and(|r| r.contains("patients label")), "{e}");
     let msg = e.to_string();
     assert!(msg.contains("patients label"), "{msg}");
     for who in ["SAM", "ALEX", "JORDAN", "ROBIN"] {

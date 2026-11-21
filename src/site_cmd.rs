@@ -243,20 +243,19 @@ fn label(cli: &Cli, profile: &ProfileName, args: &PatientsLabelArgs, out: &mut d
     let store = config_store(cli);
     let (config, mut settings) = grants::load(&store, profile)?;
     if !config.profiles.contains(profile) {
-        return Err(CliError::NotFound(format!(
-            "no profile `{profile}` (`{BIN} profiles list`)"
-        )));
+        return Err(CliError::NotFound(format!("no profile `{profile}`"))
+            .with_remedy(format!("`{BIN} profiles list` shows the configured ones")));
     }
     if settings.grants.is_empty() {
-        return Err(CliError::NotFound(format!(
-            "profile `{profile}` has no members recorded yet: `{BIN} --profile {profile} patients list` reads \
-             them from the site"
-        )));
+        return Err(
+            CliError::NotFound(format!("profile `{profile}` has no members recorded yet")).with_remedy(format!(
+                "`{BIN} --profile {profile} patients list` reads them from the site"
+            )),
+        );
     }
     let i = settings.find(&args.patient).ok_or_else(|| {
-        CliError::NotFound(format!(
-            "no member of profile `{profile}` has that id or label (`{BIN} --profile {profile} patients list`)"
-        ))
+        CliError::NotFound(format!("no member of profile `{profile}` has that id or label"))
+            .with_remedy(format!("`{BIN} --profile {profile} patients list` lists them"))
     })?;
     let changed = settings.set_label(i, who)?;
     let grant = settings.grants[i].clone();

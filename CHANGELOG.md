@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.3.1
+
+- Pinned cli-common v0.33.5 and medical-common v0.6.10, the pair
+  medical-common lists. A `--json` error now carries `remedy`, the next
+  step, apart from the message (cli-common v0.33.4).
+- The member-lookup and `patients label` errors give their next step as that
+  remedy: the `patients list` that lists the members, or the `patients
+  label` that labels one. The message text is otherwise unchanged in
+  meaning, and still repeats no `--patient` value.
+
 ## v0.3.0
 
 Breaking for anyone passing a first name to `--patient`, or reading `label`

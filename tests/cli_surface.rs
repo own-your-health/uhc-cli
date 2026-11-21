@@ -733,3 +733,29 @@ fn patients_label_takes_a_label_or_clear_and_a_profile() {
     }
     uhc().args(["patients", "label", "--help"]).assert().success();
 }
+
+/// A `--json` error carries the next step as `remedy`, apart from the
+/// message (cli-common v0.33.4), and repeats no `--patient` value.
+#[test]
+fn a_json_error_carries_its_remedy() {
+    let out = uhc()
+        .args([
+            "--json",
+            "--profile",
+            "adult1",
+            "patients",
+            "label",
+            "--patient",
+            "mSYNTHETIC01",
+            "Robin",
+        ])
+        .assert()
+        .code(4);
+    let v: serde_json::Value = serde_json::from_slice(&out.get_output().stdout).unwrap();
+    assert_eq!(v["error"]["code"], "not_found", "{v}");
+    assert_eq!(
+        v["error"]["remedy"], "`uhc --profile adult1 patients list` reads them from the site",
+        "{v}"
+    );
+    assert!(!v.to_string().contains("mSYNTHETIC01"), "{v}");
+}
