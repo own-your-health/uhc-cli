@@ -3,9 +3,15 @@
 Unofficial; not affiliated with or endorsed by UnitedHealthcare or Optum.
 
 `uhc` reads a UnitedHealthcare member's coverage, claims, Explanation of
-Benefits and deductible and out-of-pocket progress, and hands them to the
-household's medical-records system as FHIR (`records-stream/v1`, read by
+Benefits and deductible and out-of-pocket progress, and hands them to a
+personal medical-records store as FHIR (`records-stream/v1`, read by
 `medrec import --from uhc`). It is read-only: nothing it does writes to UHC.
+
+It is for anyone with a UnitedHealthcare plan and a myuhc.com sign-in
+(HealthSafe ID), including employer plans. It reads every member that
+sign-in shows: the subscriber and their dependents. No developer account
+or app registration is needed: uhc reads the member site as you, with the
+session you sign in to.
 
 It reads one of two sources, named on each command:
 
@@ -19,8 +25,51 @@ It reads one of two sources, named on each command:
 
 `docs/api.md` records why there is no API route (UHC's Patient Access API
 serves Medicare, Medicaid, CHIP and marketplace members, not employer
-plans), what the site's Terms of Use say about automated access (the
-household accepted that risk), and every read uhc makes.
+plans), the site's Terms of Use word for word, and every read uhc makes.
+
+## The site's terms, in plain words
+
+The HealthSafe ID and member-site Terms of Use give you a personal,
+non-commercial license to view your information. They say you will not use
+software, scripts or "other means" to access, "scrape", "crawl" or
+"spider" the site, or harvest data from it, and that a breach ends your
+license. uhc is exactly such software, even though it only reads your own
+records, one request a second. Using it against the member site is your
+decision and your risk: UHC could block the account or end its access. The
+`--files` source reads statements you downloaded yourself and never
+contacts UHC.
+
+## Quick start
+
+1. Install (below). The member site needs Google Chrome; the files source
+   needs `pdftotext` (poppler).
+2. Name the account: `uhc profiles add adult1` (any name; one per sign-in).
+3. Sign in: `uhc auth login --browser --profile adult1` opens Chrome on
+   member.uhc.com. Sign in there as usual; uhc stores the session when the
+   site shows you signed in.
+4. See who is on the plan: `uhc --profile adult1 patients list` prints each
+   member's id.
+5. Export into medrec, once per member:
+   `medrec import --from uhc --from-profile adult1 --patient <ID>`, or
+   `uhc --profile adult1 records export --patient <ID> --ndjson | medrec import --from uhc`.
+   The first import of a member asks medrec which of its people that is
+   (`--person`).
+
+What needs a person, and when:
+
+| Step | When | What you do |
+| --- | --- | --- |
+| Sign in | once per sitting | the site's own sign-in in uhc's Chrome window: your user id and password, and any code the site sends by text or email. If the site offers a passkey, "Sign in with password" works too |
+| Keychain approval (macOS) | the first run after each install or upgrade | click "Always Allow" on one dialog: uhc's vault key, one keychain item for every profile |
+| Who is who | a member's first import into medrec | name the medrec person (`--person`) |
+
+Everything else runs unattended: exports, imports and re-imports.
+
+A sign-in does not last long. The site's session ends when Chrome closes,
+and unattended it lasted at least 40 minutes idle and under about two and a
+half hours in one measurement (`docs/api.md`). Expect to sign in once per
+sitting; a session from the morning is gone by the afternoon. A command run
+on an expired session is exit 3 and names the sign-in that renews it.
 
 ## Install
 
