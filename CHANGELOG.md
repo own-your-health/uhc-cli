@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.3.0
+
+Breaking for anyone passing a first name to `--patient`: with `--profile`,
+`--patient` takes a member's id or the label `patients label` gave it, not
+the first name the site shows. Use the id from `patients list`, or give the
+member that name as its label first.
+
+- `uhc patients label --profile <NAME> --patient <ID or LABEL> (<WHO> | --clear)`
+  sets the household's own name for one member of a profile, in that
+  member's grant in the profile's settings (medical-common v0.6.7, DESIGN
+  §1). A read of the site records a grant for each member it lists. The
+  label is unique within the profile and never a member's id; a collision,
+  an empty label, or both or neither of `<WHO>` and `--clear` is exit 2; a
+  member the profile does not have is exit 4, and the error does not repeat
+  `--patient`. It makes no request and reads no secret. `info` lists the
+  `patient-labels` capability.
+- `PatientContext.label` (in `patients list` and the records stream's
+  header) is that label, and absent until one is set. The site's first name
+  is no longer the label: `patients list` shows the site's full name as
+  `name`, and from `--files` the statement's name.
+- `claims list` and `accumulators` rows name the member's first name as
+  `first_name`, not `label`; the family's balance rows have none.
+- Pinned medical-common v0.6.7.
+
 ## v0.2.3
 
 - Error text names no member, by id or by name (medical-common DESIGN §1.3,

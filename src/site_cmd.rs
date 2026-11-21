@@ -25,6 +25,7 @@ use crate::app::{
 };
 use crate::cli::*;
 use crate::fhir;
+use crate::grants;
 use crate::model::{ClaimRecord, Member, Origin, SiteDocument};
 use crate::portal::{self, Household, Site};
 use crate::session::SessionStore;
@@ -56,6 +57,7 @@ impl Env {
 struct Ctx<'a> {
     cli: &'a Cli,
     site: Site<'a>,
+    profile: &'a ProfileName,
 }
 
 impl Ctx<'_> {
@@ -102,6 +104,10 @@ fn emit_list(
 /// code is not 0 only for an export whose stream ended incomplete (the
 /// trailer carries the error).
 pub fn run(cli: &Cli, env: &Env, profile: &ProfileName, out: &mut dyn Write) -> Result<i32, CliError> {
+    // Reads only the config: no request, no secret (medical-common DESIGN §1).
+    if let Command::Patients(PatientsCmd::Label(args)) = &cli.command {
+        return label(cli, profile, args, out).map(|()| 0);
+    }
     if let Command::Records(RecordsCmd::Export(args)) = &cli.command {
         export_args(cli, args)?;
         if args.output.is_some() {
@@ -126,7 +132,7 @@ pub fn run(cli: &Cli, env: &Env, profile: &ProfileName, out: &mut dyn Write) -> 
         _ => None,
     };
     let site = Site::open(&env.sessions, profile, &env.base, env.pace)?;
-    let ctx = Ctx { cli, site };
+    let ctx = Ctx { cli, site, profile };
     let code = match &cli.command {
         Command::Patients(PatientsCmd::List) => patients(&ctx, out).map(|()| 0),
         Command::Claims(ClaimsCmd::List(args)) => claims_list(&ctx, args, out).map(|()| 0),
@@ -166,8 +172,37 @@ pub fn run_args(cli: &Cli, env: &Env, out: &mut dyn Write) -> Result<i32, CliErr
     }
 }
 
-fn household_with_documents(ctx: &Ctx) -> Result<(Household, Vec<SiteDocument>), CliError> {
+fn config_store(cli: &Cli) -> pk_cli_config::ConfigStore {
+    pk_cli_config::ConfigStore::new(BIN).with_override(cli.config.clone())
+}
+
+/// Record a grant for each of `members` the profile has none for, so
+/// `patients label` can name it without reading the site, and give each the
+/// household's label from its grant.
+fn labelled(ctx: &Ctx, members: &mut [Member]) -> Result<(), CliError> {
+    let store = config_store(ctx.cli);
+    let (config, mut settings) = grants::load(&store, ctx.profile)?;
+    if settings.record(members.iter().map(|m| m.id.as_str())) {
+        // The members were read; a config that cannot be written costs only
+        // the next `patients label` a `patients list` first.
+        if let Err(e) = grants::save(&store, config, ctx.profile, &settings) {
+            eprintln!("warning: the profile's members were not recorded: {}", e.message());
+        }
+    }
+    for m in members.iter_mut() {
+        m.grant_label = settings.label(&m.id).map(str::to_string);
+    }
+    Ok(())
+}
+
+fn household(ctx: &Ctx) -> Result<Household, CliError> {
     let mut house = ctx.site.household()?;
+    labelled(ctx, &mut house.members)?;
+    Ok(house)
+}
+
+fn household_with_documents(ctx: &Ctx) -> Result<(Household, Vec<SiteDocument>), CliError> {
+    let mut house = household(ctx)?;
     let docs = ctx.site.documents(&house)?;
     portal::link_documents(&mut house, &docs);
     Ok((house, docs))
@@ -185,6 +220,67 @@ fn member<'a>(members: &'a [Member], q: &str) -> Result<&'a Member, CliError> {
 }
 
 // -------------------------------------------------------------- patients
+
+/// `patients label`: set or clear the household's label for one member of
+/// `profile`, in its grant (medical-common DESIGN §1). Errors name no member
+/// and do not repeat `--patient` (§1.3).
+fn label(cli: &Cli, profile: &ProfileName, args: &PatientsLabelArgs, out: &mut dyn Write) -> Result<(), CliError> {
+    let who = if args.clear { None } else { args.who.as_deref() };
+    if who.is_some_and(|w| w.trim().is_empty()) {
+        return Err(CliError::Usage("the label is empty".into()));
+    }
+    let store = config_store(cli);
+    let (config, mut settings) = grants::load(&store, profile)?;
+    if !config.profiles.contains(profile) {
+        return Err(CliError::NotFound(format!(
+            "no profile `{profile}` (`{BIN} profiles list`)"
+        )));
+    }
+    if settings.grants.is_empty() {
+        return Err(CliError::NotFound(format!(
+            "profile `{profile}` has no members recorded yet: `{BIN} --profile {profile} patients list` reads \
+             them from the site"
+        )));
+    }
+    let i = settings.find(&args.patient).ok_or_else(|| {
+        CliError::NotFound(format!(
+            "no member of profile `{profile}` has that id or label (`{BIN} --profile {profile} patients list`)"
+        ))
+    })?;
+    let changed = settings.set_label(i, who)?;
+    let grant = settings.grants[i].clone();
+    if changed {
+        grants::save(&store, config, profile, &settings)?;
+    }
+    if cli.common.json {
+        let item = pk_med_records::PatientContext {
+            id: grant.patient.clone(),
+            organization: grant.organization.clone(),
+            label: grant.label.clone(),
+            relationship: None,
+            kind: Some(pk_med_records::dto::kind::MEMBER.into()),
+            member_role: None,
+            fhir_user: None,
+            name: None,
+            session: None,
+        };
+        let item = serde_json::to_value(item).unwrap_or_default();
+        return put(
+            out,
+            &serde_json::to_value(Paged::new("patient", vec![item])).unwrap_or_default(),
+        );
+    }
+    let line = match (&grant.label, changed) {
+        (Some(l), true) => format!("member {} of profile `{profile}` is labelled `{l}`", grant.patient),
+        (Some(l), false) => format!(
+            "member {} of profile `{profile}` was labelled `{l}` already",
+            grant.patient
+        ),
+        (None, true) => format!("member {} of profile `{profile}` has no label now", grant.patient),
+        (None, false) => format!("member {} of profile `{profile}` had no label", grant.patient),
+    };
+    writeln!(out, "{line}").map_err(|e| CliError::Other(format!("writing the output: {e}")))
+}
 
 fn patients(ctx: &Ctx, out: &mut dyn Write) -> Result<(), CliError> {
     let (house, _) = household_with_documents(ctx)?;
@@ -219,7 +315,7 @@ fn patients(ctx: &Ctx, out: &mut dyn Write) -> Result<(), CliError> {
 
 fn claims_list(ctx: &Ctx, args: &ClaimsListArgs, out: &mut dyn Write) -> Result<(), CliError> {
     let window = Window::of(&args.range)?;
-    let house = ctx.site.household()?;
+    let house = household(ctx)?;
     let patient = args.patient.as_deref().map(|q| member(&house.members, q)).transpose()?;
     let claims: Vec<Value> = house
         .claims
@@ -254,7 +350,8 @@ fn claims_get(ctx: &Ctx, q: &str, out: &mut dyn Write) -> Result<(), CliError> {
 // ---------------------------------------------------------- accumulators
 
 fn accumulators(ctx: &Ctx, args: &AccumulatorsArgs, out: &mut dyn Write) -> Result<(), CliError> {
-    let (members, rows) = ctx.site.balances()?;
+    let (mut members, rows) = ctx.site.balances()?;
+    labelled(ctx, &mut members)?;
     let patient = args.patient.as_deref().map(|q| member(&members, q)).transpose()?;
     let items: Vec<Value> = rows
         .iter()

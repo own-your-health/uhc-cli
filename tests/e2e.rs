@@ -419,7 +419,7 @@ fn accumulators_take_the_latest_balances() {
     assert_eq!(items.len(), 8, "Alex's four rows and the family's four");
     let ded = items
         .iter()
-        .find(|b| b["label"] == "Alex" && b["network"] == "in" && b["limit"] == "deductible")
+        .find(|b| b["first_name"] == "Alex" && b["network"] == "in" && b["limit"] == "deductible")
         .unwrap();
     assert_eq!(ded["met"], true);
     assert_eq!(ded["as_of"], "2026-04-30");

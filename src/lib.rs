@@ -9,6 +9,7 @@ pub mod client;
 pub mod eob;
 pub mod fhir;
 pub mod files;
+pub mod grants;
 pub mod model;
 pub mod portal;
 pub mod session;

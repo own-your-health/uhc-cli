@@ -447,6 +447,7 @@ fn member(raw: &RawMember) -> Option<Member> {
             plan_end: period.and_then(|p| date(&p.end_date)),
             plan_status: period.and_then(|p| text(&p.status)),
         }),
+        grant_label: None,
     })
 }
 
