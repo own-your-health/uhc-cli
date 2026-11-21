@@ -217,6 +217,30 @@ mod tests {
     }
 
     #[test]
+    fn a_rewrite_keeps_the_configs_other_keys() {
+        let dir = std::env::temp_dir().join(format!("uhc-grants-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("config.json");
+        std::fs::write(
+            &path,
+            r#"{"format": 3, "import_dir": "/x", "profiles": {"adult1": {"theme": "dark"}, "adult2": {"k": 1}}}"#,
+        )
+        .unwrap();
+        let store = ConfigStore::new("uhc").with_override(Some(&path));
+        let adult1 = ProfileName::parse("adult1").unwrap();
+        let (config, mut settings) = load(&store, &adult1).unwrap();
+        assert!(settings.record(["ma"]));
+        save(&store, config, &adult1, &settings).unwrap();
+        let v: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(v["format"], 3);
+        assert_eq!(v["import_dir"], "/x");
+        assert_eq!(v["profiles"]["adult1"]["theme"], "dark");
+        assert_eq!(v["profiles"]["adult1"]["grants"][0]["patient"], "ma");
+        assert_eq!(v["profiles"]["adult2"], serde_json::json!({"k": 1}));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
     fn settings_read_and_write_as_grants() {
         let mut s = three();
         s.set_label(2, Some("Kit")).unwrap();

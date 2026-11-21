@@ -65,6 +65,11 @@ pub struct Config {
     /// The member-site logins, one per account (`uhc profiles add <NAME>`).
     #[serde(default, skip_serializing_if = "Profiles::is_empty")]
     pub profiles: Profiles,
+    /// Keys this release does not know, kept through a rewrite: a site read
+    /// records grants without being asked (`src/grants.rs`), so a newer
+    /// release's keys must survive an older one.
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
 }
 
 struct Ctx<'a> {
