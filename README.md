@@ -25,7 +25,8 @@ It reads one of two sources, named on each command:
 
 `docs/api.md` records why there is no API route (UHC's Patient Access API
 serves Medicare, Medicaid, CHIP and marketplace members, not employer
-plans), the site's Terms of Use word for word, and every read uhc makes.
+plans), the clauses of the site's Terms of Use on automated access, quoted
+with where the full text is, and every read uhc makes.
 
 ## The site's terms, in plain words
 
