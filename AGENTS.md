@@ -51,6 +51,13 @@ These come from the household's plan and are not negotiable.
   messages to other sessions unless they need it. Tests and fixtures stay
   synthetic (`make synth`), and a raw capture is deleted from `/tmp` once it
   has served.
+- A member, family or coverage id (`m…`, `family-…`, `cov-…`) is handled as
+  the member id it is derived from (medical-common DESIGN §1.3): a digest of
+  a nine-digit member id is recovered by trying every value. A real one is
+  never in a fixture, doc, commit, pull request, issue, log line or error
+  message, and no scan can catch it, since it looks like any other hex.
+  uhc's own error text names no member, by id or by name; it points at
+  `patients list`, which shows both in the owner's terminal.
 - `records export -o DIR` refuses statements without the synthetic marker;
   real records go straight into medrec through a pipe.
 - No FHIR, SMART or PDF libraries, no aggregators, no cloud OCR or AI.

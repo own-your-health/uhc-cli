@@ -63,32 +63,28 @@ first name are one member to `uhc`.
 
 ### The member id and medical-common's rule
 
-medical-common DESIGN §1.3 asks a mapped source's patient id to come from
-identifiers every sign-in that sees the person shares, as an opaque
-SHA-256 digest of them, one derivation for every source. The member id
-meets that:
+The member id is medical-common DESIGN §1.3's patient id for a mapped
+source:
+- It comes from the plan's member id and the person's first name. Both are
+  on every statement and in every site sign-in that shows the person, so a
+  dependent seen from a parent's sign-in and from their own has one id. The
+  first name tells apart the people who share the plan's member id.
+- It is `m` and the first 12 hex digits of a SHA-256 digest of the two,
+  joined with `|`, which neither contains: a member id is digits (or
+  `unknown-` and hex for a statement that prints none), and a first name is
+  letters.
+- Both sources derive it the same way.
 
-- The plan's member id and the person's first name are on every statement
-  and in every site sign-in that shows the person, so a dependent seen
-  from a parent's sign-in and from their own has one id. The first name
-  tells apart the people who share the plan's member id.
-- It is a SHA-256 digest; the member id as written never appears in it,
-  and both sources use the same derivation.
+A store keys patients on it, so a new derivation would file every member
+again.
 
-It differs from the rule's form in two ways, and stays as it is, because a
-store keys patients on it and a new derivation would file every member it
-holds again:
-
-- The two values are joined with `|` rather than each prefixed with its
-  length. Two different pairs cannot run together, since a member id is
-  digits (or `unknown-` and hex for a statement that prints none) and a
-  first name is letters.
-- It keeps 12 of the digest's hex digits, which is ample for the members of
-  one plan.
-
-The digest keeps the member id out of plain sight, nothing more: trying
-every nine-digit member id with a first name recovers it. The family and
-coverage ids above are built the same way.
+The digest keeps the member id out of plain sight, nothing more. Trying
+every nine-digit member id with a first name recovers it, so it is handled
+as the member id: never in a fixture, doc, commit, issue, log line or error
+message. uhc's error text names no member, and a statement read with issues
+is named by its own id, not its `DocumentReference`'s, which carries the
+member's. The family and coverage ids above are built the same way and
+handled the same way.
 
 A statement without a member ID gets a stand-in (`unknown-…`) to group its
 claims. It is never exported as UHC's identifier: that `Patient` has no

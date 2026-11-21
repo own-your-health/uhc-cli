@@ -809,7 +809,8 @@ fn site_resources_are_dated_by_the_read_and_documents_by_their_date() {
 
 /// From the site, --patient takes a member's id or first name (the label
 /// its grant shows), and without it a household of three is exit 2 naming
-/// ids only. The id is the files source's, so a store merges the two.
+/// no member, by id or by name (DESIGN §1.3). The id is the files source's,
+/// so a store merges the two.
 #[test]
 fn records_export_takes_an_id_or_a_first_name() {
     let h = Household::new();
@@ -825,10 +826,9 @@ fn records_export_takes_an_id_or_a_first_name() {
     assert_eq!(e.exit_code(), 2);
     let msg = e.to_string();
     assert!(msg.contains("`uhc --profile <NAME> patients list`"), "{msg}");
-    assert!(
-        msg.contains(&id("SAM")) && !msg.contains("Sam") && !msg.contains("SAM"),
-        "{msg}"
-    );
+    for who in ["SAM", "ALEX", "JORDAN"] {
+        assert!(!msg.contains(&id(who)) && !msg.to_uppercase().contains(who), "{msg}");
+    }
 }
 
 #[test]

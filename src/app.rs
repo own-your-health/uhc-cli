@@ -479,9 +479,12 @@ pub(crate) fn find_member<'a>(members: &'a [Member], q: &str, labels: bool) -> R
     if let Some(m) = members.iter().find(|m| m.id == q) {
         return Ok(m);
     }
+    // Error text names no member: an id is handled as the member id it is
+    // derived from, and a first name is the source's (medical-common DESIGN
+    // §1.3). The list command shows both, in the owner's terminal.
     if !labels {
         return Err(CliError::NotFound(format!(
-            "no member with the id `{q}`; from --files, --patient takes an id from {}",
+            "no member has that id; from --files, --patient takes an id from {}",
             list_hint(labels)
         )));
     }
@@ -489,13 +492,12 @@ pub(crate) fn find_member<'a>(members: &'a [Member], q: &str, labels: bool) -> R
     match hits.as_slice() {
         [one] => Ok(one),
         [] => Err(CliError::NotFound(format!(
-            "no member matching `{q}` ({})",
+            "no member has that id or first name ({})",
             list_hint(labels)
         ))),
         many => Err(CliError::NotFound(format!(
-            "`{q}` names {} members ({}); give one id from {}",
+            "that first name matches {} members; pass one member's id from {}",
             many.len(),
-            many.iter().map(|m| m.id.as_str()).collect::<Vec<_>>().join(", "),
             list_hint(labels)
         ))),
     }
@@ -519,9 +521,9 @@ pub(crate) fn pick_member<'a>(members: &'a [Member], q: Option<&str>, labels: bo
         (None, [one]) => Ok(one),
         (None, []) => find_member(members, "", labels),
         (None, many) => Err(CliError::Usage(format!(
-            "pass --patient <ID>: there are {} members ({}; {})",
+            "pass --patient {}: there are {} members, and {} lists them",
+            if labels { "<ID or FIRST NAME>" } else { "<ID>" },
             many.len(),
-            many.iter().map(|m| m.id.as_str()).collect::<Vec<_>>().join(", "),
             list_hint(labels)
         ))),
     }
@@ -839,9 +841,12 @@ fn write_stream<W: Write>(out: W, book: &Book, m: &Member, since: Option<&str>) 
                 "ExplanationOfBenefit",
                 "",
                 STATEMENT_ISSUES,
+                // The statement's own id, not its DocumentReference's, which
+                // carries the member's.
                 format!(
-                    "statement {} was read with issues ({}); a claim on it may be incomplete",
-                    fhir::document_id(&f.id, &m.id),
+                    "statement {} ({}) was read with issues ({}); a claim on it may be incomplete",
+                    f.id,
+                    f.statement.statement_date.as_deref().unwrap_or("undated"),
                     codes.join(", ")
                 ),
             ));
