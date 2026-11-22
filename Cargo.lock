@@ -1610,7 +1610,7 @@ dependencies = [
 [[package]]
 name = "pk-med-fhir"
 version = "0.6.10"
-source = "git+https://github.com/piekstra/medical-common?tag=v0.6.10#024d89d56540b55430bd9f665dd318f70104d0ea"
+source = "git+https://github.com/own-your-health/medical-common?tag=v0.6.10#024d89d56540b55430bd9f665dd318f70104d0ea"
 dependencies = [
  "base64 0.22.1",
  "pk-cli-core",
@@ -1622,7 +1622,7 @@ dependencies = [
 [[package]]
 name = "pk-med-records"
 version = "0.6.10"
-source = "git+https://github.com/piekstra/medical-common?tag=v0.6.10#024d89d56540b55430bd9f665dd318f70104d0ea"
+source = "git+https://github.com/own-your-health/medical-common?tag=v0.6.10#024d89d56540b55430bd9f665dd318f70104d0ea"
 dependencies = [
  "pk-cli-core",
  "pk-med-fhir",
@@ -2603,7 +2603,7 @@ dependencies = [
 
 [[package]]
 name = "uhc-cli"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "assert_cmd",
  "base64 0.22.1",

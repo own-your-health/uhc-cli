@@ -58,11 +58,38 @@ fn is_dummy_number(n: &str) -> bool {
 
 const PUBLIC_EMAIL_DOMAINS: &[&str] = &["example.com", "uhc.com", "optum.com", "flex.optum.com"];
 
+/// The line with every hex digest blanked: a run of 32 or more lowercase hex
+/// digits with a letter among them, such as a pinned SHA-256. Its digit runs
+/// are not id numbers. A shorter run, or one of digits only, stays.
+fn blank_digests(line: &str) -> String {
+    fn flush(run: &mut String, out: &mut String) {
+        if run.len() >= 32 && run.bytes().any(|b| b.is_ascii_lowercase()) {
+            out.extend(std::iter::repeat_n(' ', run.len()));
+        } else {
+            out.push_str(run);
+        }
+        run.clear();
+    }
+    let mut out = String::with_capacity(line.len());
+    let mut run = String::new();
+    for c in line.chars() {
+        if c.is_ascii_digit() || ('a'..='f').contains(&c) {
+            run.push(c);
+        } else {
+            flush(&mut run, &mut out);
+            out.push(c);
+        }
+    }
+    flush(&mut run, &mut out);
+    out
+}
+
 /// The personal-data shapes on one line, each as `kind value`.
 fn scan_line(line: &str) -> Vec<String> {
     let mut findings = Vec::new();
-    let phoneish = line.replace(['(', ')', '-', '.', ' '], "");
-    for n in digits_run(line, 7)
+    let numbers = blank_digests(line);
+    let phoneish = numbers.replace(['(', ')', '-', '.', ' '], "");
+    for n in digits_run(&numbers, 7)
         .into_iter()
         .chain(digits_run(&phoneish, 10).into_iter().filter(|n| n.len() <= 11))
     {
@@ -327,6 +354,7 @@ fn the_scanner_flags_real_shapes_and_passes_dummies() {
         "mail someone@gmail.com",
         "lives at 1234 NW Oak St, Somewhere",
         "claim 7342918",
+        "bad1234567",
     ] {
         assert!(!scan_line(real).is_empty(), "missed: {real}");
     }
@@ -338,6 +366,7 @@ fn the_scanner_flags_real_shapes_and_passes_dummies() {
         "pat@example.com",
         "100 Example St, Exampleton",
         "$16,000.00",
+        "GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
     ] {
         assert!(
             scan_line(dummy).is_empty(),

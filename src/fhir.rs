@@ -22,6 +22,9 @@ use crate::model::{
 
 pub const META_SOURCE: &str = "uhc:eob-pdf";
 pub const META_SOURCE_SITE: &str = "uhc:member-site";
+// TAG_SYSTEM and BENEFIT_TYPE_SYSTEM are identifiers stored in imported
+// records, not links, so they keep the owner the repository had when they
+// were minted (docs/fhir.md; pinned by a test below).
 pub const TAG_SYSTEM: &str = "https://github.com/piekstra/uhc-cli/fhir/tag";
 pub const TAG_MAPPED: &str = "mapped-from-eob-statement";
 pub const TAG_MAPPED_SITE: &str = "mapped-from-member-site";
@@ -32,6 +35,7 @@ const CDT: &str = "http://ada.org/cdt";
 const REVENUE: &str = "https://www.nubc.org/CodeSystem/RevenueCodes";
 pub const MEMBER_ID_SYSTEM: &str = "https://www.uhc.com/fhir/member-id";
 pub const CLAIM_NUMBER_SYSTEM: &str = "https://www.uhc.com/fhir/claim-number";
+// An identifier like TAG_SYSTEM above: it keeps the owner it was minted with.
 pub const BENEFIT_TYPE_SYSTEM: &str = "https://github.com/piekstra/uhc-cli/fhir/benefit-type";
 
 const HL7_ADJUDICATION: &str = "http://terminology.hl7.org/CodeSystem/adjudication";
@@ -558,6 +562,18 @@ pub fn site_binary(doc: &SiteDocument, patient: &str, content: &[u8]) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Records already imported carry these systems, so they do not follow a
+    /// repository move or rename (docs/fhir.md): a changed one would leave
+    /// those records' tags and benefit types unmatched, with no error.
+    #[test]
+    fn the_system_uris_stored_in_records_do_not_change() {
+        assert_eq!(TAG_SYSTEM, "https://github.com/piekstra/uhc-cli/fhir/tag");
+        assert_eq!(
+            BENEFIT_TYPE_SYSTEM,
+            "https://github.com/piekstra/uhc-cli/fhir/benefit-type"
+        );
+    }
 
     /// A statement's date is that day's start in UTC; no date, or one that is
     /// not a real `YYYY-MM-DD` date, leaves `meta.lastUpdated` out and the

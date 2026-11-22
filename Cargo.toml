@@ -1,11 +1,11 @@
 [package]
 name = "uhc-cli"
 description = "Unofficial read-only CLI for UnitedHealthcare coverage, claims, EOBs and deductible progress (health-records/v1)."
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/piekstra/uhc-cli"
+repository = "https://github.com/own-your-health/uhc-cli"
 authors = ["piekstra"]
 publish = false
 
@@ -28,7 +28,7 @@ pk-cli-secrets = { git = "https://github.com/piekstra/cli-common", tag = "v0.33.
 pk-cli-browser = { git = "https://github.com/piekstra/cli-common", tag = "v0.33.5" }
 pk-cli-http = { git = "https://github.com/piekstra/cli-common", tag = "v0.33.5" }
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
-pk-med-records = { git = "https://github.com/piekstra/medical-common", tag = "v0.6.10" }
+pk-med-records = { git = "https://github.com/own-your-health/medical-common", tag = "v0.6.10" }
 clap = { version = "4", features = ["derive", "env"] }
 clap_complete = "4"
 serde = { version = "1", features = ["derive"] }

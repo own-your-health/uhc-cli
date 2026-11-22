@@ -12,6 +12,10 @@ No FHIR library is involved; `src/fhir.rs` writes the JSON.
 | Statements | `uhc:eob-pdf` | `mapped-from-eob-statement` |
 | Member site | `uhc:member-site` | `mapped-from-member-site` |
 
+The tag system and the benefit-type system below are identifiers, not
+links. They keep the `piekstra` owner the repository had when they were
+minted, so records already imported keep matching what uhc writes now.
+
 `meta.lastUpdated` says when a resource's content was current, by
 medical-common DESIGN §1.4. A store keeps the version with the later time:
 
