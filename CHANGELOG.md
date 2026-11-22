@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- url 2.5.9 (and form_urlencoded 1.2.3) in the lockfile, for
+  RUSTSEC-2026-0592: url 2.5.8 and older could overflow the stack in
+  `Url::origin()` on nested `blob:` URLs. No code change.
+
 ## v0.3.2
 
 - The repository moved to the own-your-health organization.
