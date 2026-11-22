@@ -77,7 +77,7 @@ on an expired session is exit 3 and names the sign-in that renews it.
 
 ```sh
 brew install poppler            # pdftotext
-cargo install --git https://github.com/piekstra/uhc-cli --locked
+cargo install --git https://github.com/own-your-health/uhc-cli --locked
 # or download a release: uhc-<target>.tar.gz, then `uhc self-update` later
 ```
 

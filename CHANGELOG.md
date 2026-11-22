@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.3.2
+
+- The repository moved to the own-your-health organization.
+  `self-update` reads releases from own-your-health/uhc-cli, and
+  medical-common is fetched from own-your-health/medical-common.
+  cli-common stays under piekstra.
+- The FHIR tag and benefit-type system URIs are unchanged: they are
+  identifiers in records already imported, not links.
+
 ## v0.3.1
 
 - Pinned cli-common v0.33.5 and medical-common v0.6.10, the pair

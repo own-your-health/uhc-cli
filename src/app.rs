@@ -27,7 +27,7 @@ use crate::files::{self, Scan};
 use crate::model::{Balances, Book, ClaimRecord, Member, StatementFile, ORGANIZATION, ORGANIZATION_NAME};
 use crate::source;
 
-const REPO: &str = "piekstra/uhc-cli";
+const REPO: &str = "own-your-health/uhc-cli";
 /// `info`'s profiles: health-records/v1 and documents/v1.
 pub const PROFILES: &[&str] = &[pk_med_records::PROFILE, pk_cli_documents::PROFILE];
 /// Where the statements come from; the stream's `organization.fhir_base`.

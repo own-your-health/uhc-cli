@@ -22,6 +22,8 @@ use crate::model::{
 
 pub const META_SOURCE: &str = "uhc:eob-pdf";
 pub const META_SOURCE_SITE: &str = "uhc:member-site";
+// The two system URIs are identifiers stored in imported records, not links,
+// so they keep the owner the repository had when they were minted.
 pub const TAG_SYSTEM: &str = "https://github.com/piekstra/uhc-cli/fhir/tag";
 pub const TAG_MAPPED: &str = "mapped-from-eob-statement";
 pub const TAG_MAPPED_SITE: &str = "mapped-from-member-site";
