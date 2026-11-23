@@ -323,8 +323,9 @@ How the answers read:
   and `planCode` as the "Plan code". Neither explains the character: on a
   line that carries one, `serviceInfo.code` and `providedServiceInfo.code`
   are the same six characters as `procedures[].code`, and
-  `serviceLines[].planCode` is null. uhc reads neither, splits the
-  character off (`fhir::split_procedure`) and keeps it.
+  `serviceLines[].planCode` is null. uhc does not query `planCode`, and
+  reads `serviceInfo.code` only when `procedures[]` has no usable code.
+  It splits the character off (`fhir::split_procedure`) and keeps it.
 
 ## EOB statement layout (UHC's public sample)
 
