@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.4
 
 - The member site's plan balances answer says how the medical plan
   counts its deductible and out-of-pocket limit
