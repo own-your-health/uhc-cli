@@ -956,7 +956,12 @@ pub(crate) fn claim_json(c: &ClaimRecord, detail: bool) -> Value {
                 }
                 let coded = |c: &crate::eob::Coded| json!({ "code": c.code, "display": c.display });
                 if let Some(p) = &l.procedure {
-                    lv.insert("procedure".into(), coded(p));
+                    let mut pv = coded(p);
+                    if let Some(s) = &l.procedure_suffix {
+                        pv["suffix"] = s.clone().into();
+                        pv["site_code"] = format!("{}{s}", p.code).into();
+                    }
+                    lv.insert("procedure".into(), pv);
                 }
                 if let Some(r) = &l.revenue {
                     lv.insert("revenue".into(), coded(r));

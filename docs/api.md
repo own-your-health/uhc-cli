@@ -309,6 +309,12 @@ How the answers read:
   no `benefitDetails` at all. Home health care and private-duty nursing
   are only in the certificate of coverage, not the benefit pages.
 - `uhc.com`'s legal pages answer `403` to fetch tools.
+- `procedures[].code` is sometimes a CPT or HCPCS code with one more letter
+  or digit (`710467`), and the site gives no field that says what the
+  character means. Its claim page shows `procedures[0].code` only on dental
+  lines; on the others it shows `serviceInfo.code` as the "Billing code"
+  and `planCode` as the "Plan code", neither of which uhc reads. uhc splits
+  the character off (`fhir::split_procedure`) and keeps it.
 
 ## EOB statement layout (UHC's public sample)
 
