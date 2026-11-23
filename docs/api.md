@@ -238,7 +238,7 @@ only; every other id (`claimKey`, `claimType`, `documentId`,
 | `accumulators` | spending |
 | `documents list` | claims, documents |
 | `documents download` | claims, documents, each PDF (`--all` skips a file already saved under its name) |
-| `records export` | claims, documents, each of the member's claims' details (with `--since`, those processed since), each of the member's documents (with `--since`, created since) |
+| `records export` | claims, documents, spending (for the benefit period only: when it fails, the claims go out without one), each of the member's claims' details (with `--since`, those processed since), each of the member's documents (with `--since`, created since) |
 
 Measured 2026-11-17 on one household's account:
 

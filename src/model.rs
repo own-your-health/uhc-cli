@@ -258,10 +258,6 @@ impl BenefitPeriod {
     pub fn year(&self) -> Option<i32> {
         self.start.get(..4)?.parse().ok()
     }
-
-    pub fn contains(&self, day: &str) -> bool {
-        self.start.as_str() <= day && day <= self.end.as_str()
-    }
 }
 
 /// The patient id for a member: stable across statements, carries no name.

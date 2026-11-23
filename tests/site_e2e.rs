@@ -52,6 +52,8 @@ enum Fault {
     None,
     /// After this many requests answered from the fixtures, this answer.
     After(usize, u16, &'static str, String),
+    /// This answer to each request whose target holds the text.
+    On(&'static str, u16, &'static str, String),
 }
 
 /// One request the server saw.
@@ -115,6 +117,10 @@ impl Server {
         *self.fault.lock().unwrap() = Fault::After(before + n, status, content_type, body.to_string());
     }
 
+    fn fail_on(&self, target: &'static str, status: u16, content_type: &'static str, body: &str) {
+        *self.fault.lock().unwrap() = Fault::On(target, status, content_type, body.to_string());
+    }
+
     fn seen(&self) -> Vec<Seen> {
         self.seen.lock().unwrap().clone()
     }
@@ -159,6 +165,7 @@ fn serve(mut stream: TcpStream, seen: &Mutex<Vec<Seen>>, fault: &Mutex<Fault>, d
     let fault = fault.lock().unwrap().clone();
     let (status, content_type, payload): (u16, &str, Vec<u8>) = match fault {
         Fault::After(after, status, mime, body) if n > after => (status, mime, body.into_bytes()),
+        Fault::On(needle, status, mime, body) if target.contains(needle) => (status, mime, body.into_bytes()),
         _ => route(&method, &target, &headers, &body, details),
     };
     let reason = match status {
@@ -443,32 +450,25 @@ fn accumulators() {
 }
 
 /// The site marks the medical plan as counting by calendar year and gives
-/// no dates: the period is the year of the day read, and a claim served in
-/// it carries it.
+/// no dates: each claim's benefit period is its year of service, whenever
+/// it is exported, and the balances' is the year of the day read.
 #[test]
-fn claims_served_in_the_current_plan_year_carry_it() {
-    let h = Household::new();
-    let (code, stream) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
-    assert_eq!(code, 0);
-    let eobs = of_type(&stream, "ExplanationOfBenefit");
-    assert_eq!(eobs.len(), 4);
-    for e in &eobs {
-        assert_eq!(
-            e["benefitPeriod"],
-            json!({ "start": "2026-01-01", "end": "2026-12-31" }),
-            "{}",
-            e["id"]
-        );
+fn a_calendar_year_plan_dates_each_claim_by_its_year_of_service() {
+    let year_2026 = json!({ "start": "2026-01-01", "end": "2026-12-31" });
+    for today in ["2026-11-17", "2027-01-15"] {
+        let h = Household::on(today, true);
+        let (code, stream) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
+        assert_eq!(code, 0);
+        let eobs = of_type(&stream, "ExplanationOfBenefit");
+        assert_eq!(eobs.len(), 4);
+        for e in &eobs {
+            assert_eq!(e["benefitPeriod"], year_2026, "{today}: {}", e["id"]);
+        }
+        assert_eq!(stream.last().unwrap()["skipped"], json!([]), "{today}");
+        assert_eq!(h.server.count("spending"), 1, "one plan balances read");
     }
-    assert_eq!(h.server.count("spending"), 1, "one plan balances read");
 
-    // In the new year, last year's claims are outside the current period.
     let h = Household::on("2027-01-15", true);
-    let (code, stream) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
-    assert_eq!(code, 0);
-    let eobs = of_type(&stream, "ExplanationOfBenefit");
-    assert_eq!(eobs.len(), 4);
-    assert!(eobs.iter().all(|e| e.get("benefitPeriod").is_none()));
     let rows = h.json(&["accumulators", "--year", "2027"]);
     assert_eq!(rows["items"].as_array().unwrap().len(), 16);
     assert_eq!(
@@ -637,6 +637,39 @@ fn records_export_carries_the_sites_codes() {
     // Three claims' details (the pharmacy claim has none) and three PDFs.
     assert_eq!(h.server.count("claimDetails"), 3);
     assert_eq!(h.server.seen().iter().filter(|r| r.method == "GET").count(), 3);
+}
+
+/// The plan balances only add the benefit period: when they fail, the
+/// claims go out without one and the trailer says so. A refused session
+/// still stops the export.
+#[test]
+fn the_claims_go_out_when_the_plan_balances_fail() {
+    let h = Household::new();
+    h.server
+        .fail_on("q=spending", 500, "application/json", r#"{"error":"Internal"}"#);
+    let (code, stream) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
+    assert_eq!(code, 0);
+    let eobs = of_type(&stream, "ExplanationOfBenefit");
+    assert_eq!(eobs.len(), 4);
+    assert!(eobs.iter().all(|e| e.get("benefitPeriod").is_none()));
+    assert_eq!(of_type(&stream, "DocumentReference").len(), 3);
+    let trailer = stream.last().unwrap();
+    assert_eq!(trailer["complete"], true, "{trailer}");
+    let skipped = trailer["skipped"].as_array().unwrap();
+    assert_eq!(skipped.len(), 1, "{trailer}");
+    assert_eq!(skipped[0]["code"], "upstream");
+    assert_eq!(skipped[0]["resource_type"], "ExplanationOfBenefit");
+    assert!(skipped[0].get("id").is_none());
+    assert!(skipped[0]["reason"].as_str().unwrap().contains("benefitPeriod"));
+
+    let h = Household::new();
+    h.server
+        .fail_on("q=spending", 401, "application/json", &fixture("unauthorized.json"));
+    let e = h
+        .run(&["records", "export", "--patient", &id("SAM"), "--ndjson"])
+        .unwrap_err();
+    assert_eq!(e.exit_code(), 3);
+    assert_eq!(h.server.count("claimDetails"), 0, "no detail read after a refusal");
 }
 
 /// One claim is one record whichever source it came from: the statement

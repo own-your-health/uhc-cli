@@ -818,10 +818,9 @@ pub struct PlanBalances {
     /// The members it names.
     pub members: Vec<Member>,
     pub balances: Vec<Balances>,
-    /// Each member's current benefit period, by patient id, where the site
-    /// says the medical plan counts by calendar year (the only kind it
-    /// names). It gives no dates of its own.
-    pub periods: HashMap<String, BenefitPeriod>,
+    /// The members (patient ids) whose medical plan the site says counts
+    /// by calendar year, the only kind it names. It gives no dates.
+    pub calendar_year: Vec<String>,
 }
 
 /// The plan balances: each member's medical deductible and out-of-pocket
@@ -855,17 +854,13 @@ fn balances(data: Value, today: &str) -> Result<PlanBalances, CliError> {
             list(&summary.benefits).iter().for_each(|b| mark(&dep.dep_seq_nbr, b));
         }
     }
-    let period_of = |m: &Member| {
-        let seq = m.site.as_ref().map(|s| s.dep_seq.as_str()).unwrap_or_default();
-        calendar
-            .iter()
-            .any(|c| c == seq)
-            .then(|| BenefitPeriod::calendar_year_of(today))
-            .flatten()
-    };
-    let periods: HashMap<String, BenefitPeriod> = members
+    let calendar_year: Vec<String> = members
         .iter()
-        .filter_map(|m| Some((m.id.clone(), period_of(m)?)))
+        .filter(|m| {
+            let seq = m.site.as_ref().map(|s| s.dep_seq.as_str()).unwrap_or_default();
+            calendar.iter().any(|c| c == seq)
+        })
+        .map(|m| m.id.clone())
         .collect();
     // (dep seq, network, type) to the maximum.
     let mut maxes: HashMap<(String, Network, String), Cents> = HashMap::new();
@@ -889,7 +884,10 @@ fn balances(data: Value, today: &str) -> Result<PlanBalances, CliError> {
         let Some(m) = by_seq(&members, Some(&seq)) else {
             continue;
         };
-        let period = periods.get(&m.id).cloned();
+        let period = calendar_year
+            .contains(&m.id)
+            .then(|| BenefitPeriod::calendar_year_of(today))
+            .flatten();
         let plan_year = match &period {
             Some(p) => p.year(),
             None => m
@@ -957,7 +955,7 @@ fn balances(data: Value, today: &str) -> Result<PlanBalances, CliError> {
     Ok(PlanBalances {
         members,
         balances: out,
-        periods,
+        calendar_year,
     })
 }
 
@@ -1138,8 +1136,8 @@ impl<'a> Site<'a> {
         apply_detail(claim, data)
     }
 
-    /// The plan balances, the members the answer names and their benefit
-    /// periods.
+    /// The plan balances, the members the answer names and which of them
+    /// the plan counts by calendar year.
     pub fn balances(&self) -> Result<PlanBalances, CliError> {
         let data = self.client.query(&client::SPENDING, json!({}))?;
         balances(data, &self.today)
@@ -1432,21 +1430,19 @@ mod tests {
             .balances
             .iter()
             .all(|r| r.plan_year == Some(2026) && r.period.as_ref() == Some(&year)));
-        assert!(year.contains("2026-01-01") && year.contains("2026-12-31") && !year.contains("2025-12-31"));
         // Through the new year the period is the new year's.
         let b = balances(spending_with("2025-11-06", json!("CALENDAR_YEAR")), "2027-01-02").unwrap();
-        assert!(b.balances.iter().all(|r| r.plan_year == Some(2027)));
-        assert!(b
-            .periods
-            .values()
-            .all(|p| p.start == "2027-01-01" && p.end == "2027-12-31"));
+        assert!(b.balances.iter().all(|r| r.plan_year == Some(2027)
+            && r.period
+                .as_ref()
+                .is_some_and(|p| p.start == "2027-01-01" && p.end == "2027-12-31")));
     }
 
     #[test]
     fn without_the_calendar_year_mark_balances_have_no_period() {
         for indicator in [json!(null), json!("PLAN_YEAR")] {
             let b = balances(spending_with("2025-11-06", indicator.clone()), "2026-11-17").unwrap();
-            assert!(b.periods.is_empty(), "{indicator}");
+            assert!(b.calendar_year.is_empty(), "{indicator}");
             assert_eq!(b.balances.len(), 16);
             assert!(
                 b.balances
@@ -1462,15 +1458,14 @@ mod tests {
         let PlanBalances {
             members,
             balances: rows,
-            periods,
+            calendar_year,
         } = balances(fixture("spending.json"), "2026-11-17").unwrap();
         assert_eq!(members.len(), 3);
         let year = BenefitPeriod {
             start: "2026-01-01".into(),
             end: "2026-12-31".into(),
         };
-        assert_eq!(periods.len(), 3, "the medical plan counts by calendar year");
-        assert!(periods.values().all(|p| *p == year));
+        assert_eq!(calendar_year.len(), 3, "the medical plan counts by calendar year");
         assert!(rows.iter().all(|r| r.period.as_ref() == Some(&year)));
         // Three members and the family, two networks, two limits.
         assert_eq!(rows.len(), 16);

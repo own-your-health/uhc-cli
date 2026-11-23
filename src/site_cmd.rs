@@ -16,7 +16,7 @@ use std::time::Duration;
 use pk_cli_config::profile::ProfileName;
 use pk_cli_core::{output, CliError, Paged};
 use pk_cli_documents::{fs_safe, Document, DownloadBatch, SavedDocument, SkippedDocument};
-use pk_med_records::{RawResource, RecordsWriter, Skip};
+use pk_med_records::{stream::skip, RawResource, RecordsWriter, Skip};
 use serde_json::Value;
 
 use crate::app::{
@@ -26,7 +26,7 @@ use crate::app::{
 use crate::cli::*;
 use crate::fhir;
 use crate::grants;
-use crate::model::{ClaimRecord, Member, Origin, SiteDocument};
+use crate::model::{BenefitPeriod, ClaimRecord, Member, Origin, SiteDocument};
 use crate::portal::{self, Household, PlanBalances, Site};
 use crate::session::SessionStore;
 
@@ -560,10 +560,10 @@ fn refuse_existing(path: &Path, overwrite: bool) -> Result<(), CliError> {
 
 /// `records export --ndjson` from the site, streamed as it is read: the
 /// member, the plan and the payer, each claim with its detail (with
-/// `--since`, those processed on or after that day) and, when served in
-/// the plan's current benefit period, that period (from the plan balances
-/// answer), then each document addressed to the member (with `--since`,
-/// created on or after it) with its PDF. A claim still in process is skipped (`in_process`): its id
+/// `--since`, those processed on or after that day) and, where the plan
+/// counts by calendar year, its year of service as its benefit period,
+/// then each document addressed to the member (with `--since`, created on
+/// or after it) with its PDF. A claim still in process is skipped (`in_process`): its id
 /// changes once it is processed. A read that fails ends the stream
 /// incomplete, the error in its trailer.
 fn export(ctx: &Ctx, args: &ExportArgs, out: &mut dyn Write) -> Result<i32, CliError> {
@@ -581,9 +581,30 @@ fn export(ctx: &Ctx, args: &ExportArgs, out: &mut dyn Write) -> Result<i32, CliE
         .collect();
     let exported_doc = |id: &str| selected_docs.iter().any(|d| d.id == id);
 
+    // Whether the plan counts by calendar year, from the plan balances.
+    // Only a refused session stops the export over it; another failure
+    // leaves the claims without a benefit period, said in the trailer.
+    let calendar_year = match ctx.site.balances() {
+        Ok(b) => Ok(b.calendar_year.contains(&m.id)),
+        Err(e) if e.exit_code() == 3 => return Err(e),
+        Err(e) => Err(e),
+    };
+
     let head = header(context(&m, None), since);
     let read = head.pulled_at.clone();
     let mut w = RecordsWriter::start(out, &head)?;
+    let calendar_year = calendar_year.unwrap_or_else(|e| {
+        w.skip(Skip::resource(
+            "ExplanationOfBenefit",
+            "",
+            skip::UPSTREAM,
+            format!(
+                "the claims carry no benefitPeriod: the plan balances could not be read ({})",
+                e.message()
+            ),
+        ));
+        false
+    });
     let mut claims: Vec<ClaimRecord> = Vec::new();
     for c in house.claims.iter().filter(|c| c.patient == m.id) {
         if c.status.as_deref() == Some(IN_PROCESS) {
@@ -612,13 +633,17 @@ fn export(ctx: &Ctx, args: &ExportArgs, out: &mut dyn Write) -> Result<i32, CliE
         ] {
             w.resource(&RawResource::from_value(&fhir::read_at(r, &read))?)?;
         }
-        let period = ctx.site.balances()?.periods.remove(&m.id);
         for c in &mut claims {
             ctx.site.detail(&house, c)?;
             // A document reference only to a document this stream carries.
             if c.document.as_deref().is_some_and(|d| !exported_doc(d)) {
                 c.document = None;
             }
+            let period = c
+                .service_start
+                .as_deref()
+                .filter(|_| calendar_year)
+                .and_then(BenefitPeriod::calendar_year_of);
             w.resource(&RawResource::from_value(&fhir::read_at(
                 fhir::explanation_of_benefit(c, &coverage, &[], period.as_ref()),
                 &read,

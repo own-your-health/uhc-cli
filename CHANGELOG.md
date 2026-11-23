@@ -8,17 +8,29 @@
   that field and dropped it; it now uses it:
   - `accumulators --json` (`accumulator-list/v1`) rows add `period`
     (`{"start": "2026-01-01", "end": "2026-12-31"}`): the calendar year of
-    the day read. `plan_year` is that year, where it was the year the
-    member's coverage took effect. The two differ when coverage began
-    in an earlier year.
-  - `records export` from the site gives each claim served in that
-    period its `ExplanationOfBenefit.benefitPeriod`. A claim served in an
-    earlier year has none, because the site describes only the current
-    benefits. The export reads the plan balances once more for this.
-  - Without that mark, balances have no `period`, and `plan_year` stays
-    the coverage's start year.
+    the day read.
+  - Changed in `accumulators`: `plan_year`, and so `--year`, is that
+    calendar year. It was the year the member's current coverage took
+    effect, which is wrong when that coverage began in an earlier year.
+    Coverage that took effect in November 2025 gave 2026's balances
+    `plan_year` 2025, so `--year 2025` listed them; now they are 2026,
+    and `--year 2025` lists none.
+  - `records export` from the site gives each claim
+    `ExplanationOfBenefit.benefitPeriod`: the calendar year it was served
+    in, the same in every export. The site describes only the current
+    plan, so uhc assumes it counted the same way in earlier years.
+  - The export reads the plan balances once more for this. When that read
+    fails, the claims are exported without `benefitPeriod`, and the
+    trailer says so in `skipped[]` (code `upstream`). Only a refused
+    session stops the export.
+  - Without the `CALENDAR_YEAR` mark, balances have no `period`,
+    `plan_year` stays the coverage's start year, and claims have no
+    `benefitPeriod`.
 - `Coverage.period` is unchanged: it is the day the member's current
   coverage took effect, which is not the plan year's start.
+- cookie 0.18.3 in the lockfile, for RUSTSEC-2026-0594: in 0.18.2,
+  private cookie nonces could repeat in processes that fork. uhc builds
+  cookie without its private-cookie feature. No code change.
 
 ## v0.3.3
 

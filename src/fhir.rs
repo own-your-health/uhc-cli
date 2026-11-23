@@ -297,8 +297,8 @@ pub fn binary_id(file_id: &str, patient: &str) -> String {
 }
 
 /// One claim. `balances` are the plan balances its statement printed for
-/// this patient and the family; `period` the plan's current benefit
-/// period, which a claim served within it is in.
+/// this patient and the family; `period` the benefit period it was served
+/// in.
 pub fn explanation_of_benefit(
     c: &ClaimRecord,
     coverage: &str,
@@ -446,7 +446,7 @@ pub fn explanation_of_benefit(
                 .collect(),
         );
     }
-    if let Some(p) = period.filter(|p| c.service_start.as_deref().is_some_and(|d| p.contains(d))) {
+    if let Some(p) = period {
         v["benefitPeriod"] = json!({ "start": p.start, "end": p.end });
     }
     if !balances.is_empty() {
