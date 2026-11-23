@@ -749,7 +749,7 @@ pub fn member_resources(book: &Book, m: &Member, sel: &Selection) -> Result<Vec<
             .unwrap_or_default();
         let refs: Vec<&Balances> = balances.iter().collect();
         out.push(fhir::issued(
-            fhir::explanation_of_benefit(c, &coverage, &refs),
+            fhir::explanation_of_benefit(c, &coverage, &refs, None),
             c.statement_date.as_deref(),
         ));
     }
@@ -1098,6 +1098,9 @@ pub(crate) fn balance_json(b: &Balances) -> Value {
     }
     if let Some(d) = &b.as_of {
         v.insert("as_of".into(), d.clone().into());
+    }
+    if let Some(p) = &b.period {
+        v.insert("period".into(), json!({ "start": p.start, "end": p.end }));
     }
     v.insert("network".into(), b.network.code().into());
     v.insert("limit".into(), b.limit.code().into());

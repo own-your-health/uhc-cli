@@ -220,7 +220,11 @@ amount, processing codes as notes, the plan balances the statement printed as
 From the site each claim also carries its claim type (professional,
 institutional, pharmacy, oral), each line its CPT, HCPCS or CDT code and
 revenue code, the remark codes as notes, the member's birth date and plan
-period, and every document addressed to the member. A claim and a member
+period, and every document addressed to the member. A claim served in the
+plan's current benefit period carries it as `benefitPeriod`: the site says
+the medical plan counts by calendar year and gives no dates, so the period
+is this calendar year. `accumulators --json` gives the same `period` on each
+row. A claim and a member
 have the same id from either source, so medrec keeps one record of each.
 `docs/fhir.md` has the mapping. From the site, `--since D` reads the details
 of the claims processed since D only. A claim the plan has not processed

@@ -241,6 +241,11 @@ impl Household {
     }
 
     fn with_session(stored: bool) -> Household {
+        Self::on("2026-11-17", stored)
+    }
+
+    /// A household whose reads are as of `today`.
+    fn on(today: &str, stored: bool) -> Household {
         let dir = tmp("house");
         let config = dir.join("config.json");
         std::fs::write(&config, r#"{"profiles":{"adult1":{}}}"#).unwrap();
@@ -262,6 +267,7 @@ impl Household {
             sessions,
             base: server.base.clone(),
             pace: Duration::ZERO,
+            today: Some(today.into()),
         };
         Household { server, env, config }
     }
@@ -431,7 +437,44 @@ fn accumulators() {
     assert_eq!(ded["remaining"]["amount"], "1200.00");
     assert_eq!(ded["met"], false);
     assert!(ded.get("document").is_none());
+    assert_eq!(ded["plan_year"], 2026);
+    assert_eq!(ded["period"], json!({ "start": "2026-01-01", "end": "2026-12-31" }));
     assert_eq!(h.json(&["accumulators", "--year", "2025"])["items"], json!([]));
+}
+
+/// The site marks the medical plan as counting by calendar year and gives
+/// no dates: the period is the year of the day read, and a claim served in
+/// it carries it.
+#[test]
+fn claims_served_in_the_current_plan_year_carry_it() {
+    let h = Household::new();
+    let (code, stream) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
+    assert_eq!(code, 0);
+    let eobs = of_type(&stream, "ExplanationOfBenefit");
+    assert_eq!(eobs.len(), 4);
+    for e in &eobs {
+        assert_eq!(
+            e["benefitPeriod"],
+            json!({ "start": "2026-01-01", "end": "2026-12-31" }),
+            "{}",
+            e["id"]
+        );
+    }
+    assert_eq!(h.server.count("spending"), 1, "one plan balances read");
+
+    // In the new year, last year's claims are outside the current period.
+    let h = Household::on("2027-01-15", true);
+    let (code, stream) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
+    assert_eq!(code, 0);
+    let eobs = of_type(&stream, "ExplanationOfBenefit");
+    assert_eq!(eobs.len(), 4);
+    assert!(eobs.iter().all(|e| e.get("benefitPeriod").is_none()));
+    let rows = h.json(&["accumulators", "--year", "2027"]);
+    assert_eq!(rows["items"].as_array().unwrap().len(), 16);
+    assert_eq!(
+        rows["items"][0]["period"],
+        json!({ "start": "2027-01-01", "end": "2027-12-31" })
+    );
 }
 
 #[test]
@@ -727,9 +770,10 @@ fn a_refused_session_is_exit_3_and_is_not_rewritten() {
 #[test]
 fn a_refusal_partway_ends_the_stream_incomplete() {
     let h = Household::new();
-    // The claims and the documents answer; the first detail is refused.
+    // The claims, the documents and the plan balances answer; the first
+    // detail is refused.
     h.server
-        .fail_after(2, 401, "application/json", &fixture("unauthorized.json"));
+        .fail_after(3, 401, "application/json", &fixture("unauthorized.json"));
     let (code, stream) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
     assert_eq!(code, 3);
     let trailer = stream.last().unwrap();

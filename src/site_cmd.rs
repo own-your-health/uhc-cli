@@ -27,7 +27,7 @@ use crate::cli::*;
 use crate::fhir;
 use crate::grants;
 use crate::model::{ClaimRecord, Member, Origin, SiteDocument};
-use crate::portal::{self, Household, Site};
+use crate::portal::{self, Household, PlanBalances, Site};
 use crate::session::SessionStore;
 
 /// `Skip.code` for a claim the plan has not processed: its id changes once
@@ -41,6 +41,8 @@ pub struct Env {
     pub base: String,
     /// The least time between one answer and the next request.
     pub pace: Duration,
+    /// The day the reads are as of; none for the clock's (a test fixes it).
+    pub today: Option<String>,
 }
 
 impl Env {
@@ -50,6 +52,7 @@ impl Env {
             sessions: SessionStore::open()?,
             base: crate::client::BASE.into(),
             pace: crate::client::PACE,
+            today: None,
         })
     }
 }
@@ -131,7 +134,10 @@ pub fn run(cli: &Cli, env: &Env, profile: &ProfileName, out: &mut dyn Write) -> 
         )?),
         _ => None,
     };
-    let site = Site::open(&env.sessions, profile, &env.base, env.pace)?;
+    let mut site = Site::open(&env.sessions, profile, &env.base, env.pace)?;
+    if let Some(day) = &env.today {
+        site = site.as_of(day);
+    }
     let ctx = Ctx { cli, site, profile };
     let code = match &cli.command {
         Command::Patients(PatientsCmd::List) => patients(&ctx, out).map(|()| 0),
@@ -358,7 +364,11 @@ fn claims_get(ctx: &Ctx, q: &str, out: &mut dyn Write) -> Result<(), CliError> {
 // ---------------------------------------------------------- accumulators
 
 fn accumulators(ctx: &Ctx, args: &AccumulatorsArgs, out: &mut dyn Write) -> Result<(), CliError> {
-    let (mut members, rows) = ctx.site.balances()?;
+    let PlanBalances {
+        mut members,
+        balances: rows,
+        ..
+    } = ctx.site.balances()?;
     labelled(ctx, &mut members)?;
     let patient = args.patient.as_deref().map(|q| member(&members, q)).transpose()?;
     let items: Vec<Value> = rows
@@ -550,9 +560,10 @@ fn refuse_existing(path: &Path, overwrite: bool) -> Result<(), CliError> {
 
 /// `records export --ndjson` from the site, streamed as it is read: the
 /// member, the plan and the payer, each claim with its detail (with
-/// `--since`, those processed on or after that day), then each document
-/// addressed to the member (with `--since`, created on or after it) with
-/// its PDF. A claim still in process is skipped (`in_process`): its id
+/// `--since`, those processed on or after that day) and, when served in
+/// the plan's current benefit period, that period (from the plan balances
+/// answer), then each document addressed to the member (with `--since`,
+/// created on or after it) with its PDF. A claim still in process is skipped (`in_process`): its id
 /// changes once it is processed. A read that fails ends the stream
 /// incomplete, the error in its trailer.
 fn export(ctx: &Ctx, args: &ExportArgs, out: &mut dyn Write) -> Result<i32, CliError> {
@@ -601,6 +612,7 @@ fn export(ctx: &Ctx, args: &ExportArgs, out: &mut dyn Write) -> Result<i32, CliE
         ] {
             w.resource(&RawResource::from_value(&fhir::read_at(r, &read))?)?;
         }
+        let period = ctx.site.balances()?.periods.remove(&m.id);
         for c in &mut claims {
             ctx.site.detail(&house, c)?;
             // A document reference only to a document this stream carries.
@@ -608,7 +620,7 @@ fn export(ctx: &Ctx, args: &ExportArgs, out: &mut dyn Write) -> Result<i32, CliE
                 c.document = None;
             }
             w.resource(&RawResource::from_value(&fhir::read_at(
-                fhir::explanation_of_benefit(c, &coverage, &[]),
+                fhir::explanation_of_benefit(c, &coverage, &[], period.as_ref()),
                 &read,
             ))?)?;
         }

@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- The member site's plan balances answer says how the medical plan
+  counts its deductible and out-of-pocket limit
+  (`benefitsPeriodIndicator`, `CALENDAR_YEAR`), with no dates. uhc read
+  that field and dropped it; it now uses it:
+  - `accumulators --json` (`accumulator-list/v1`) rows add `period`
+    (`{"start": "2026-01-01", "end": "2026-12-31"}`): the calendar year of
+    the day read. `plan_year` is that year, where it was the year the
+    member's coverage took effect. The two differ when coverage began
+    in an earlier year.
+  - `records export` from the site gives each claim served in that
+    period its `ExplanationOfBenefit.benefitPeriod`. A claim served in an
+    earlier year has none, because the site describes only the current
+    benefits. The export reads the plan balances once more for this.
+  - Without that mark, balances have no `period`, and `plan_year` stays
+    the coverage's start year.
+- `Coverage.period` is unchanged: it is the day the member's current
+  coverage took effect, which is not the plan year's start.
+
 ## v0.3.3
 
 - A procedure code the site sends with one more letter or digit
