@@ -190,6 +190,11 @@ the message) when there is one.
 | `profiles list` / `add` / `remove` | `profile-list/v1` / `profile-add/v1` / `profile-remove/v1` |
 | `info` | `cli-info/v1`: profiles `health-records/v1` and `documents/v1`; capabilities `login-profiles`, `records-files` (`records export --files <DIR>`, no sign-in) and `patient-labels` (`patients label`); `auth.required` true (without `--files`, a record command signs in) |
 
+A `claim/v1` line's `procedure` is `{code, display}`. Where the site
+appended a letter or digit to a CPT or HCPCS code (`710467`), `code` is the
+five-character code, `suffix` the character and `site_code` the site's
+whole code; `suffix` and `site_code` appear only on such lines.
+
 Exit codes: 0 ok, 1 other (pdftotext missing), 2 usage, 3 sign-in not
 finished or session refused, 4 not found, 5 the statements could not be
 read (layout changed), or the member site's answer could not decide, 6 a

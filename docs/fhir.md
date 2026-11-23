@@ -159,7 +159,7 @@ description as `display` and `text`:
 
 The site appends that character to some lines' codes and does not say what
 it means; two lines of one code on a claim can differ only in it. `claims
-get` gives it as the procedure's `suffix`. The site-code system is an
+get` gives it as the procedure's `suffix`, beside `site_code`. The site-code system is an
 identifier like the tag and benefit-type systems; it was minted after the
 repository moved, so it carries the `own-your-health` owner.
 

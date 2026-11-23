@@ -959,6 +959,7 @@ pub(crate) fn claim_json(c: &ClaimRecord, detail: bool) -> Value {
                     let mut pv = coded(p);
                     if let Some(s) = &l.procedure_suffix {
                         pv["suffix"] = s.clone().into();
+                        pv["site_code"] = format!("{}{s}", p.code).into();
                     }
                     lv.insert("procedure".into(), pv);
                 }

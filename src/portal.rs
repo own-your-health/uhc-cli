@@ -1293,9 +1293,13 @@ mod tests {
         let v = crate::app::claim_json(&c, true);
         assert_eq!(
             v["lines"][0]["procedure"],
-            json!({ "code": "71046", "display": "Chest x-ray, 2 views", "suffix": "7" })
+            json!({ "code": "71046", "display": "Chest x-ray, 2 views", "suffix": "7", "site_code": "710467" })
         );
-        assert!(v["lines"][4]["procedure"].get("suffix").is_none());
+        let plain = v["lines"][4]["procedure"].as_object().unwrap();
+        assert!(
+            !plain.contains_key("suffix") && !plain.contains_key("site_code"),
+            "{plain:?}"
+        );
     }
 
     /// The detail of the statement's radiology claim (2026-08-20): the same
