@@ -320,8 +320,12 @@ How the answers read:
   or digit (`710467`), and the site gives no field that says what the
   character means. Its claim page shows `procedures[0].code` only on dental
   lines; on the others it shows `serviceInfo.code` as the "Billing code"
-  and `planCode` as the "Plan code", neither of which uhc reads. uhc splits
-  the character off (`fhir::split_procedure`) and keeps it.
+  and `planCode` as the "Plan code". Neither explains the character: on a
+  line that carries one, `serviceInfo.code` and `providedServiceInfo.code`
+  are the same six characters as `procedures[].code`, and
+  `serviceLines[].planCode` is null. uhc does not query `planCode`, and
+  reads `serviceInfo.code` only when `procedures[]` has no usable code.
+  It splits the character off (`fhir::split_procedure`) and keeps it.
 
 ## EOB statement layout (UHC's public sample)
 
