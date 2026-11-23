@@ -39,7 +39,7 @@ invented, in the dummy shapes above and below.
 | File | The answer to |
 |---|---|
 | `claims.json` | `claims`: the profile and `healthcareClaims.claims[]` |
-| `claim-detail-*.json` | `claimDetails`, one claim each: office visit, professional (CPT and HCPCS), institutional (a revenue code), dental (CDT, a tooth range), reprocessed, denied |
+| `claim-detail-*.json` | `claimDetails`, one claim each: office visit, professional (CPT and HCPCS), institutional (a revenue code), dental (CDT, a tooth range), reprocessed, denied, suffixed (procedure codes with one more character) |
 | `spending.json` | `spending`: the profile, `benefits[]` (maximums), `accumulators[]` |
 | `documents.json` | `documents`: `multiDocTypeListSummary.documents[]`, with one of the plan's general forms (no member, no date), which uhc leaves out |
 | `unauthorized.json` | any read without a session: `401 application/json` |
@@ -48,7 +48,9 @@ invented, in the dummy shapes above and below.
 
 The revenue line in `claim-detail-institutional.json` is shaped by the
 query (`revenues { code description }`); no captured answer has carried a
-revenue code yet. `graphql-errors.json` follows the GraphQL specification,
+revenue code yet. In `claim-detail-suffixed.json` the `serviceInfo` and
+`providedServiceInfo` codes repeat the procedure code, as in the other
+files; no captured answer shows what the site puts there on such a line. `graphql-errors.json` follows the GraphQL specification,
 not a captured answer.
 
 | Field | Shape |

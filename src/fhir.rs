@@ -37,6 +37,9 @@ pub const MEMBER_ID_SYSTEM: &str = "https://www.uhc.com/fhir/member-id";
 pub const CLAIM_NUMBER_SYSTEM: &str = "https://www.uhc.com/fhir/claim-number";
 // An identifier like TAG_SYSTEM above: it keeps the owner it was minted with.
 pub const BENEFIT_TYPE_SYSTEM: &str = "https://github.com/piekstra/uhc-cli/fhir/benefit-type";
+// The site's procedure code as it sent it, where it appended a character to
+// a CPT or HCPCS code. Minted after the move, so under own-your-health.
+pub const SITE_PROCEDURE_SYSTEM: &str = "https://github.com/own-your-health/uhc-cli/fhir/site-procedure-code";
 
 const HL7_ADJUDICATION: &str = "http://terminology.hl7.org/CodeSystem/adjudication";
 const C4BB_ADJUDICATION: &str = "http://hl7.org/fhir/us/carin-bb/CodeSystem/C4BBAdjudication";
@@ -122,6 +125,19 @@ pub fn procedure_system(code: &str) -> Option<&'static str> {
         Some(HCPCS)
     } else {
         None
+    }
+}
+
+/// A procedure code split from the one letter or digit the site appends to
+/// some codes (`710467`, `E0110N`): the code, and that character where
+/// there is one. The site does not say what the character means, so it is
+/// kept as given. A code of any other shape comes back whole.
+pub fn split_procedure(code: &str) -> (&str, Option<&str>) {
+    let b = code.as_bytes();
+    if b.len() == 6 && (b[5].is_ascii_digit() || b[5].is_ascii_uppercase()) && procedure_system(&code[..5]).is_some() {
+        (&code[..5], Some(&code[5..]))
+    } else {
+        (code, None)
     }
 }
 
@@ -377,7 +393,13 @@ pub fn explanation_of_benefit(c: &ClaimRecord, coverage: &str, balances: &[&Bala
                         if let Some(d) = &p.display {
                             coding["display"] = d.clone().into();
                         }
-                        json!({ "coding": [coding], "text": l.description })
+                        let mut codings = vec![coding];
+                        if let Some(suffix) = &l.procedure_suffix {
+                            codings.push(
+                                json!({ "system": SITE_PROCEDURE_SYSTEM, "code": format!("{}{suffix}", p.code) }),
+                            );
+                        }
+                        json!({ "coding": codings, "text": l.description })
                     }
                     None => json!({ "text": format!("{} {}", p.code, l.description) }),
                 },
@@ -573,6 +595,23 @@ mod tests {
             BENEFIT_TYPE_SYSTEM,
             "https://github.com/piekstra/uhc-cli/fhir/benefit-type"
         );
+        assert_eq!(
+            SITE_PROCEDURE_SYSTEM,
+            "https://github.com/own-your-health/uhc-cli/fhir/site-procedure-code"
+        );
+    }
+
+    #[test]
+    fn a_procedure_code_with_one_more_character_splits_from_it() {
+        assert_eq!(split_procedure("800618"), ("80061", Some("8")));
+        assert_eq!(split_procedure("710467"), ("71046", Some("7")));
+        assert_eq!(split_procedure("E0110N"), ("E0110", Some("N")));
+        assert_eq!(split_procedure("0001U0"), ("0001U", Some("0")));
+        assert_eq!(split_procedure("80053"), ("80053", None));
+        assert_eq!(split_procedure("D1110"), ("D1110", None));
+        for whole in ["80053a", "8005", "ABCDE1", "80053XY", "80053-"] {
+            assert_eq!(split_procedure(whole), (whole, None), "{whole}");
+        }
     }
 
     /// A statement's date is that day's start in UTC; no date, or one that is

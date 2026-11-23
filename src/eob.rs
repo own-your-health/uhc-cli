@@ -133,6 +133,9 @@ pub struct ClaimLine {
     pub amounts: Amounts,
     /// The site's procedure code (CPT, HCPCS or CDT) for the line.
     pub procedure: Option<Coded>,
+    /// The letter or digit the site appended to the procedure code
+    /// (`fhir::split_procedure`), as it gave it.
+    pub procedure_suffix: Option<String>,
     /// The site's revenue code, on an institutional claim's line.
     pub revenue: Option<Coded>,
     /// The site's tooth or tooth range, on a dental line (`01-32`).

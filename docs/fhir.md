@@ -154,7 +154,14 @@ description as `display` and `text`:
 | five digits, or four and `F`, `T` or `U` | CPT, `http://www.ama-assn.org/go/cpt` |
 | `D` and four digits | CDT, `http://ada.org/cdt` |
 | another letter and four digits | HCPCS Level II, `https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets` |
+| one of these and one more letter or digit (`710467`, `E0110N`) | the system of its first five characters, coded as those five; a second coding carries the site's whole code, system `https://github.com/own-your-health/uhc-cli/fhir/site-procedure-code` |
 | anything else | no coding; the code goes into `text` |
+
+The site appends that character to some lines' codes and does not say what
+it means; two lines of one code on a claim can differ only in it. `claims
+get` gives it as the procedure's `suffix`. The site-code system is an
+identifier like the tag and benefit-type systems; it was minted after the
+repository moved, so it carries the `own-your-health` owner.
 
 A pharmacy claim has one item, the drug's name as the site lists it
 ("Prescription drug" where it masks the name).

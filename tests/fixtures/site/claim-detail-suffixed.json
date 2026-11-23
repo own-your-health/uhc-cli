@@ -1,0 +1,361 @@
+{
+  "data": {
+    "claimDetailsAggregate": {
+      "healthCareClaimDetails": {
+        "claimId": "SYNC000000",
+        "claimIdSuffix": "12",
+        "claimKey": "SYNK-012",
+        "claimType": "MEDICAL",
+        "claimStatus": "PROCESSED",
+        "claimNetworkStatus": "IN_NETWORK",
+        "providerName": "EXAMPLE IMAGING AND LAB",
+        "claimDates": {
+          "dateProcessed": "2026-09-14",
+          "serviceStartDate": "2026-09-09",
+          "lastServiceDate": "2026-09-09"
+        },
+        "balance": {
+          "totalBilledAmount": {
+            "value": "455.00",
+            "iso4217": "USD"
+          },
+          "healthPlanDiscount": {
+            "value": "225.00",
+            "iso4217": "USD"
+          },
+          "healthPlanPay": {
+            "value": "200.00",
+            "iso4217": "USD"
+          },
+          "deductible": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "copay": {
+            "value": "30.00",
+            "iso4217": "USD"
+          },
+          "claimCoinsurance": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "claimMemberNotCovered": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "patientResponsibility": {
+            "value": "30.00",
+            "iso4217": "USD"
+          }
+        },
+        "serviceLines": [
+          {
+            "serviceDate": "2026-09-09",
+            "lastServiceDate": "2026-09-09",
+            "procedures": [
+              {
+                "code": "710467",
+                "description": "Chest x-ray, 2 views"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "710467",
+              "description": "Imaging/radiology"
+            },
+            "providedServiceInfo": {
+              "code": "710467",
+              "description": "Xray chest 2 views"
+            },
+            "serviceRemarks": [
+              {
+                "code": "D1",
+                "description": "You have received a discount for using a health care professional in your plan's network."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "120.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "70.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "50.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "0.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-09-09",
+            "lastServiceDate": "2026-09-09",
+            "procedures": [
+              {
+                "code": "710468",
+                "description": "Chest x-ray, 2 views"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "710468",
+              "description": "Imaging/radiology"
+            },
+            "providedServiceInfo": {
+              "code": "710468",
+              "description": "Xray chest 2 views"
+            },
+            "serviceRemarks": [
+              {
+                "code": "D1",
+                "description": "You have received a discount for using a health care professional in your plan's network."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "80.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "40.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "40.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "0.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-09-09",
+            "lastServiceDate": "2026-09-09",
+            "procedures": [
+              {
+                "code": "800618",
+                "description": "Lipid panel"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "800618",
+              "description": "Laboratory"
+            },
+            "providedServiceInfo": {
+              "code": "800618",
+              "description": "Lipid panel"
+            },
+            "serviceRemarks": [
+              {
+                "code": "D1",
+                "description": "You have received a discount for using a health care professional in your plan's network."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "45.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "30.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "15.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "0.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-09-09",
+            "lastServiceDate": "2026-09-09",
+            "procedures": [
+              {
+                "code": "E0110N",
+                "description": "Crutches, forearm, pair"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "E0110N",
+              "description": "Medical/professional services"
+            },
+            "providedServiceInfo": {
+              "code": "E0110N",
+              "description": "Crutch forearm pair"
+            },
+            "serviceRemarks": [
+              {
+                "code": "D1",
+                "description": "You have received a discount for using a health care professional in your plan's network."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "60.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "25.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "35.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "0.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-09-09",
+            "lastServiceDate": "2026-09-09",
+            "procedures": [
+              {
+                "code": "99213",
+                "description": "Office or other outpatient visit, established patient"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "99213",
+              "description": "Physician office visit"
+            },
+            "providedServiceInfo": {
+              "code": "99213",
+              "description": "Office o/p est low 20 min"
+            },
+            "serviceRemarks": [
+              {
+                "code": "D1",
+                "description": "You have received a discount for using a health care professional in your plan's network."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "150.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "60.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "60.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "30.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "30.00",
+                "iso4217": "USD"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

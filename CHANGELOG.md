@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- A procedure code the site sends with one more letter or digit
+  (`710467`, `E0110N`) is split from it. The line's FHIR
+  `productOrService` codes the CPT or HCPCS code, where it was text
+  before, and keeps the site's whole code as a second coding (system
+  `https://github.com/own-your-health/uhc-cli/fhir/site-procedure-code`).
+  `claims get --json` gives the character as the procedure's `suffix`.
+  The site does not say what it means, so uhc keeps it as given.
 - url 2.5.9 (and form_urlencoded 1.2.3) in the lockfile, for
   RUSTSEC-2026-0592: url 2.5.8 and older could overflow the stack in
   `Url::origin()` on nested `blob:` URLs. No code change.

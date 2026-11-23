@@ -716,8 +716,22 @@ fn apply_detail(c: &mut ClaimRecord, data: Value) -> Result<(), CliError> {
             l.service_info
                 .as_ref()
                 .and_then(RawCode::coded)
-                .filter(|c| crate::fhir::procedure_system(&c.code).is_some())
+                .filter(|c| crate::fhir::procedure_system(crate::fhir::split_procedure(&c.code).0).is_some())
         });
+        let (procedure, procedure_suffix) = match procedure {
+            Some(p) => {
+                let (code, suffix) = crate::fhir::split_procedure(&p.code);
+                let suffix = suffix.map(str::to_string);
+                (
+                    Some(Coded {
+                        code: code.to_string(),
+                        display: p.display,
+                    }),
+                    suffix,
+                )
+            }
+            None => (None, None),
+        };
         let revenue = list(&l.revenues).iter().find_map(RawCode::coded);
         let description = [&l.service_info, &l.provided_service_info]
             .iter()
@@ -745,6 +759,7 @@ fn apply_detail(c: &mut ClaimRecord, data: Value) -> Result<(), CliError> {
             date_end: end,
             amounts,
             procedure,
+            procedure_suffix,
             revenue,
             tooth: text(&l.tooth_number),
         });
@@ -1221,6 +1236,66 @@ mod tests {
         assert_eq!(rx.document.as_deref(), Some("00000000-0000-4000-8000-000000000003"));
         let pending = claim(&h, "cSYNC11111111");
         assert_eq!(pending.document, None);
+    }
+
+    /// Some lines' procedure codes come with one more letter or digit. The
+    /// code is split from it, so it carries its system, and the character
+    /// stays on the line: two lines of one code can differ only in it.
+    #[test]
+    fn a_procedure_code_with_one_more_character_is_split_on_the_line() {
+        let h = house();
+        let mut c = claim(&h, "cSYNC00000008").clone();
+        apply_detail(&mut c, fixture("claim-detail-suffixed.json")).unwrap();
+        let got: Vec<(&str, Option<&str>)> = c
+            .claim
+            .lines
+            .iter()
+            .map(|l| {
+                (
+                    l.procedure.as_ref().unwrap().code.as_str(),
+                    l.procedure_suffix.as_deref(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            got,
+            [
+                ("71046", Some("7")),
+                ("71046", Some("8")),
+                ("80061", Some("8")),
+                ("E0110", Some("N")),
+                ("99213", None),
+            ]
+        );
+        assert_eq!(c.claim.lines[0].description, "Imaging/radiology");
+        assert_eq!(c.totals.billed, Cents(45500));
+
+        let eob = crate::fhir::explanation_of_benefit(&c, "Coverage/x", &[]);
+        let first = &eob["item"][0]["productOrService"];
+        assert_eq!(
+            first["coding"],
+            json!([
+                { "system": "http://www.ama-assn.org/go/cpt", "code": "71046", "display": "Chest x-ray, 2 views" },
+                { "system": crate::fhir::SITE_PROCEDURE_SYSTEM, "code": "710467" },
+            ])
+        );
+        assert_eq!(first["text"], "Imaging/radiology");
+        let dme = &eob["item"][3]["productOrService"]["coding"];
+        assert_eq!(
+            dme[0]["system"],
+            "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets"
+        );
+        assert_eq!(dme[0]["code"], "E0110");
+        assert_eq!(dme[1]["code"], "E0110N");
+        let plain = &eob["item"][4]["productOrService"]["coding"];
+        assert_eq!(plain.as_array().unwrap().len(), 1, "{plain}");
+
+        let v = crate::app::claim_json(&c, true);
+        assert_eq!(
+            v["lines"][0]["procedure"],
+            json!({ "code": "71046", "display": "Chest x-ray, 2 views", "suffix": "7" })
+        );
+        assert!(v["lines"][4]["procedure"].get("suffix").is_none());
     }
 
     /// The detail of the statement's radiology claim (2026-08-20): the same
