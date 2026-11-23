@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+- The member site's plan balances answer says how the medical plan
+  counts its deductible and out-of-pocket limit
+  (`benefitsPeriodIndicator`, `CALENDAR_YEAR`), with no dates. uhc read
+  that field and dropped it; it now uses it:
+  - `accumulators --json` (`accumulator-list/v1`) rows add `period`
+    (`{"start": "2026-01-01", "end": "2026-12-31"}`): the calendar year of
+    the day read.
+  - Changed in `accumulators`: `plan_year`, and so `--year`, is that
+    calendar year. It was the year the member's current coverage took
+    effect, which is wrong when that coverage began in an earlier year.
+    Coverage that took effect in November 2025 gave 2026's balances
+    `plan_year` 2025, so `--year 2025` listed them; now they are 2026,
+    and `--year 2025` lists none.
+  - `records export` from the site gives each claim
+    `ExplanationOfBenefit.benefitPeriod`: the calendar year it was served
+    in, the same in every export. The site describes only the current
+    plan, so uhc assumes it counted the same way in earlier years.
+  - The export reads the plan balances once more for this. When that read
+    fails, the claims are exported without `benefitPeriod`, and the
+    trailer says so in `skipped[]` (code `upstream`). Only a refused
+    session stops the export.
+  - Without the `CALENDAR_YEAR` mark, balances have no `period`,
+    `plan_year` stays the coverage's start year, and claims have no
+    `benefitPeriod`.
+- `Coverage.period` is unchanged: it is the day the member's current
+  coverage took effect, which is not the plan year's start.
+- cookie 0.18.3 in the lockfile, for RUSTSEC-2026-0594: in 0.18.2,
+  private cookie nonces could repeat in processes that fork. uhc builds
+  cookie without its private-cookie feature. No code change.
+
 ## v0.3.3
 
 - A procedure code the site sends with one more letter or digit

@@ -238,7 +238,7 @@ only; every other id (`claimKey`, `claimType`, `documentId`,
 | `accumulators` | spending |
 | `documents list` | claims, documents |
 | `documents download` | claims, documents, each PDF (`--all` skips a file already saved under its name) |
-| `records export` | claims, documents, each of the member's claims' details (with `--since`, those processed since), each of the member's documents (with `--since`, created since) |
+| `records export` | claims, documents, spending (for the benefit period only: when it fails, the claims go out without one), each of the member's claims' details (with `--since`, those processed since), each of the member's documents (with `--since`, created since) |
 
 Measured 2026-11-17 on one household's account:
 
@@ -276,8 +276,10 @@ How the answers read:
 - Plan balances: `benefits[].benefitsResponses[].benefits[].maxes` holds
   the maximums by `type` (`INDIVIDUAL_DEDUCTIBLE`, `INDIVIDUAL_OOP`,
   `FAMILY_DEDUCTIBLE`, `FAMILY_OOP`), `accumulators[].accumulatorSummaries`
-  the progress by `accumulatorType` and `type`, both per `depSeqNbr`,
-  medical `CALENDAR_YEAR`. Dental has annual and lifetime maximums instead
+  the progress by `accumulatorType` and `type`, both per `depSeqNbr`.
+  `benefitsPeriodIndicator` on each says how the plan counts: medical
+  `CALENDAR_YEAR`, the only value seen, and `null` for dental and
+  pharmacy (`RX`). Neither carries a period's dates. Dental has annual and lifetime maximums instead
   (`uhc accumulators` reports medical only); `tier1` and pharmacy are null.
 - Documents: one member, class and creation date per `documentId`, and one
   row per claim it covers (`claimKey`). `memberName` is `FIRST LAST`. The
@@ -288,6 +290,11 @@ How the answers read:
 
 ### Traps
 
+- A coverage's `planPeriod.startDate` is the day the member's current
+  coverage took effect, not the plan year's start: a change to the
+  household (a member added) starts a new period mid-year, and its
+  `endDate` can be `9999-12-31`. The plan year is in the balances
+  answer's `benefitsPeriodIndicator`, as a kind of period with no dates.
 - A request without a browser's `User-Agent` gets `403 text/html` from the
   edge, signed in or not. uhc sends the user agent captured with the
   session; `auth login --stdin` takes it as `--user-agent`.

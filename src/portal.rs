@@ -28,8 +28,8 @@ use crate::cents::Cents;
 use crate::client::{self, Client};
 use crate::eob::{Amounts, Claim, ClaimLine, Coded, Limit, Network};
 use crate::model::{
-    family_id, patient_id, pharmacy_claim_id, sanitize, title, Balances, ClaimKind, ClaimRecord, Member, Origin,
-    SiteDocument, SiteMember, ORGANIZATION, ORGANIZATION_NAME,
+    family_id, patient_id, pharmacy_claim_id, sanitize, title, Balances, BenefitPeriod, ClaimKind, ClaimRecord, Member,
+    Origin, SiteDocument, SiteMember, ORGANIZATION, ORGANIZATION_NAME,
 };
 use crate::session::{Session, SessionStore};
 
@@ -303,6 +303,7 @@ struct BenefitsResponse {
 #[serde(rename_all = "camelCase", default)]
 struct Benefit {
     coverage_type: Option<String>,
+    benefits_period_indicator: Option<String>,
     maxes: Option<ByNetwork>,
     accumulators: Option<ByNetwork>,
 }
@@ -811,16 +812,56 @@ fn apply_detail(c: &mut ClaimRecord, data: Value) -> Result<(), CliError> {
 
 // ------------------------------------------------------------ balances
 
+/// The member site's plan balances answer.
+#[derive(Debug, Clone)]
+pub struct PlanBalances {
+    /// The members it names.
+    pub members: Vec<Member>,
+    pub balances: Vec<Balances>,
+    /// The members (patient ids) whose medical plan the site says counts
+    /// by calendar year, the only kind it names. It gives no dates.
+    pub calendar_year: Vec<String>,
+}
+
 /// The plan balances: each member's medical deductible and out-of-pocket
 /// progress against the plan's maximum, in and out of network, and the
 /// family's once. `as_of` is today: the site shows the balances as they
-/// stand. The plan year is the medical plan period's.
-fn balances(data: Value, today: &str) -> Result<(Vec<Member>, Vec<Balances>), CliError> {
+/// stand. Where the medical plan counts by calendar year, the balances'
+/// period is today's year; otherwise their plan year is the medical plan
+/// period's start, and they have no period.
+fn balances(data: Value, today: &str) -> Result<PlanBalances, CliError> {
     let data: SpendingData = decode(data, "plan balances")?;
     let s = data
         .spending_overviews
         .ok_or_else(|| CliError::Upstream("the member site's plan balances answer is empty".into()))?;
     let members = s.profile_v1.as_ref().map(members).unwrap_or_default();
+    // The dependents whose medical benefits count by calendar year: the
+    // site marks both the maximums and the progress.
+    let mut calendar: Vec<String> = Vec::new();
+    let mut mark = |seq: &Option<String>, b: &Benefit| {
+        let seq = text(seq).unwrap_or_default();
+        if is_medical(b) && by_calendar_year(b) && !calendar.contains(&seq) {
+            calendar.push(seq);
+        }
+    };
+    for dep in list(&s.benefits) {
+        for r in list(&dep.benefits_responses) {
+            list(&r.benefits).iter().for_each(|b| mark(&dep.dep_seq_nbr, b));
+        }
+    }
+    for dep in list(&s.accumulators) {
+        for summary in list(&dep.accumulator_summaries) {
+            list(&summary.benefits).iter().for_each(|b| mark(&dep.dep_seq_nbr, b));
+        }
+    }
+    let calendar_year: Vec<String> = members
+        .iter()
+        .filter(|m| {
+            let seq = m.site.as_ref().map(|s| s.dep_seq.as_str()).unwrap_or_default();
+            calendar.iter().any(|c| c == seq)
+        })
+        .map(|m| m.id.clone())
+        .collect();
     // (dep seq, network, type) to the maximum.
     let mut maxes: HashMap<(String, Network, String), Cents> = HashMap::new();
     for dep in list(&s.benefits) {
@@ -843,12 +884,19 @@ fn balances(data: Value, today: &str) -> Result<(Vec<Member>, Vec<Balances>), Cl
         let Some(m) = by_seq(&members, Some(&seq)) else {
             continue;
         };
-        let plan_year = m
-            .site
-            .as_ref()
-            .and_then(|s| s.plan_start.as_deref())
-            .and_then(|d| d.get(..4))
-            .and_then(|y| y.parse().ok());
+        let period = calendar_year
+            .contains(&m.id)
+            .then(|| BenefitPeriod::calendar_year_of(today))
+            .flatten();
+        let plan_year = match &period {
+            Some(p) => p.year(),
+            None => m
+                .site
+                .as_ref()
+                .and_then(|s| s.plan_start.as_deref())
+                .and_then(|d| d.get(..4))
+                .and_then(|y| y.parse().ok()),
+        };
         for summary in list(&dep.accumulator_summaries) {
             for b in list(&summary.benefits).iter().filter(|b| is_medical(b)) {
                 for (net, rows) in by_network(&b.accumulators) {
@@ -888,6 +936,7 @@ fn balances(data: Value, today: &str) -> Result<(Vec<Member>, Vec<Balances>), Cl
                             remaining: Cents((maximum.0 - used.0).max(0)),
                             met: used >= maximum,
                             document: None,
+                            period: period.clone(),
                         });
                     }
                 }
@@ -903,13 +952,23 @@ fn balances(data: Value, today: &str) -> Result<(Vec<Member>, Vec<Balances>), Cl
             b.limit,
         ))
     });
-    Ok((members, out))
+    Ok(PlanBalances {
+        members,
+        balances: out,
+        calendar_year,
+    })
 }
 
 fn is_medical(b: &Benefit) -> bool {
     b.coverage_type
         .as_deref()
         .is_some_and(|t| t.eq_ignore_ascii_case("MEDICAL"))
+}
+
+fn by_calendar_year(b: &Benefit) -> bool {
+    b.benefits_period_indicator
+        .as_deref()
+        .is_some_and(|i| i.trim().eq_ignore_ascii_case("CALENDAR_YEAR"))
 }
 
 fn by_network(n: &Option<ByNetwork>) -> [(Network, &[Accumulator]); 2] {
@@ -1044,6 +1103,12 @@ impl<'a> Site<'a> {
         &self.today
     }
 
+    /// Reads as of `today` (ISO) instead of the clock's day: a test's.
+    pub fn as_of(mut self, today: &str) -> Self {
+        self.today = today.to_string();
+        self
+    }
+
     /// Members and every claim, from [`FIRST_DAY`] to today.
     pub fn household(&self) -> Result<Household, CliError> {
         let data = self.client.query(
@@ -1071,8 +1136,9 @@ impl<'a> Site<'a> {
         apply_detail(claim, data)
     }
 
-    /// The plan balances, and the members the answer names.
-    pub fn balances(&self) -> Result<(Vec<Member>, Vec<Balances>), CliError> {
+    /// The plan balances, the members the answer names and which of them
+    /// the plan counts by calendar year.
+    pub fn balances(&self) -> Result<PlanBalances, CliError> {
         let data = self.client.query(&client::SPENDING, json!({}))?;
         balances(data, &self.today)
     }
@@ -1270,7 +1336,7 @@ mod tests {
         assert_eq!(c.claim.lines[0].description, "Imaging/radiology");
         assert_eq!(c.totals.billed, Cents(45500));
 
-        let eob = crate::fhir::explanation_of_benefit(&c, "Coverage/x", &[]);
+        let eob = crate::fhir::explanation_of_benefit(&c, "Coverage/x", &[], None);
         let first = &eob["item"][0]["productOrService"];
         assert_eq!(
             first["coding"],
@@ -1342,10 +1408,65 @@ mod tests {
         );
     }
 
+    /// The answer with every plan period starting on `start` and every
+    /// period indicator `indicator`.
+    fn spending_with(start: &str, indicator: Value) -> Value {
+        let text = fixture("spending.json")
+            .to_string()
+            .replace("\"2026-01-01\"", &format!("\"{start}\""))
+            .replace("\"CALENDAR_YEAR\"", &indicator.to_string());
+        serde_json::from_str(&text).unwrap()
+    }
+
+    #[test]
+    fn a_calendar_year_plan_counts_from_january_whenever_coverage_began() {
+        // Coverage that took effect in November of the year before.
+        let b = balances(spending_with("2025-11-06", json!("CALENDAR_YEAR")), "2026-11-17").unwrap();
+        let year = BenefitPeriod {
+            start: "2026-01-01".into(),
+            end: "2026-12-31".into(),
+        };
+        assert!(b
+            .balances
+            .iter()
+            .all(|r| r.plan_year == Some(2026) && r.period.as_ref() == Some(&year)));
+        // Through the new year the period is the new year's.
+        let b = balances(spending_with("2025-11-06", json!("CALENDAR_YEAR")), "2027-01-02").unwrap();
+        assert!(b.balances.iter().all(|r| r.plan_year == Some(2027)
+            && r.period
+                .as_ref()
+                .is_some_and(|p| p.start == "2027-01-01" && p.end == "2027-12-31")));
+    }
+
+    #[test]
+    fn without_the_calendar_year_mark_balances_have_no_period() {
+        for indicator in [json!(null), json!("PLAN_YEAR")] {
+            let b = balances(spending_with("2025-11-06", indicator.clone()), "2026-11-17").unwrap();
+            assert!(b.calendar_year.is_empty(), "{indicator}");
+            assert_eq!(b.balances.len(), 16);
+            assert!(
+                b.balances
+                    .iter()
+                    .all(|r| r.period.is_none() && r.plan_year == Some(2025)),
+                "{indicator}: the plan year is the plan period's start"
+            );
+        }
+    }
+
     #[test]
     fn balances_are_each_members_and_the_familys_once() {
-        let (members, rows) = balances(fixture("spending.json"), "2026-11-17").unwrap();
+        let PlanBalances {
+            members,
+            balances: rows,
+            calendar_year,
+        } = balances(fixture("spending.json"), "2026-11-17").unwrap();
         assert_eq!(members.len(), 3);
+        let year = BenefitPeriod {
+            start: "2026-01-01".into(),
+            end: "2026-12-31".into(),
+        };
+        assert_eq!(calendar_year.len(), 3, "the medical plan counts by calendar year");
+        assert!(rows.iter().all(|r| r.period.as_ref() == Some(&year)));
         // Three members and the family, two networks, two limits.
         assert_eq!(rows.len(), 16);
         let alex = patient_id("SYNM000001", "ALEX");

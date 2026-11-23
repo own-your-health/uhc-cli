@@ -231,6 +231,33 @@ pub struct Balances {
     pub met: bool,
     /// The statement that printed them; none for the site's.
     pub document: Option<String>,
+    /// The dates the balances count from and to, where the source gives
+    /// them; a statement prints only the plan year's number.
+    pub period: Option<BenefitPeriod>,
+}
+
+/// A plan's benefit period: the days its deductible and out-of-pocket
+/// limit count from and to, ISO.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BenefitPeriod {
+    pub start: String,
+    pub end: String,
+}
+
+impl BenefitPeriod {
+    /// The calendar year `day` (ISO) falls in.
+    pub fn calendar_year_of(day: &str) -> Option<BenefitPeriod> {
+        let year: u16 = day.get(..4)?.parse().ok()?;
+        Some(BenefitPeriod {
+            start: format!("{year:04}-01-01"),
+            end: format!("{year:04}-12-31"),
+        })
+    }
+
+    /// The year it starts in.
+    pub fn year(&self) -> Option<i32> {
+        self.start.get(..4)?.parse().ok()
+    }
 }
 
 /// The patient id for a member: stable across statements, carries no name.
@@ -507,6 +534,7 @@ impl Book {
                     remaining: r.remaining,
                     met: r.met,
                     document: Some(f.id.clone()),
+                    period: None,
                 });
             }
         }
@@ -570,6 +598,7 @@ impl Book {
                                 remaining: r.remaining,
                                 met: r.met,
                                 document: Some(f.id.clone()),
+                                period: None,
                             },
                         );
                     }

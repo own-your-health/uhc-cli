@@ -17,7 +17,8 @@ use sha2::{Digest, Sha256};
 use crate::cents::Cents;
 use crate::eob::{Amounts, Limit, Network};
 use crate::model::{
-    hex, Balances, ClaimKind, ClaimRecord, Member, Origin, SiteDocument, StatementFile, ORGANIZATION, ORGANIZATION_NAME,
+    hex, Balances, BenefitPeriod, ClaimKind, ClaimRecord, Member, Origin, SiteDocument, StatementFile, ORGANIZATION,
+    ORGANIZATION_NAME,
 };
 
 pub const META_SOURCE: &str = "uhc:eob-pdf";
@@ -296,8 +297,14 @@ pub fn binary_id(file_id: &str, patient: &str) -> String {
 }
 
 /// One claim. `balances` are the plan balances its statement printed for
-/// this patient and the family.
-pub fn explanation_of_benefit(c: &ClaimRecord, coverage: &str, balances: &[&Balances]) -> Value {
+/// this patient and the family; `period` the benefit period it was served
+/// in.
+pub fn explanation_of_benefit(
+    c: &ClaimRecord,
+    coverage: &str,
+    balances: &[&Balances],
+    period: Option<&BenefitPeriod>,
+) -> Value {
     let mut v = json!({
         "resourceType": "ExplanationOfBenefit",
         "id": c.id,
@@ -438,6 +445,9 @@ pub fn explanation_of_benefit(c: &ClaimRecord, coverage: &str, balances: &[&Bala
                 .map(|(n, (code, text))| json!({ "number": n + 1, "type": "print", "text": format!("{code} -- {text}") }))
                 .collect(),
         );
+    }
+    if let Some(p) = period {
+        v["benefitPeriod"] = json!({ "start": p.start, "end": p.end });
     }
     if !balances.is_empty() {
         v["benefitBalance"] = Value::Array(benefit_balance(balances));
