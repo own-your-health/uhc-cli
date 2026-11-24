@@ -174,13 +174,21 @@ code system's display text:
 | --- | --- | --- |
 | Amount billed | `chargedAmount`; `totalBilledAmount` | `submitted` (HL7) |
 | Your plan discount / Saved | `providerWriteOff`; `healthPlanDiscount` | `discount` (CARIN) |
-| Amount allowed | `allowedAmount`, else charged less the write-off; billed less the discount | `eligible` (HL7) |
+| Amount allowed | `allowedAmount`, else charged less the write-off; billed less the discount, where the discount leaves out the write-offs of lines the billed total omits (below). An `eligible` entry below zero is left out, not written; zero is written | `eligible` (HL7) |
 | Plan paid | `planPaidAmount`; `healthPlanPay` | `benefit` (HL7) |
 | Deductible | `deductible` | `deductible` (HL7) |
 | Copay | `copay` | `copay` (HL7) |
 | Coinsurance | `coinsurance`; `claimCoinsurance` | `coinsurance` (CARIN) |
 | Not covered | `memberNotCoveredAmount`; `claimMemberNotCovered` | `noncovered` (CARIN) |
 | You owe | `patientResponsibility` | `memberliability` (CARIN) |
+
+A claim's `totalBilledAmount` can leave out a line the provider wrote off
+in full while `healthPlanDiscount` still counts that write-off. Where the
+lines' charges exceed the billed total by exactly the charges of the lines
+written off in full (charged equals the write-off, nothing allowed, paid or
+owed), uhc takes those write-offs out of the claim's discount, so the
+discount and the allowed amount are the counted lines'. The lines are
+written as the site gives them.
 
 The site's claims list gives one claim's totals as a summary whose
 `other` is coinsurance and the not-covered amount together; `claims list`

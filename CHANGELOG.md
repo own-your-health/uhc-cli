@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: a member-site claim's allowed amount (FHIR `eligible`, `allowed`
+  in `claims get --json`) could be negative. The site's billed total can
+  leave out a line the provider wrote off in full while its discount still
+  counts that write-off, so billed less the discount fell below zero. When
+  the lines' charges exceed the billed total by exactly the charges of the
+  lines written off in full, the claim's discount (`saved`) now leaves
+  those write-offs out too, and the allowed amount is the counted lines'.
+  The lines themselves are unchanged.
+- An ExplanationOfBenefit never carries a negative `eligible` amount: where
+  the totals still do not add up, the claim or line has no `eligible`
+  entry.
+
 ## v0.3.4
 
 - The member site's plan balances answer says how the medical plan
