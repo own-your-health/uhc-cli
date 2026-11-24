@@ -39,7 +39,7 @@ invented, in the dummy shapes above and below.
 | File | The answer to |
 |---|---|
 | `claims.json` | `claims`: the profile and `healthcareClaims.claims[]` |
-| `claim-detail-*.json` | `claimDetails`, one claim each: office visit, professional (CPT and HCPCS), institutional (a revenue code), dental (CDT, a tooth range), reprocessed, denied, suffixed (procedure codes with one more character), written-off (a line written off in full, left out of the billed total but counted in the discount) |
+| `claim-detail-*.json` | `claimDetails`, one claim each: office visit, professional (CPT and HCPCS), institutional (a revenue code), dental (CDT, a tooth range), reprocessed, denied, suffixed (procedure codes with one more character), written-off (a line written off in full, left out of the billed total but counted in the discount), replaced (a line the site replaced with another code, left out of the billed total and the amount owed, beside a counted line of the same charge and a counted line written off in full) |
 | `spending.json` | `spending`: the profile, `benefits[]` (maximums), `accumulators[]` |
 | `documents.json` | `documents`: `multiDocTypeListSummary.documents[]`, with one of the plan's general forms (no member, no date), which uhc leaves out |
 | `unauthorized.json` | any read without a session: `401 application/json` |

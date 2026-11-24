@@ -1,0 +1,239 @@
+{
+  "data": {
+    "claimDetailsAggregate": {
+      "healthCareClaimDetails": {
+        "claimId": "SYNC000000",
+        "claimIdSuffix": "08",
+        "claimKey": "SYNK-002",
+        "claimType": "MEDICAL",
+        "claimStatus": "PROCESSED",
+        "claimNetworkStatus": "IN_NETWORK",
+        "providerName": "EXAMPLE HOSPITAL",
+        "claimDates": {
+          "dateProcessed": "2026-08-16",
+          "serviceStartDate": "2026-08-12",
+          "lastServiceDate": "2026-08-12"
+        },
+        "balance": {
+          "totalBilledAmount": {
+            "value": "400.00",
+            "iso4217": "USD"
+          },
+          "healthPlanDiscount": {
+            "value": "250.00",
+            "iso4217": "USD"
+          },
+          "healthPlanPay": {
+            "value": "120.00",
+            "iso4217": "USD"
+          },
+          "deductible": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "copay": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "claimCoinsurance": {
+            "value": "30.00",
+            "iso4217": "USD"
+          },
+          "claimMemberNotCovered": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "patientResponsibility": {
+            "value": "30.00",
+            "iso4217": "USD"
+          }
+        },
+        "serviceLines": [
+          {
+            "serviceDate": "2026-08-12",
+            "lastServiceDate": "2026-08-12",
+            "procedures": [
+              {
+                "code": "99284",
+                "description": "Emergency department visit"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "99284",
+              "description": "Emergency department visit"
+            },
+            "providedServiceInfo": {
+              "code": "99284",
+              "description": "Emergency department visit"
+            },
+            "serviceRemarks": [
+              {
+                "code": "D2",
+                "description": "You have received a discount for using a health care professional in your plan's network."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "300.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "150.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "120.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "30.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "30.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-08-12",
+            "lastServiceDate": "2026-08-12",
+            "procedures": [
+              {
+                "code": "99285",
+                "description": "Emergency department visit, high complexity"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "99285",
+              "description": "Emergency department visit, high complexity"
+            },
+            "providedServiceInfo": {
+              "code": "99285",
+              "description": "Emergency department visit, high complexity"
+            },
+            "serviceRemarks": [
+              {
+                "code": "R1",
+                "description": "This code was replaced by the line below."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "300.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "300.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "300.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-08-12",
+            "lastServiceDate": "2026-08-12",
+            "procedures": [
+              {
+                "code": "71046",
+                "description": "Chest x-ray, 2 views"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "71046",
+              "description": "Chest x-ray, 2 views"
+            },
+            "providedServiceInfo": {
+              "code": "71046",
+              "description": "Chest x-ray, 2 views"
+            },
+            "serviceRemarks": [
+              {
+                "code": "D2",
+                "description": "You have received a discount for using a health care professional in your plan's network."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "100.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "100.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "0.00",
+                "iso4217": "USD"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

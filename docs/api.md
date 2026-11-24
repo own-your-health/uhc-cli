@@ -316,13 +316,22 @@ How the answers read:
   no `benefitDetails` at all. Home health care and private-duty nursing
   are only in the certificate of coverage, not the benefit pages.
 - `uhc.com`'s legal pages answer `403` to fetch tools.
-- A claim's `balance.totalBilledAmount` can leave out a service line the
-  provider wrote off in full (charged equals `providerWriteOff`, nothing
-  else) while `balance.healthPlanDiscount` still counts its write-off, so
-  billed less the discount is negative. In other claims a line of that
-  shape is in both. uhc takes the write-off out of the discount only when
-  the lines' charges exceed the billed total by exactly such lines'
-  charges (`portal::left_out_write_off`).
+- A claim's `balance.totalBilledAmount` and `patientResponsibility` can
+  leave out a service line that stays in `serviceLines[]` with its own
+  amounts. Two kinds have been seen:
+  - a code the site replaced with another, all of it not covered and owed;
+  - a line the provider wrote off in full (charged equals
+    `providerWriteOff`), whose write-off `balance.healthPlanDiscount` still
+    counts, so billed less the discount can be negative.
+
+  Lines of both shapes also occur counted, so the shape does not decide
+  it. Nothing on the line marks it: `lineAdjudicationStatus` and
+  `deniedClaimInfo` were null or empty on every such line read. Its remark
+  codes differed from the counted lines' in every claim read. uhc finds
+  the lines from the amounts instead (`portal::left_out_lines`): the one
+  set the plan paid nothing on whose charges and amounts owed make up
+  exactly what the totals are short. docs/fhir.md gives when it marks
+  none.
 - The site's own claim page (`GetHealthcareClaimDetails`) asks for more
   than uhc does. On each service line it adds `lineAdjudicationStatus`,
   `deniedClaimInfo` (`explanation`, `category`, `cta`), `billingCode`,
@@ -330,7 +339,9 @@ How the answers read:
   `claimDisposition`, `isReprocessedClaim`, `balance.totalContractAmount`,
   `balance.claimAdjustmentAmount` (shown in place of `healthPlanPay` when
   present) and `claimHistory[]` (past claim ids, keys, dates and statuses,
-  nothing per line). Their values are unread.
+  nothing per line). uhc reads none of them. On the claims read for
+  left-out lines, every one of the line fields and `totalContractAmount`
+  was null or empty.
 - `procedures[].code` is sometimes a CPT or HCPCS code with one more letter
   or digit (`710467`), and the site gives no field that says what the
   character means. Its claim page shows `procedures[0].code` only on dental
