@@ -10,10 +10,13 @@
   - FHIR: the line's `item.adjudication` gains an entry, category
     `https://github.com/own-your-health/uhc-cli/fhir/adjudication` code
     `not-counted`, with no amount.
-  - `claims get --json` (`claim/v1`): the line gains `"counted": false`.
+  - `claims get --json` (`claim/v1`): every line gains `counted`, `false`
+    on such a line.
   - The lines are the one set the plan paid nothing on whose charges and
     amounts owed are exactly what the totals are short of all the lines'.
-    Where no set fits, or more than one does, no line is marked.
+    No line is marked when no set fits, when more than one does, when the
+    lines' plan paid differs from the claim's, or when more than 16 lines
+    are candidates.
 - The discount rule from v0.3.5 now uses the same lines: a left-out line's
   write-off is taken out of the claim's discount. A claim that v0.3.5
   corrected gives the same totals.

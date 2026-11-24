@@ -330,7 +330,8 @@ How the answers read:
   codes differed from the counted lines' in every claim read. uhc finds
   the lines from the amounts instead (`portal::left_out_lines`): the one
   set the plan paid nothing on whose charges and amounts owed make up
-  exactly what the totals are short.
+  exactly what the totals are short. docs/fhir.md gives when it marks
+  none.
 - The site's own claim page (`GetHealthcareClaimDetails`) asks for more
   than uhc does. On each service line it adds `lineAdjudicationStatus`,
   `deniedClaimInfo` (`explanation`, `category`, `cta`), `billingCode`,

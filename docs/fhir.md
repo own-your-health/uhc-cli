@@ -188,7 +188,9 @@ provider wrote off in full, whose write-off `healthPlanDiscount` still
 counts. uhc finds them from the amounts: the one set of lines the plan paid
 nothing on whose charges and amounts owed are exactly what
 `totalBilledAmount` and `patientResponsibility` are short of all the lines'.
-Where no set fits, or more than one does, none is marked. Each such line's
+None is marked when no set fits, when more than one does, when the lines'
+plan paid differs from the claim's `healthPlanPay`, or when more than 16
+lines are candidates. Each such line's
 `item.adjudication` gains an entry with category code `not-counted` in
 `https://github.com/own-your-health/uhc-cli/fhir/adjudication` and no
 amount; its other amounts are the site's. Their write-offs are taken out of
