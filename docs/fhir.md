@@ -174,7 +174,7 @@ code system's display text:
 | --- | --- | --- |
 | Amount billed | `chargedAmount`; `totalBilledAmount` | `submitted` (HL7) |
 | Your plan discount / Saved | `providerWriteOff`; `healthPlanDiscount` | `discount` (CARIN) |
-| Amount allowed | `allowedAmount`, else charged less the write-off; billed less the discount, after the discount fix below. Never negative: left out where it would be | `eligible` (HL7) |
+| Amount allowed | `allowedAmount`, else charged less the write-off; billed less the discount, where the discount leaves out the write-offs of lines the billed total omits (below). An `eligible` entry below zero is left out, not written; zero is written | `eligible` (HL7) |
 | Plan paid | `planPaidAmount`; `healthPlanPay` | `benefit` (HL7) |
 | Deductible | `deductible` | `deductible` (HL7) |
 | Copay | `copay` | `copay` (HL7) |
