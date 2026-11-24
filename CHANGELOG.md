@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.5
 
 - Fixed: a member-site claim's allowed amount (FHIR `eligible`, `allowed`
   in `claims get --json`) could be negative. The site's billed total can
