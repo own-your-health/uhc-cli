@@ -304,4 +304,4 @@ See `AGENTS.md` and `CONTRIBUTING.md`.
 
 ## License
 
-MIT or Apache-2.0, at your option.
+Copyright (C) 2026 piekstra. Licensed under the GNU Affero General Public License, version 3 only (AGPL-3.0-only); see LICENSE. Releases up to and including v0.3.5 were published under MIT OR Apache-2.0.
