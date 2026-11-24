@@ -76,7 +76,8 @@ jobs:
           for t in ${{ matrix.targets }}; do
             rustup target add "$t"
             cargo build --release --locked --target "$t"
-            tar -C "target/$t/release" -czf "uhc-$t.tar.gz" uhc
+            # The license travels with the binary (AGPL-3.0-only).
+            tar -czf "uhc-$t.tar.gz" -C "target/$t/release" uhc -C "$PWD" LICENSE
             sha256 "uhc-$t.tar.gz" > "uhc-$t.tar.gz.sha256"
           done
       # A binary that builds and then fails at startup is not published. The

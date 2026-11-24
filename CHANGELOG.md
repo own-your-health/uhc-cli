@@ -1,7 +1,10 @@
 # Changelog
 
-## Unreleased
+## v0.3.6
 
+- Licensed under AGPL-3.0-only from this release; releases up to and
+  including v0.3.5 were published under MIT OR Apache-2.0. Each release
+  archive carries `LICENSE` beside the binary.
 - A member-site claim's line that the claim's totals leave out is marked.
   The site keeps such a line in the claim with its own amounts: a code it
   replaced with another (all of it not covered and owed), or a line the
