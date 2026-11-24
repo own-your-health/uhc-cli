@@ -680,6 +680,27 @@ fn household(data: Value) -> Result<Household, CliError> {
     Ok(house)
 }
 
+/// The write-off to take out of a claim's discount: the site's billed total
+/// can leave out lines the provider wrote off in full while its discount
+/// still counts their write-off, which makes billed less discount negative.
+/// Taken out only when those lines' charges are exactly what the billed total
+/// is short of all the lines' charges, and the discount covers them.
+fn left_out_write_off(lines: &[ClaimLine], billed: Cents, discount: Cents) -> i64 {
+    let charged: i64 = lines.iter().map(|l| l.amounts.billed.0).sum();
+    let short = charged - billed.0;
+    let written_off: i64 = lines
+        .iter()
+        .map(|l| l.amounts)
+        .filter(|a| a.billed.0 > 0 && a.saved == a.billed && a.allowed.0 == 0 && a.plan_paid.0 == 0 && a.you_owe.0 == 0)
+        .map(|a| a.billed.0)
+        .sum();
+    if short > 0 && short == written_off && discount.0 >= short {
+        short
+    } else {
+        0
+    }
+}
+
 /// A claim's detail read into it: its lines with their procedure, revenue
 /// and remark codes, the detail's totals (coinsurance and the not-covered
 /// amount apart), and whether it is institutional (a revenue code) or
@@ -769,6 +790,7 @@ fn apply_detail(c: &mut ClaimRecord, data: Value) -> Result<(), CliError> {
         let c_ = |m: &Option<Money>| Money::cents(m).unwrap_or_default();
         let billed = c_(&b.total_billed_amount);
         let saved = c_(&b.health_plan_discount);
+        let saved = Cents(saved.0 - left_out_write_off(&lines, billed, saved));
         c.totals = Amounts {
             billed,
             saved,
@@ -1406,6 +1428,33 @@ mod tests {
             Cents(12000),
             "the dental answer's own allowed amount"
         );
+    }
+
+    /// A line the provider wrote off in full, left out of the billed total
+    /// but counted in the discount: the claim's discount and allowed amount
+    /// are the counted line's. Counted in the billed total too, it changes
+    /// nothing.
+    #[test]
+    fn a_written_off_line_left_out_of_the_billed_total_leaves_the_discount() {
+        let h = house();
+        let mut c = claim(&h, "cSYNC00000008").clone();
+        apply_detail(&mut c, fixture("claim-detail-written-off.json")).unwrap();
+        assert_eq!(c.totals.billed, Cents(25000));
+        assert_eq!(c.totals.saved, Cents(10000), "the counted line's write-off");
+        assert_eq!(c.totals.allowed, Cents(15000));
+        assert_eq!(c.totals.plan_paid, Cents(12000));
+        assert_eq!(c.totals.you_owe, Cents(3000));
+        assert_eq!(c.claim.lines.len(), 2, "the written-off line is kept");
+        assert_eq!(c.claim.lines[0].amounts.allowed, Cents(0));
+
+        let mut counted = fixture("claim-detail-written-off.json");
+        counted["claimDetailsAggregate"]["healthCareClaimDetails"]["balance"]["totalBilledAmount"]["value"] =
+            json!("650.00");
+        let mut c = claim(&h, "cSYNC00000008").clone();
+        apply_detail(&mut c, counted).unwrap();
+        assert_eq!(c.totals.billed, Cents(65000));
+        assert_eq!(c.totals.saved, Cents(50000));
+        assert_eq!(c.totals.allowed, Cents(15000));
     }
 
     /// The answer with every plan period starting on `start` and every

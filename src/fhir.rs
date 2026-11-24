@@ -277,6 +277,9 @@ fn adjudication(a: &Amounts) -> Vec<Value> {
         (C4BB_ADJUDICATION, "memberliability", "Member liability", a.you_owe),
     ];
     rows.iter()
+        // An eligible amount is never negative; one derived from totals that
+        // do not add up is left out rather than written.
+        .filter(|(_, code, _, amount)| !(*code == "eligible" && amount.0 < 0))
         .map(|(system, code, display, amount)| {
             json!({
                 "category": { "coding": [{ "system": system, "code": code, "display": display }] },
@@ -609,6 +612,27 @@ mod tests {
             SITE_PROCEDURE_SYSTEM,
             "https://github.com/own-your-health/uhc-cli/fhir/site-procedure-code"
         );
+    }
+
+    #[test]
+    fn a_negative_eligible_amount_is_left_out() {
+        let codes = |a: &Amounts| -> Vec<String> {
+            adjudication(a)
+                .iter()
+                .map(|r| r["category"]["coding"][0]["code"].as_str().unwrap().to_string())
+                .collect()
+        };
+        let mut a = Amounts {
+            billed: Cents(25000),
+            saved: Cents(50000),
+            allowed: Cents(-25000),
+            plan_paid: Cents(12000),
+            ..Amounts::default()
+        };
+        assert!(!codes(&a).contains(&"eligible".to_string()), "{:?}", codes(&a));
+        assert_eq!(codes(&a).len(), 8);
+        a.allowed = Cents(0);
+        assert!(codes(&a).contains(&"eligible".to_string()), "zero is written");
     }
 
     #[test]
