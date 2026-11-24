@@ -969,6 +969,9 @@ pub(crate) fn claim_json(c: &ClaimRecord, detail: bool) -> Value {
                 if let Some(t) = &l.tooth {
                     lv.insert("tooth".into(), t.clone().into());
                 }
+                if l.left_out {
+                    lv.insert("counted".into(), false.into());
+                }
                 lv.extend(amounts_json(&l.amounts));
                 Value::Object(lv)
             })

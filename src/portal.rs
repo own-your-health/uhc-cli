@@ -680,25 +680,49 @@ fn household(data: Value) -> Result<Household, CliError> {
     Ok(house)
 }
 
-/// The write-off to take out of a claim's discount: the site's billed total
-/// can leave out lines the provider wrote off in full while its discount
-/// still counts their write-off, which makes billed less discount negative.
-/// Taken out only when those lines' charges are exactly what the billed total
-/// is short of all the lines' charges, and the discount covers them.
-fn left_out_write_off(lines: &[ClaimLine], billed: Cents, discount: Cents) -> i64 {
-    let charged: i64 = lines.iter().map(|l| l.amounts.billed.0).sum();
-    let short = charged - billed.0;
-    let written_off: i64 = lines
-        .iter()
-        .map(|l| l.amounts)
-        .filter(|a| a.billed.0 > 0 && a.saved == a.billed && a.allowed.0 == 0 && a.plan_paid.0 == 0 && a.you_owe.0 == 0)
-        .map(|a| a.billed.0)
-        .sum();
-    if short > 0 && short == written_off && discount.0 >= short {
-        short
-    } else {
-        0
+/// The most lines [`left_out_lines`] tries sets of: 2^16 sets at most.
+const LEFT_OUT_CANDIDATES: usize = 16;
+
+/// The lines a claim's totals leave out, by index. The site's billed total
+/// and amount owed can leave out a line it replaced with another code, or
+/// one the provider wrote off in full, while the line stays in the answer
+/// with its own amounts (and the discount still counts its write-off). They
+/// are the one set of lines the plan paid nothing on whose charges and
+/// amounts owed are exactly what the totals are short of all the lines'.
+/// None when the lines' plan paid differs from the total, when no set fits,
+/// or when more than one does.
+fn left_out_lines(lines: &[ClaimLine], billed: Cents, plan_paid: Cents, you_owe: Cents) -> Vec<usize> {
+    let sum = |f: fn(&Amounts) -> Cents| lines.iter().map(|l| f(&l.amounts).0).sum::<i64>();
+    let short_billed = sum(|a| a.billed) - billed.0;
+    let short_owed = sum(|a| a.you_owe) - you_owe.0;
+    if short_billed <= 0 || sum(|a| a.plan_paid) != plan_paid.0 {
+        return Vec::new();
     }
+    let candidates: Vec<usize> = (0..lines.len())
+        .filter(|&i| lines[i].amounts.plan_paid.0 == 0 && lines[i].amounts.billed.0 > 0)
+        .collect();
+    if candidates.is_empty() || candidates.len() > LEFT_OUT_CANDIDATES {
+        return Vec::new();
+    }
+    let pick = |mask: u32| -> Vec<usize> {
+        (0..candidates.len())
+            .filter(|k| mask & (1 << k) != 0)
+            .map(|k| candidates[k])
+            .collect()
+    };
+    let mut found = None;
+    for mask in 1u32..(1 << candidates.len()) {
+        let set = pick(mask);
+        let charged: i64 = set.iter().map(|&i| lines[i].amounts.billed.0).sum();
+        let owed: i64 = set.iter().map(|&i| lines[i].amounts.you_owe.0).sum();
+        if charged == short_billed && owed == short_owed {
+            if found.is_some() {
+                return Vec::new();
+            }
+            found = Some(set);
+        }
+    }
+    found.unwrap_or_default()
 }
 
 /// A claim's detail read into it: its lines with their procedure, revenue
@@ -784,18 +808,30 @@ fn apply_detail(c: &mut ClaimRecord, data: Value) -> Result<(), CliError> {
             procedure_suffix,
             revenue,
             tooth: text(&l.tooth_number),
+            left_out: false,
         });
     }
     if let Some(b) = &d.balance {
         let c_ = |m: &Option<Money>| Money::cents(m).unwrap_or_default();
         let billed = c_(&b.total_billed_amount);
-        let saved = c_(&b.health_plan_discount);
-        let saved = Cents(saved.0 - left_out_write_off(&lines, billed, saved));
+        let plan_paid = c_(&b.health_plan_pay);
+        let left_out = left_out_lines(&lines, billed, plan_paid, c_(&b.patient_responsibility));
+        for &i in &left_out {
+            lines[i].left_out = true;
+        }
+        // The discount still counts a left-out line's write-off.
+        let discount = c_(&b.health_plan_discount);
+        let written_off: i64 = left_out.iter().map(|&i| lines[i].amounts.saved.0).sum();
+        let saved = if discount.0 >= written_off {
+            Cents(discount.0 - written_off)
+        } else {
+            discount
+        };
         c.totals = Amounts {
             billed,
             saved,
             allowed: Cents(billed.0 - saved.0),
-            plan_paid: c_(&b.health_plan_pay),
+            plan_paid,
             deductible: c_(&b.deductible),
             copay: c_(&b.copay),
             coinsurance: c_(&b.claim_coinsurance),
@@ -1446,6 +1482,8 @@ mod tests {
         assert_eq!(c.totals.you_owe, Cents(3000));
         assert_eq!(c.claim.lines.len(), 2, "the written-off line is kept");
         assert_eq!(c.claim.lines[0].amounts.allowed, Cents(0));
+        let left_out: Vec<bool> = c.claim.lines.iter().map(|l| l.left_out).collect();
+        assert_eq!(left_out, [true, false]);
 
         let mut counted = fixture("claim-detail-written-off.json");
         counted["claimDetailsAggregate"]["healthCareClaimDetails"]["balance"]["totalBilledAmount"]["value"] =
@@ -1455,6 +1493,76 @@ mod tests {
         assert_eq!(c.totals.billed, Cents(65000));
         assert_eq!(c.totals.saved, Cents(50000));
         assert_eq!(c.totals.allowed, Cents(15000));
+        assert!(c.claim.lines.iter().all(|l| !l.left_out));
+    }
+
+    /// A line the site replaced with another code: out of the billed total
+    /// and the amount owed, all of it not covered. A line of the same charge
+    /// that the plan paid on, and a counted line written off in full, are
+    /// not it. Its EOB item says so; the claim's totals are the site's.
+    #[test]
+    fn a_replaced_line_is_marked_left_out() {
+        let h = house();
+        let mut c = claim(&h, "cSYNC00000008").clone();
+        apply_detail(&mut c, fixture("claim-detail-replaced.json")).unwrap();
+        let left_out: Vec<bool> = c.claim.lines.iter().map(|l| l.left_out).collect();
+        assert_eq!(left_out, [false, true, false]);
+        assert_eq!(c.totals.billed, Cents(40000));
+        assert_eq!(c.totals.saved, Cents(25000), "a replaced line wrote nothing off");
+        assert_eq!(c.totals.allowed, Cents(15000));
+        assert_eq!(c.totals.you_owe, Cents(3000));
+
+        let eob = crate::fhir::explanation_of_benefit(&c, "Coverage/x", &[], None);
+        let marks: Vec<bool> = eob["item"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| {
+                item["adjudication"].as_array().unwrap().iter().any(|a| {
+                    a["category"]["coding"][0]["system"] == crate::fhir::ADJUDICATION_SYSTEM
+                        && a["category"]["coding"][0]["code"] == "not-counted"
+                })
+            })
+            .collect();
+        assert_eq!(marks, [false, true, false]);
+    }
+
+    fn line(billed: i64, paid: i64, owed: i64) -> ClaimLine {
+        ClaimLine {
+            amounts: Amounts {
+                billed: Cents(billed),
+                plan_paid: Cents(paid),
+                you_owe: Cents(owed),
+                ..Amounts::default()
+            },
+            ..ClaimLine::default()
+        }
+    }
+
+    /// Two sets that fit as well as each other mark nothing, and neither do
+    /// totals that leave nothing out or a plan paid that is not the lines'.
+    #[test]
+    fn left_out_lines_need_exactly_one_set_that_fits() {
+        let lines = [line(500, 200, 0), line(300, 0, 300), line(300, 0, 300)];
+        assert!(
+            left_out_lines(&lines, Cents(800), Cents(200), Cents(300)).is_empty(),
+            "two fit"
+        );
+        let lines = [line(500, 200, 0), line(300, 0, 300), line(100, 0, 0)];
+        assert_eq!(left_out_lines(&lines, Cents(600), Cents(200), Cents(0)), [1]);
+        assert!(
+            left_out_lines(&lines, Cents(900), Cents(200), Cents(300)).is_empty(),
+            "nothing short"
+        );
+        assert!(
+            left_out_lines(&lines, Cents(600), Cents(150), Cents(0)).is_empty(),
+            "paid differs"
+        );
+        let many: Vec<ClaimLine> = (0..=LEFT_OUT_CANDIDATES).map(|_| line(100, 0, 0)).collect();
+        assert!(
+            left_out_lines(&many, Cents(100), Cents(0), Cents(0)).is_empty(),
+            "too many to try"
+        );
     }
 
     /// The answer with every plan period starting on `start` and every

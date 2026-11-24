@@ -140,7 +140,7 @@ record, so they are kept apart rather than merged on a guess.
 | `supportingInfo` | `info` with `valueReference` to the statement's `DocumentReference`, or to the latest site EOB listing the claim when the stream carries it; `patientaccountnumber` |
 | `adjudication` | Status, or the site's `claimNetworkStatus`, as CARIN STU2's `benefitpaymentstatus` (`C4BBAdjudicationDiscriminator`) with reason `innetwork` / `outofnetwork` (`C4BBPayerAdjudicationStatus`) |
 | `insurance` | the member's `Coverage` |
-| `item[]` | each service line: `productOrService` (below), `revenue` (the site's revenue code, NUBC `https://www.nubc.org/CodeSystem/RevenueCodes`), `bodySite.text` (the site's tooth or tooth range), `servicedDate` or `servicedPeriod`, `noteNumber` for its codes, `net` the billed amount, `adjudication` |
+| `item[]` | each service line: `productOrService` (below), `revenue` (the site's revenue code, NUBC `https://www.nubc.org/CodeSystem/RevenueCodes`), `bodySite.text` (the site's tooth or tooth range), `servicedDate` or `servicedPeriod`, `noteNumber` for its codes, `net` the billed amount, `adjudication`, with a `not-counted` entry on a line the claim's totals leave out (below) |
 | `total[]` | the "Total amount" row |
 | `processNote[]` | "XX -- text", numbered in code order, `type` `print`: a statement's processing codes, or the site's line remark codes (`serviceRemarks`), which are the same codes |
 | `benefitPeriod` | from the site, where the medical plan counts by calendar year (`benefitsPeriodIndicator` `CALENDAR_YEAR`): the calendar year of the claim's first service date, the same in every export. The site gives no dates, and it describes only the current plan, so uhc assumes earlier years counted the same way. None when the plan balances could not be read (the trailer's `skipped[]` says so), and none from a statement, which prints the plan year's number only |
@@ -182,13 +182,18 @@ code system's display text:
 | Not covered | `memberNotCoveredAmount`; `claimMemberNotCovered` | `noncovered` (CARIN) |
 | You owe | `patientResponsibility` | `memberliability` (CARIN) |
 
-A claim's `totalBilledAmount` can leave out a line the provider wrote off
-in full while `healthPlanDiscount` still counts that write-off. Where the
-lines' charges exceed the billed total by exactly the charges of the lines
-written off in full (charged equals the write-off, nothing allowed, paid or
-owed), uhc takes those write-offs out of the claim's discount, so the
-discount and the allowed amount are the counted lines'. The lines are
-written as the site gives them.
+A claim's totals can leave out a line the site keeps in the claim: a code
+it replaced with another (all of it not covered and owed), or a line the
+provider wrote off in full, whose write-off `healthPlanDiscount` still
+counts. uhc finds them from the amounts: the one set of lines the plan paid
+nothing on whose charges and amounts owed are exactly what
+`totalBilledAmount` and `patientResponsibility` are short of all the lines'.
+Where no set fits, or more than one does, none is marked. Each such line's
+`item.adjudication` gains an entry with category code `not-counted` in
+`https://github.com/own-your-health/uhc-cli/fhir/adjudication` and no
+amount; its other amounts are the site's. Their write-offs are taken out of
+the claim's discount, so the discount and the allowed amount are the
+counted lines'.
 
 The site's claims list gives one claim's totals as a summary whose
 `other` is coinsurance and the not-covered amount together; `claims list`

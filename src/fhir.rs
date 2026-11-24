@@ -41,6 +41,9 @@ pub const BENEFIT_TYPE_SYSTEM: &str = "https://github.com/piekstra/uhc-cli/fhir/
 // The site's procedure code as it sent it, where it appended a character to
 // a CPT or HCPCS code. Minted after the move, so under own-your-health.
 pub const SITE_PROCEDURE_SYSTEM: &str = "https://github.com/own-your-health/uhc-cli/fhir/site-procedure-code";
+// uhc's own adjudication categories: `not-counted` marks a line the claim's
+// totals leave out. Minted under own-your-health.
+pub const ADJUDICATION_SYSTEM: &str = "https://github.com/own-your-health/uhc-cli/fhir/adjudication";
 
 const HL7_ADJUDICATION: &str = "http://terminology.hl7.org/CodeSystem/adjudication";
 const C4BB_ADJUDICATION: &str = "http://hl7.org/fhir/us/carin-bb/CodeSystem/C4BBAdjudication";
@@ -432,7 +435,17 @@ pub fn explanation_of_benefit(
                 item["bodySite"] = json!({ "text": format!("Tooth {tooth}") });
             }
             item["net"] = money(l.amounts.billed);
-            item["adjudication"] = Value::Array(adjudication(&l.amounts));
+            let mut adjudications = adjudication(&l.amounts);
+            if l.left_out {
+                adjudications.push(json!({
+                    "category": { "coding": [{
+                        "system": ADJUDICATION_SYSTEM,
+                        "code": "not-counted",
+                        "display": "Not counted in the claim's totals",
+                    }] },
+                }));
+            }
+            item["adjudication"] = Value::Array(adjudications);
             item
         })
         .collect();
@@ -611,6 +624,10 @@ mod tests {
         assert_eq!(
             SITE_PROCEDURE_SYSTEM,
             "https://github.com/own-your-health/uhc-cli/fhir/site-procedure-code"
+        );
+        assert_eq!(
+            ADJUDICATION_SYSTEM,
+            "https://github.com/own-your-health/uhc-cli/fhir/adjudication"
         );
     }
 

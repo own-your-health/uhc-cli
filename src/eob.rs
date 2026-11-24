@@ -140,6 +140,10 @@ pub struct ClaimLine {
     pub revenue: Option<Coded>,
     /// The site's tooth or tooth range, on a dental line (`01-32`).
     pub tooth: Option<String>,
+    /// The claim's totals leave this line out (`portal::left_out_lines`): a
+    /// line the site replaced with another code, or one the provider wrote
+    /// off in full. Its own amounts are kept as the site gives them.
+    pub left_out: bool,
 }
 
 /// The nine amounts of a service line or a claim total, in the statement's
