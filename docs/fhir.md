@@ -107,11 +107,8 @@ claim, except where:
 | Case | Why | What a store sees |
 | --- | --- | --- |
 | A statement prints another first name for the member than the site's | the member id is built from the first name | a second patient id; medrec asks `--person` on its first import |
-| A pharmacy row's "Patient account number" is not a 17-digit number | the `rx` rule does not read it, so the row keeps its claim number | the statement's claim beside the site's |
+| A pharmacy row's "Patient account number" is not a 17-digit number | the `rx` rule does not read it, and UHC does not document what another number means, so the row keeps its claim number rather than being merged on a guess | the statement's claim beside the site's |
 | A statement prints a claim number the site no longer lists | the claim's id is its number | the statement's claim beside the site's |
-
-UHC does not document other account numbers, so the two are kept apart
-rather than merged on a guess.
 
 ## Resources
 
