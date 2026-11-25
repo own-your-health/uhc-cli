@@ -6,24 +6,12 @@
           "userInfo": {
             "firstName": "Alex",
             "lastName": "Example",
-            "dob": "1980-01-01",
-            "gender": "MALE"
+            "dob": "1984-01-01",
+            "gender": "FEMALE"
           },
           "dependentSeqNum": "00",
           "relationshipType": "SUBSCRIBER",
           "planCoverages": [
-            {
-              "coverageType": "MEDICAL",
-              "groupNumber": "SYNG0001",
-              "memberId": {
-                "id": "SYNM000001"
-              },
-              "planPeriod": {
-                "startDate": "2026-01-01",
-                "endDate": "2026-12-31",
-                "status": "ACTIVE"
-              }
-            },
             {
               "coverageType": "DENTAL",
               "groupNumber": "SYNG0001",
@@ -32,7 +20,19 @@
               },
               "planPeriod": {
                 "startDate": "2026-01-01",
-                "endDate": "2026-12-31",
+                "endDate": "9999-12-31",
+                "status": "ACTIVE"
+              }
+            },
+            {
+              "coverageType": "MEDICAL",
+              "groupNumber": "SYNG0001",
+              "memberId": {
+                "id": "SYNM000001"
+              },
+              "planPeriod": {
+                "startDate": "2023-04-01",
+                "endDate": "9999-12-31",
                 "status": "ACTIVE"
               }
             }
@@ -47,7 +47,7 @@
               "gender": "FEMALE"
             },
             "dependentSeqNum": "02",
-            "relationshipType": "DEPENDENT",
+            "relationshipType": "CHILD",
             "planCoverages": [
               {
                 "coverageType": "MEDICAL",
@@ -56,8 +56,8 @@
                   "id": "SYNM000001"
                 },
                 "planPeriod": {
-                  "startDate": "2026-01-01",
-                  "endDate": "2026-12-31",
+                  "startDate": "2026-02-01",
+                  "endDate": "9999-12-31",
                   "status": "ACTIVE"
                 }
               },
@@ -69,7 +69,7 @@
                 },
                 "planPeriod": {
                   "startDate": "2026-01-01",
-                  "endDate": "2026-12-31",
+                  "endDate": "9999-12-31",
                   "status": "ACTIVE"
                 }
               }
@@ -79,8 +79,8 @@
             "userInfo": {
               "firstName": "Sam",
               "lastName": "Example",
-              "dob": "1982-01-01",
-              "gender": "FEMALE"
+              "dob": "1986-01-01",
+              "gender": "MALE"
             },
             "dependentSeqNum": "01",
             "relationshipType": "SPOUSE",
@@ -92,20 +92,8 @@
                   "id": "SYNM000001"
                 },
                 "planPeriod": {
-                  "startDate": "2026-01-01",
-                  "endDate": "2026-12-31",
-                  "status": "ACTIVE"
-                }
-              },
-              {
-                "coverageType": "DENTAL",
-                "groupNumber": "SYNG0001",
-                "memberId": {
-                  "id": "SYNM000001"
-                },
-                "planPeriod": {
-                  "startDate": "2026-01-01",
-                  "endDate": "2026-12-31",
+                  "startDate": "2026-03-16",
+                  "endDate": "9999-12-31",
                   "status": "ACTIVE"
                 }
               }
@@ -116,346 +104,25 @@
       "healthcareClaims": {
         "claims": [
           {
-            "claimId": "SYNC000000-06",
-            "claimIdSuffix": "06",
-            "claimKey": "SYNK-001",
-            "claimType": "MEDICAL",
-            "claimStatus": "PROCESSED",
-            "serviceRecipient": {
-              "firstName": "Sam",
-              "dependentSeqNbr": "01"
-            },
-            "providerName": "EXAMPLE CLINIC",
-            "serviceDate": "2026-08-03",
-            "lastServiceDate": "2026-08-03",
-            "processedDate": "2026-08-15",
-            "claimNetworkStatus": "IN_NETWORK",
-            "medicationName": null,
-            "prescriptionNumber": null,
-            "balance": {
-              "totalBilledAmount": {
-                "value": "200.00",
-                "iso4217": "USD"
-              },
-              "healthPlanDiscount": {
-                "value": "80.00",
-                "iso4217": "USD"
-              },
-              "healthPlanPays": {
-                "value": "85.00",
-                "iso4217": "USD"
-              },
-              "deductible": {
-                "value": "0.00",
-                "iso4217": "USD"
-              },
-              "copay": {
-                "value": "35.00",
-                "iso4217": "USD"
-              },
-              "other": {
-                "value": "0.00",
-                "iso4217": "USD"
-              },
-              "patientResponsibility": {
-                "value": "35.00",
-                "iso4217": "USD"
-              }
-            }
-          },
-          {
-            "claimId": "SYNC000000",
-            "claimIdSuffix": "08",
-            "claimKey": "SYNK-002",
-            "claimType": "MEDICAL",
-            "claimStatus": "PROCESSED",
-            "serviceRecipient": {
-              "firstName": "Sam",
-              "dependentSeqNbr": "01"
-            },
-            "providerName": "EXAMPLE CLINIC",
-            "serviceDate": "2026-08-12",
-            "lastServiceDate": "2026-08-12",
-            "processedDate": "2026-08-16",
-            "claimNetworkStatus": "IN_NETWORK",
-            "medicationName": null,
-            "prescriptionNumber": null,
-            "balance": {
-              "totalBilledAmount": {
-                "value": "520.00",
-                "iso4217": "USD"
-              },
-              "healthPlanDiscount": {
-                "value": "250.00",
-                "iso4217": "USD"
-              },
-              "healthPlanPays": {
-                "value": "170.00",
-                "iso4217": "USD"
-              },
-              "deductible": {
-                "value": "100.00",
-                "iso4217": "USD"
-              },
-              "copay": {
-                "value": "0.00",
-                "iso4217": "USD"
-              },
-              "other": {
-                "value": "0.00",
-                "iso4217": "USD"
-              },
-              "patientResponsibility": {
-                "value": "100.00",
-                "iso4217": "USD"
-              }
-            }
-          },
-          {
-            "claimId": "000000000000000009",
+            "claimId": "SYNC555248",
             "claimIdSuffix": null,
-            "claimKey": "SYNK-003",
-            "claimType": "RX",
-            "claimStatus": "PROCESSED",
-            "serviceRecipient": {
-              "firstName": "Sam",
-              "dependentSeqNbr": "01"
-            },
-            "providerName": "EXAMPLE PHARMACY",
-            "serviceDate": "2026-08-05",
-            "lastServiceDate": "2026-08-05",
-            "processedDate": "2026-08-05",
-            "claimNetworkStatus": null,
-            "medicationName": "*****",
-            "prescriptionNumber": "000000000001",
-            "balance": {
-              "totalBilledAmount": {
-                "value": "40.00",
-                "iso4217": "USD"
-              },
-              "healthPlanDiscount": {
-                "value": "10.00",
-                "iso4217": "USD"
-              },
-              "healthPlanPays": {
-                "value": "17.50",
-                "iso4217": "USD"
-              },
-              "deductible": {
-                "value": "0.00",
-                "iso4217": "USD"
-              },
-              "copay": {
-                "value": "12.50",
-                "iso4217": "USD"
-              },
-              "other": null,
-              "patientResponsibility": {
-                "value": "12.50",
-                "iso4217": "USD"
-              }
-            }
-          },
-          {
-            "claimId": "SYNC000000-09",
-            "claimIdSuffix": "09",
-            "claimKey": "SYNK-004",
-            "claimType": "MEDICAL",
-            "claimStatus": "PROCESSED",
-            "serviceRecipient": {
-              "firstName": "Jordan",
-              "dependentSeqNbr": "02"
-            },
-            "providerName": "EXAMPLE HOSPITAL",
-            "serviceDate": "2026-09-10",
-            "lastServiceDate": "2026-09-10",
-            "processedDate": "2026-09-20",
-            "claimNetworkStatus": "IN_NETWORK",
-            "medicationName": null,
-            "prescriptionNumber": null,
-            "balance": {
-              "totalBilledAmount": {
-                "value": "900.00",
-                "iso4217": "USD"
-              },
-              "healthPlanDiscount": {
-                "value": "400.00",
-                "iso4217": "USD"
-              },
-              "healthPlanPays": {
-                "value": "300.00",
-                "iso4217": "USD"
-              },
-              "deductible": {
-                "value": "150.00",
-                "iso4217": "USD"
-              },
-              "copay": {
-                "value": "50.00",
-                "iso4217": "USD"
-              },
-              "other": {
-                "value": "0.00",
-                "iso4217": "USD"
-              },
-              "patientResponsibility": {
-                "value": "200.00",
-                "iso4217": "USD"
-              }
-            }
-          },
-          {
-            "claimId": "555000000000000002",
-            "claimIdSuffix": null,
-            "claimKey": "SYNK-005",
-            "claimType": "RX",
-            "claimStatus": "PROCESSED",
-            "serviceRecipient": {
-              "firstName": "Alex",
-              "dependentSeqNbr": "00"
-            },
-            "providerName": "EXAMPLE PHARMACY",
-            "serviceDate": "2026-07-01",
-            "lastServiceDate": "2026-07-01",
-            "processedDate": "2026-07-01",
-            "claimNetworkStatus": null,
-            "medicationName": "EXAMPLEDRUG 10 MG  ",
-            "prescriptionNumber": "000000000002",
-            "balance": {
-              "totalBilledAmount": {
-                "value": "60.00",
-                "iso4217": "USD"
-              },
-              "healthPlanDiscount": {
-                "value": "20.00",
-                "iso4217": "USD"
-              },
-              "healthPlanPays": {
-                "value": "30.00",
-                "iso4217": "USD"
-              },
-              "deductible": {
-                "value": "0.00",
-                "iso4217": "USD"
-              },
-              "copay": {
-                "value": "10.00",
-                "iso4217": "USD"
-              },
-              "other": null,
-              "patientResponsibility": {
-                "value": "10.00",
-                "iso4217": "USD"
-              }
-            }
-          },
-          {
-            "claimId": "555000000000000002",
-            "claimIdSuffix": null,
-            "claimKey": "SYNK-006",
-            "claimType": "RX",
-            "claimStatus": "PROCESSED",
-            "serviceRecipient": {
-              "firstName": "Alex",
-              "dependentSeqNbr": "00"
-            },
-            "providerName": "EXAMPLE PHARMACY",
-            "serviceDate": "2026-07-01",
-            "lastServiceDate": "2026-07-01",
-            "processedDate": "2026-07-03",
-            "claimNetworkStatus": null,
-            "medicationName": "EXAMPLEDRUG 10 MG  ",
-            "prescriptionNumber": "000000000002",
-            "balance": {
-              "totalBilledAmount": {
-                "value": "-60.00",
-                "iso4217": "USD"
-              },
-              "healthPlanDiscount": {
-                "value": "-20.00",
-                "iso4217": "USD"
-              },
-              "healthPlanPays": {
-                "value": "-30.00",
-                "iso4217": "USD"
-              },
-              "deductible": {
-                "value": "0.00",
-                "iso4217": "USD"
-              },
-              "copay": {
-                "value": "-10.00",
-                "iso4217": "USD"
-              },
-              "other": null,
-              "patientResponsibility": {
-                "value": "-10.00",
-                "iso4217": "USD"
-              }
-            }
-          },
-          {
-            "claimId": "000000000003",
-            "claimIdSuffix": null,
-            "claimKey": "SYNK-007",
-            "claimType": "DENTAL",
-            "claimStatus": "PROCESSED",
-            "serviceRecipient": {
-              "firstName": "Alex",
-              "dependentSeqNbr": "00"
-            },
-            "providerName": "EXAMPLE DENTAL",
-            "serviceDate": "2026-06-02",
-            "lastServiceDate": "2026-06-02",
-            "processedDate": "2026-06-10",
-            "claimNetworkStatus": "OUT_OF_NETWORK",
-            "medicationName": null,
-            "prescriptionNumber": null,
-            "balance": {
-              "totalBilledAmount": {
-                "value": "150.00",
-                "iso4217": "USD"
-              },
-              "healthPlanDiscount": {
-                "value": "30.00",
-                "iso4217": "USD"
-              },
-              "healthPlanPays": {
-                "value": "96.00",
-                "iso4217": "USD"
-              },
-              "deductible": {
-                "value": "0.00",
-                "iso4217": "USD"
-              },
-              "copay": null,
-              "other": null,
-              "patientResponsibility": {
-                "value": "24.00",
-                "iso4217": "USD"
-              }
-            }
-          },
-          {
-            "claimId": "SYNC11111111",
-            "claimIdSuffix": null,
-            "claimKey": "SYNK-008",
+            "claimKey": "SYNK-090",
             "claimType": "MEDICAL",
             "claimStatus": "IN_PROCESS",
             "serviceRecipient": {
-              "firstName": "Jordan",
-              "dependentSeqNbr": "02"
+              "firstName": "Sam",
+              "dependentSeqNbr": "01"
             },
-            "providerName": "EXAMPLE CLINIC",
-            "serviceDate": "2026-11-10",
-            "lastServiceDate": "2026-11-10",
+            "providerName": "EXAMPLE ORTHOPEDIC CLINIC",
+            "serviceDate": "2026-11-03",
+            "lastServiceDate": "2026-11-03",
             "processedDate": null,
             "claimNetworkStatus": null,
             "medicationName": null,
             "prescriptionNumber": null,
             "balance": {
               "totalBilledAmount": {
-                "value": "90.00",
+                "value": "475.00",
                 "iso4217": "USD"
               },
               "healthPlanDiscount": {
@@ -470,125 +137,554 @@
             }
           },
           {
-            "claimId": "SYNC222222-22",
-            "claimIdSuffix": "22",
-            "claimKey": "SYNK-009",
-            "claimType": "MEDICAL",
+            "claimId": "555040000318",
+            "claimIdSuffix": null,
+            "claimKey": "SYNK-065",
+            "claimType": "DENTAL",
             "claimStatus": "PROCESSED",
             "serviceRecipient": {
-              "firstName": "Alex",
-              "dependentSeqNbr": "00"
+              "firstName": "Jordan",
+              "dependentSeqNbr": "02"
             },
-            "providerName": "EXAMPLE LAB",
-            "serviceDate": "2026-10-01",
-            "lastServiceDate": "2026-10-01",
+            "providerName": "EXAMPLE FAMILY DENTAL",
+            "serviceDate": "2026-09-22",
+            "lastServiceDate": "2026-09-22",
             "processedDate": "2026-10-05",
-            "claimNetworkStatus": "IN_NETWORK",
+            "claimNetworkStatus": "OUT_OF_NETWORK",
             "medicationName": null,
             "prescriptionNumber": null,
             "balance": {
               "totalBilledAmount": {
-                "value": "80.00",
+                "value": "303.00",
                 "iso4217": "USD"
               },
               "healthPlanDiscount": {
-                "value": "30.00",
+                "value": "0.00",
                 "iso4217": "USD"
               },
               "healthPlanPays": {
-                "value": "50.00",
+                "value": "180.90",
                 "iso4217": "USD"
               },
               "deductible": {
-                "value": "0.00",
+                "value": "30.00",
                 "iso4217": "USD"
               },
-              "copay": {
-                "value": "0.00",
-                "iso4217": "USD"
-              },
+              "copay": null,
               "other": {
-                "value": "0.00",
+                "value": "92.10",
                 "iso4217": "USD"
               },
               "patientResponsibility": {
-                "value": "0.00",
+                "value": "122.10",
                 "iso4217": "USD"
               }
             }
           },
           {
-            "claimId": "SYNC222222-22",
-            "claimIdSuffix": "22",
-            "claimKey": "SYNK-010",
-            "claimType": "MEDICAL",
-            "claimStatus": "PROCESSED",
-            "serviceRecipient": {
-              "firstName": "Alex",
-              "dependentSeqNbr": "00"
-            },
-            "providerName": "EXAMPLE LAB",
-            "serviceDate": "2026-10-01",
-            "lastServiceDate": "2026-10-01",
-            "processedDate": "2026-10-15",
-            "claimNetworkStatus": "IN_NETWORK",
-            "medicationName": null,
-            "prescriptionNumber": null,
-            "balance": {
-              "totalBilledAmount": {
-                "value": "80.00",
-                "iso4217": "USD"
-              },
-              "healthPlanDiscount": {
-                "value": "30.00",
-                "iso4217": "USD"
-              },
-              "healthPlanPays": {
-                "value": "40.00",
-                "iso4217": "USD"
-              },
-              "deductible": {
-                "value": "10.00",
-                "iso4217": "USD"
-              },
-              "copay": {
-                "value": "0.00",
-                "iso4217": "USD"
-              },
-              "other": {
-                "value": "0.00",
-                "iso4217": "USD"
-              },
-              "patientResponsibility": {
-                "value": "10.00",
-                "iso4217": "USD"
-              }
-            }
-          },
-          {
-            "claimId": "SYNC333333-33",
-            "claimIdSuffix": "33",
-            "claimKey": "SYNK-011",
+            "claimId": "SYNC555231-28",
+            "claimIdSuffix": "28",
+            "claimKey": "SYNK-067",
             "claimType": "MEDICAL",
             "claimStatus": "PROVIDER_DENIED",
             "serviceRecipient": {
               "firstName": "Sam",
               "dependentSeqNbr": "01"
             },
-            "providerName": "EXAMPLE CLINIC",
-            "serviceDate": "2026-09-01",
-            "lastServiceDate": "2026-09-01",
-            "processedDate": "2026-09-08",
+            "providerName": "EXAMPLE SLEEP CENTER",
+            "serviceDate": "2026-08-11",
+            "lastServiceDate": "2026-08-12",
+            "processedDate": "2026-08-27",
+            "claimNetworkStatus": null,
+            "medicationName": null,
+            "prescriptionNumber": null,
+            "balance": {
+              "totalBilledAmount": {
+                "value": "2200.00",
+                "iso4217": "USD"
+              },
+              "healthPlanDiscount": {
+                "value": "2200.00",
+                "iso4217": "USD"
+              },
+              "healthPlanPays": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "deductible": null,
+              "copay": null,
+              "other": null,
+              "patientResponsibility": {
+                "value": "0.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "claimId": "SYNC55531742",
+            "claimIdSuffix": null,
+            "claimKey": "SYNK-029",
+            "claimType": "MEDICAL",
+            "claimStatus": "PROCESSED",
+            "serviceRecipient": {
+              "firstName": "Jordan",
+              "dependentSeqNbr": "02"
+            },
+            "providerName": "EXAMPLE SPEECH AND HEARING CENTER",
+            "serviceDate": "2026-09-03",
+            "lastServiceDate": "2026-09-24",
+            "processedDate": "2026-10-06",
             "claimNetworkStatus": "IN_NETWORK",
             "medicationName": null,
             "prescriptionNumber": null,
             "balance": {
               "totalBilledAmount": {
-                "value": "75.00",
+                "value": "695.00",
                 "iso4217": "USD"
               },
               "healthPlanDiscount": {
-                "value": "75.00",
+                "value": "309.50",
+                "iso4217": "USD"
+              },
+              "healthPlanPays": {
+                "value": "110.05",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "164.55",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "82.00",
+                "iso4217": "USD"
+              },
+              "other": {
+                "value": "28.90",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "275.45",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "claimId": "SYNC555127",
+            "claimIdSuffix": "85",
+            "claimKey": "SYNK-024",
+            "claimType": "MEDICAL",
+            "claimStatus": "PROCESSED",
+            "serviceRecipient": {
+              "firstName": "Alex",
+              "dependentSeqNbr": "00"
+            },
+            "providerName": "EXAMPLE COMMUNITY HOSPITAL",
+            "serviceDate": "2026-07-18",
+            "lastServiceDate": "2026-07-19",
+            "processedDate": "2026-08-06",
+            "claimNetworkStatus": "IN_NETWORK",
+            "medicationName": null,
+            "prescriptionNumber": null,
+            "balance": {
+              "totalBilledAmount": {
+                "value": "1893.00",
+                "iso4217": "USD"
+              },
+              "healthPlanDiscount": {
+                "value": "1086.97",
+                "iso4217": "USD"
+              },
+              "healthPlanPays": {
+                "value": "329.38",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "119.30",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "275.00",
+                "iso4217": "USD"
+              },
+              "other": {
+                "value": "82.35",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "476.65",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "claimId": "SYNC555219",
+            "claimIdSuffix": "40",
+            "claimKey": "SYNK-056",
+            "claimType": "MEDICAL",
+            "claimStatus": "PROCESSED",
+            "serviceRecipient": {
+              "firstName": "Sam",
+              "dependentSeqNbr": "01"
+            },
+            "providerName": "EXAMPLE CLINICAL LABORATORY",
+            "serviceDate": "2026-06-16",
+            "lastServiceDate": "2026-06-16",
+            "processedDate": "2026-06-30",
+            "claimNetworkStatus": "IN_NETWORK",
+            "medicationName": null,
+            "prescriptionNumber": null,
+            "balance": {
+              "totalBilledAmount": {
+                "value": "329.00",
+                "iso4217": "USD"
+              },
+              "healthPlanDiscount": {
+                "value": "397.85",
+                "iso4217": "USD"
+              },
+              "healthPlanPays": {
+                "value": "61.15",
+                "iso4217": "USD"
+              },
+              "deductible": null,
+              "copay": null,
+              "other": null,
+              "patientResponsibility": {
+                "value": "0.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "claimId": "SYNC555140-09",
+            "claimIdSuffix": "09",
+            "claimKey": "SYNK-035",
+            "claimType": "MEDICAL",
+            "claimStatus": "PROCESSED",
+            "serviceRecipient": {
+              "firstName": "Alex",
+              "dependentSeqNbr": "00"
+            },
+            "providerName": "EXAMPLE DERMATOLOGY PARTNERS",
+            "serviceDate": "2026-05-06",
+            "lastServiceDate": "2026-05-06",
+            "processedDate": "2026-05-20",
+            "claimNetworkStatus": "IN_NETWORK",
+            "medicationName": null,
+            "prescriptionNumber": null,
+            "balance": {
+              "totalBilledAmount": {
+                "value": "535.50",
+                "iso4217": "USD"
+              },
+              "healthPlanDiscount": {
+                "value": "251.15",
+                "iso4217": "USD"
+              },
+              "healthPlanPays": {
+                "value": "111.08",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "118.40",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "45.00",
+                "iso4217": "USD"
+              },
+              "other": {
+                "value": "9.87",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "173.27",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "claimId": "SYNC555206-13",
+            "claimIdSuffix": "13",
+            "claimKey": "SYNK-013",
+            "claimType": "MEDICAL",
+            "claimStatus": "PROCESSED",
+            "serviceRecipient": {
+              "firstName": "Sam",
+              "dependentSeqNbr": "01"
+            },
+            "providerName": "EXAMPLE PHYSICAL THERAPY GROUP",
+            "serviceDate": "2026-04-07",
+            "lastServiceDate": "2026-04-21",
+            "processedDate": "2026-05-04",
+            "claimNetworkStatus": "IN_NETWORK",
+            "medicationName": null,
+            "prescriptionNumber": null,
+            "balance": {
+              "totalBilledAmount": {
+                "value": "547.00",
+                "iso4217": "USD"
+              },
+              "healthPlanDiscount": {
+                "value": "337.90",
+                "iso4217": "USD"
+              },
+              "healthPlanPays": {
+                "value": "65.20",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "127.60",
+                "iso4217": "USD"
+              },
+              "copay": null,
+              "other": {
+                "value": "16.30",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "143.90",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "claimId": "SYNC555264",
+            "claimIdSuffix": "07",
+            "claimKey": "SYNK-074",
+            "claimType": "MEDICAL",
+            "claimStatus": "PROCESSED",
+            "serviceRecipient": {
+              "firstName": "Sam",
+              "dependentSeqNbr": "01"
+            },
+            "providerName": "EXAMPLE CHIROPRACTIC",
+            "serviceDate": "2026-04-16",
+            "lastServiceDate": "2026-04-16",
+            "processedDate": "2026-05-02",
+            "claimNetworkStatus": "OUT_OF_NETWORK",
+            "medicationName": null,
+            "prescriptionNumber": null,
+            "balance": {
+              "totalBilledAmount": {
+                "value": "323.00",
+                "iso4217": "USD"
+              },
+              "healthPlanDiscount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "healthPlanPays": {
+                "value": "34.20",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "110.80",
+                "iso4217": "USD"
+              },
+              "copay": null,
+              "other": {
+                "value": "178.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "288.80",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "claimId": "555000000000004816",
+            "claimIdSuffix": null,
+            "claimKey": "SYNK-083",
+            "claimType": "RX",
+            "claimStatus": "PROCESSED",
+            "serviceRecipient": {
+              "firstName": "Sam",
+              "dependentSeqNbr": "01"
+            },
+            "providerName": "EXAMPLE CORNER PHARMACY",
+            "serviceDate": "2026-04-01",
+            "lastServiceDate": "2026-04-01",
+            "processedDate": "2026-04-09",
+            "claimNetworkStatus": "IN_NETWORK",
+            "medicationName": "**************",
+            "prescriptionNumber": "5550481",
+            "balance": {
+              "totalBilledAmount": {
+                "value": "-318.60",
+                "iso4217": "USD"
+              },
+              "healthPlanDiscount": {
+                "value": "-97.15",
+                "iso4217": "USD"
+              },
+              "healthPlanPays": {
+                "value": "-176.45",
+                "iso4217": "USD"
+              },
+              "deductible": null,
+              "copay": {
+                "value": "-45.00",
+                "iso4217": "USD"
+              },
+              "other": null,
+              "patientResponsibility": {
+                "value": "-45.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "claimId": "555000000000002374",
+            "claimIdSuffix": null,
+            "claimKey": "SYNK-042",
+            "claimType": "RX",
+            "claimStatus": "PROCESSED",
+            "serviceRecipient": {
+              "firstName": "Alex",
+              "dependentSeqNbr": "00"
+            },
+            "providerName": "EXAMPLE CORNER PHARMACY",
+            "serviceDate": "2026-04-03",
+            "lastServiceDate": "2026-04-03",
+            "processedDate": "2026-04-03",
+            "claimNetworkStatus": "IN_NETWORK",
+            "medicationName": "FLUTICASONE  SPR 50MCG",
+            "prescriptionNumber": "5550237",
+            "balance": {
+              "totalBilledAmount": {
+                "value": "52.40",
+                "iso4217": "USD"
+              },
+              "healthPlanDiscount": {
+                "value": "33.95",
+                "iso4217": "USD"
+              },
+              "healthPlanPays": {
+                "value": "6.45",
+                "iso4217": "USD"
+              },
+              "deductible": null,
+              "copay": {
+                "value": "12.00",
+                "iso4217": "USD"
+              },
+              "other": null,
+              "patientResponsibility": {
+                "value": "12.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "claimId": "555000000000004816",
+            "claimIdSuffix": null,
+            "claimKey": "SYNK-038",
+            "claimType": "RX",
+            "claimStatus": "PROCESSED",
+            "serviceRecipient": {
+              "firstName": "Sam",
+              "dependentSeqNbr": "01"
+            },
+            "providerName": "EXAMPLE CORNER PHARMACY",
+            "serviceDate": "2026-04-01",
+            "lastServiceDate": "2026-04-01",
+            "processedDate": "2026-04-01",
+            "claimNetworkStatus": "IN_NETWORK",
+            "medicationName": "**************",
+            "prescriptionNumber": "5550481",
+            "balance": {
+              "totalBilledAmount": {
+                "value": "318.60",
+                "iso4217": "USD"
+              },
+              "healthPlanDiscount": {
+                "value": "97.15",
+                "iso4217": "USD"
+              },
+              "healthPlanPays": {
+                "value": "176.45",
+                "iso4217": "USD"
+              },
+              "deductible": null,
+              "copay": {
+                "value": "45.00",
+                "iso4217": "USD"
+              },
+              "other": null,
+              "patientResponsibility": {
+                "value": "45.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "claimId": "SYNC555118-62",
+            "claimIdSuffix": "62",
+            "claimKey": "SYNK-018",
+            "claimType": "MEDICAL",
+            "claimStatus": "PROCESSED",
+            "serviceRecipient": {
+              "firstName": "Alex",
+              "dependentSeqNbr": "00"
+            },
+            "providerName": "EXAMPLE IMAGING ASSOCIATES",
+            "serviceDate": "2025-12-11",
+            "lastServiceDate": "2025-12-11",
+            "processedDate": "2026-03-19",
+            "claimNetworkStatus": "IN_NETWORK",
+            "medicationName": null,
+            "prescriptionNumber": null,
+            "balance": {
+              "totalBilledAmount": {
+                "value": "1162.00",
+                "iso4217": "USD"
+              },
+              "healthPlanDiscount": {
+                "value": "693.70",
+                "iso4217": "USD"
+              },
+              "healthPlanPays": {
+                "value": "374.64",
+                "iso4217": "USD"
+              },
+              "deductible": null,
+              "copay": null,
+              "other": {
+                "value": "93.66",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "93.66",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "claimId": "SYNC555118-62",
+            "claimIdSuffix": "62",
+            "claimKey": "SYNK-071",
+            "claimType": "MEDICAL",
+            "claimStatus": "PROCESSED",
+            "serviceRecipient": {
+              "firstName": "Alex",
+              "dependentSeqNbr": "00"
+            },
+            "providerName": "EXAMPLE IMAGING ASSOCIATES",
+            "serviceDate": "2025-12-11",
+            "lastServiceDate": "2025-12-11",
+            "processedDate": "2026-01-08",
+            "claimNetworkStatus": "OUT_OF_NETWORK",
+            "medicationName": null,
+            "prescriptionNumber": null,
+            "balance": {
+              "totalBilledAmount": {
+                "value": "1162.00",
+                "iso4217": "USD"
+              },
+              "healthPlanDiscount": {
+                "value": "0.00",
                 "iso4217": "USD"
               },
               "healthPlanPays": {
@@ -596,19 +692,13 @@
                 "iso4217": "USD"
               },
               "deductible": {
-                "value": "0.00",
+                "value": "1162.00",
                 "iso4217": "USD"
               },
-              "copay": {
-                "value": "0.00",
-                "iso4217": "USD"
-              },
-              "other": {
-                "value": "0.00",
-                "iso4217": "USD"
-              },
+              "copay": null,
+              "other": null,
               "patientResponsibility": {
-                "value": "0.00",
+                "value": "1162.00",
                 "iso4217": "USD"
               }
             }

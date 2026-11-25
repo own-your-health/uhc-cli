@@ -684,9 +684,8 @@ fn household(data: Value) -> Result<Household, CliError> {
 const LEFT_OUT_CANDIDATES: usize = 16;
 
 /// The lines a claim's totals leave out, by index. The site's billed total
-/// and amount owed can leave out a line it replaced with another code, or
-/// one the provider wrote off in full, while the line stays in the answer
-/// with its own amounts (and the discount still counts its write-off). They
+/// and amount owed can leave out a line that stays in the answer with its
+/// own amounts (and the discount still counts its write-off). They
 /// are the one set of lines the plan paid nothing on whose charges and
 /// amounts owed are exactly what the totals are short of all the lines'.
 /// None when the lines' plan paid differs from the total, when no set fits,
@@ -1247,26 +1246,6 @@ impl<'a> Site<'a> {
 mod tests {
     use super::*;
 
-    fn fixture(name: &str) -> Value {
-        let path = format!("{}/tests/fixtures/site/{name}", env!("CARGO_MANIFEST_DIR"));
-        let doc: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
-        doc["data"].clone()
-    }
-
-    fn house() -> Household {
-        let mut h = household(fixture("claims.json")).unwrap();
-        let docs = documents(fixture("documents.json"), &h).unwrap();
-        link_documents(&mut h, &docs);
-        h
-    }
-
-    fn claim<'a>(h: &'a Household, id: &str) -> &'a ClaimRecord {
-        h.claims
-            .iter()
-            .find(|c| c.id == id)
-            .unwrap_or_else(|| panic!("no claim {id}"))
-    }
-
     #[test]
     fn site_amounts_are_strings_or_numbers() {
         assert_eq!(amount(&json!("123.45")), Some(Cents(12345)));
@@ -1279,386 +1258,1139 @@ mod tests {
         }
     }
 
-    /// The ids a statement gives the same claims (tests/fixtures/eob).
+    const MEMBER: &str = "SYNM000001";
+    const TODAY: &str = "2026-11-20";
+
+    /// The `data` of an answer in `tests/fixtures/site/`.
+    macro_rules! answer {
+        ($name:literal) => {
+            serde_json::from_str::<Value>(include_str!(concat!("../tests/fixtures/site/", $name))).unwrap()["data"]
+                .take()
+        };
+    }
+
+    fn usd(s: &str) -> Cents {
+        Cents::parse(s).unwrap()
+    }
+
+    /// Nine amounts, in a statement's column order.
+    fn nine(v: [&str; 9]) -> Amounts {
+        let [billed, saved, allowed, plan_paid, deductible, copay, coinsurance, not_covered, you_owe] = v.map(usd);
+        Amounts {
+            billed,
+            saved,
+            allowed,
+            plan_paid,
+            deductible,
+            copay,
+            coinsurance,
+            not_covered,
+            you_owe,
+        }
+    }
+
+    fn house() -> Household {
+        household(answer!("claims.json")).unwrap()
+    }
+
+    /// The household with its documents.
+    fn linked() -> Household {
+        let mut h = house();
+        let docs = documents(answer!("documents.json"), &h).unwrap();
+        link_documents(&mut h, &docs);
+        h
+    }
+
+    fn claim(h: &Household, id: &str) -> ClaimRecord {
+        let found = h.claims.iter().find(|c| c.id == id);
+        found.unwrap_or_else(|| panic!("no claim {id}")).clone()
+    }
+
+    /// Claim `id` with `detail` read into it.
+    fn detailed(id: &str, detail: Value) -> ClaimRecord {
+        let mut c = claim(&house(), id);
+        apply_detail(&mut c, detail).unwrap();
+        c
+    }
+
+    fn fhir_of(c: &ClaimRecord) -> Value {
+        crate::fhir::explanation_of_benefit(c, "cov-synthetic", &[], None)
+    }
+
+    /// The codes of a line's or a claim's adjudication entries.
+    fn categories(entries: &Value) -> Vec<&str> {
+        entries
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["category"]["coding"][0]["code"].as_str().unwrap())
+            .collect()
+    }
+
+    fn amount_of(entries: &Value, code: &str) -> Value {
+        let entries = entries.as_array().unwrap();
+        let found = entries.iter().find(|e| e["category"]["coding"][0]["code"] == code);
+        found.map(|e| e["amount"]["value"].clone()).unwrap_or_default()
+    }
+
+    /// The site's service lines, to change one.
+    fn service_lines(detail: &mut Value) -> &mut Value {
+        &mut detail["claimDetailsAggregate"]["healthCareClaimDetails"]["serviceLines"]
+    }
+
+    // ---------------------------------------------------------- identity
+
     #[test]
-    fn claim_ids_are_the_statements() {
+    fn a_claim_is_named_by_its_kind_its_id_and_its_suffix() {
+        for (kind, claim_id, suffix, id, number) in [
+            // The suffix in the id and beside it, beside it only, in the id
+            // only, and none.
+            ("MEDICAL", "SYNC555118-62", Some("62"), "cSYNC55511862", "SYNC55511862"),
+            ("MEDICAL", "SYNC555127", Some("85"), "cSYNC55512785", "SYNC55512785"),
+            ("MEDICAL", "SYNC555140-09", None, "cSYNC55514009", "SYNC55514009"),
+            ("MEDICAL", "SYNC55531742", None, "cSYNC55531742", "SYNC55531742"),
+            // The suffix field wins over the id's own, and a blank one is none.
+            ("MEDICAL", "SYNC555140-09", Some("10"), "cSYNC55514010", "SYNC55514010"),
+            (
+                "MEDICAL",
+                " SYNC555140-09 ",
+                Some("  "),
+                "cSYNC55514009",
+                "SYNC55514009",
+            ),
+            // A pharmacy claim: the first 17 of its 18 digits, whatever the
+            // type's case. A number of another length is not one.
+            (
+                "RX",
+                "555000000000002374",
+                None,
+                "rx55500000000000237",
+                "555000000000002374",
+            ),
+            (
+                "rx",
+                "55500000000000237",
+                None,
+                "rx55500000000000237",
+                "55500000000000237",
+            ),
+            ("RX", "5550000000000023", None, "c5550000000000023", "5550000000000023"),
+            // The same digits on a claim that is not a pharmacy's.
+            (
+                "MEDICAL",
+                "555000000000002374",
+                None,
+                "c555000000000002374",
+                "555000000000002374",
+            ),
+            ("DENTAL", "555040000318", None, "c555040000318", "555040000318"),
+            // An id holds only what a FHIR id may; the number is as listed.
+            ("MEDICAL", "SYNC/555127", None, "cSYNC555127", "SYNC/555127"),
+        ] {
+            assert_eq!(
+                claim_identity(kind, claim_id, suffix),
+                (id.to_string(), number.to_string()),
+                "{kind} {claim_id} {suffix:?}"
+            );
+        }
+    }
+
+    /// A statement prints a pharmacy claim's number cut to 17 digits.
+    #[test]
+    fn a_pharmacy_claim_has_the_id_its_statement_gives_it() {
+        let (id, _) = claim_identity("RX", "555000000000002374", None);
+        assert_eq!(pharmacy_claim_id("55500000000000237"), Some(id));
+    }
+
+    // ----------------------------------------------------------- members
+
+    #[test]
+    fn members_are_read_from_the_profile() {
+        let h = linked();
+        let row = |m: &Member| {
+            let site = m.site.clone().unwrap();
+            (
+                m.label.clone(),
+                m.relationship_code.clone().unwrap(),
+                m.relationship.clone().unwrap(),
+                site.dep_seq.clone(),
+                site.full_name(),
+                site.birth_date.unwrap(),
+                site.gender.unwrap(),
+                site.plan_start.unwrap(),
+            )
+        };
+        let expected = [
+            (
+                "Alex",
+                "SUBSCRIBER",
+                "self",
+                "00",
+                "Alex Example",
+                "1984-01-01",
+                "female",
+                "2023-04-01",
+            ),
+            (
+                "Jordan",
+                "CHILD",
+                "child",
+                "02",
+                "Jordan Example",
+                "2015-01-01",
+                "female",
+                "2026-02-01",
+            ),
+            (
+                "Sam",
+                "SPOUSE",
+                "spouse",
+                "01",
+                "Sam Example",
+                "1986-01-01",
+                "male",
+                "2026-03-16",
+            ),
+        ]
+        .map(|(a, b, c, d, e, f, g, h)| {
+            let s = str::to_string;
+            (s(a), s(b), s(c), s(d), s(e), s(f), s(g), s(h))
+        });
+        // The plan start is the medical coverage's, whichever is listed first.
+        assert_eq!(h.members.iter().map(row).collect::<Vec<_>>(), expected);
+        for m in &h.members {
+            assert_eq!(m.id, patient_id(MEMBER, &m.label));
+            assert_eq!(m.member_id, MEMBER);
+            assert_eq!(m.group_number.as_deref(), Some("SYNG0001"));
+            assert_eq!(m.group_name, None, "the site leaves a null field out");
+            assert_eq!(m.origin, Origin::Site);
+            let site = m.site.as_ref().unwrap();
+            assert_eq!(site.plan_end.as_deref(), Some("9999-12-31"));
+            assert_eq!(site.plan_status.as_deref(), Some("ACTIVE"));
+        }
+        // Claims once each whatever their versions; EOBs, not the health
+        // statement or the letter.
+        let counts: Vec<_> = h
+            .members
+            .iter()
+            .map(|m| (m.claims, m.statements, m.latest_statement.as_deref()))
+            .collect();
         assert_eq!(
-            claim_identity("MEDICAL", "SYNC000000-06", Some("06")),
-            ("cSYNC00000006".into(), "SYNC00000006".into())
+            counts,
+            [
+                (4, 5, Some("2026-08-08")),
+                (2, 2, Some("2026-10-09")),
+                (6, 2, Some("2026-07-02")),
+            ]
         );
-        assert_eq!(
-            claim_identity("MEDICAL", "SYNC000000", Some("08")),
-            ("cSYNC00000008".into(), "SYNC00000008".into())
-        );
-        assert_eq!(claim_identity("MEDICAL", "SYNC11111111", None).0, "cSYNC11111111");
-        assert_eq!(
-            claim_identity("RX", "000000000000000009", None).0,
-            "rx00000000000000000"
-        );
-        assert_eq!(claim_identity("DENTAL", "000000000003", None).0, "c000000000003");
     }
 
     #[test]
-    fn members_are_the_statements() {
+    fn a_member_becomes_a_patient_and_a_coverage() {
         let h = house();
-        let labels: Vec<&str> = h.members.iter().map(|m| m.label.as_str()).collect();
-        assert_eq!(labels, ["Alex", "Jordan", "Sam"]);
-        let sam = h.members.iter().find(|m| m.label == "Sam").unwrap();
-        assert_eq!(sam.id, patient_id("SYNM000001", "SAM"));
-        assert_eq!(sam.relationship.as_deref(), Some("spouse"));
-        assert_eq!(sam.group_number.as_deref(), Some("SYNG0001"));
-        assert_eq!(sam.group_name, None);
-        let site = sam.site.as_ref().unwrap();
-        assert_eq!(site.gender.as_deref(), Some("female"));
-        assert_eq!(site.birth_date.as_deref(), Some("1982-01-01"));
-        assert_eq!(site.plan_start.as_deref(), Some("2026-01-01"));
-        assert_eq!(site.full_name(), "Sam Example");
-        let alex = &h.members[0];
-        assert_eq!(alex.relationship.as_deref(), Some("self"));
-        assert_eq!(h.members[1].relationship.as_deref(), Some("child"));
+        let sam = &h.members[2];
+        let p = crate::fhir::patient(sam, Some(&sam.site.as_ref().unwrap().full_name()));
+        assert_eq!(p["identifier"][0]["value"], MEMBER);
         assert_eq!(
-            alex.claims, 3,
-            "the dental claim, the reversed pharmacy claim, the reprocessed one"
+            p["name"],
+            json!([{"text": "Sam Example", "family": "Example", "given": ["Sam"]}])
         );
+        assert_eq!((&p["birthDate"], &p["gender"]), (&json!("1986-01-01"), &json!("male")));
+        let mut sam = sam.clone();
+        let c = crate::fhir::coverage(&sam);
+        assert_eq!(c["status"], "active");
+        assert_eq!(c["subscriberId"], MEMBER);
+        assert_eq!(c["relationship"]["coding"][0]["code"], "spouse");
+        assert_eq!(c["period"], json!({"start": "2026-03-16", "end": "9999-12-31"}));
+        assert_eq!(c["class"][0]["value"], "SYNG0001");
+        assert!(c["class"][0].get("name").is_none());
+        sam.site.as_mut().unwrap().plan_status = Some("ENDED".into());
+        assert_eq!(crate::fhir::coverage(&sam)["status"], "cancelled");
+    }
+
+    /// A claim or document naming someone the profile does not list is
+    /// filed under the subscriber's member id and that first name.
+    #[test]
+    fn a_member_the_profile_does_not_list_is_named_from_the_answer() {
+        let mut data = answer!("claims.json");
+        data["allClaimsAggregate"]["profileV1"]["dependents"] = Value::Null;
+        let h = household(data).unwrap();
+        assert_eq!(h.members.len(), 1);
+        let c = claim(&h, "cSYNC55520613");
+        assert_eq!((c.patient, c.label), (patient_id(MEMBER, "SAM"), "Sam".to_string()));
+        let docs = documents(answer!("documents.json"), &h).unwrap();
+        let doc = docs.iter().find(|d| d.id.ends_with("a5")).unwrap();
+        assert_eq!(doc.patient, Some(patient_id(MEMBER, "SAM")));
+        assert_eq!(doc.label.as_deref(), Some("Sam"));
+    }
+
+    // ------------------------------------------------------------ claims
+
+    #[test]
+    fn each_claim_is_one_record_newest_service_first() {
+        let h = house();
+        let ids: Vec<&str> = h.claims.iter().map(|c| c.id.as_str()).collect();
         assert_eq!(
-            sam.statements, 2,
-            "the medical and the pharmacy EOB; a health statement is not one"
+            ids,
+            [
+                "cSYNC555248",
+                "c555040000318",
+                "cSYNC55531742",
+                "cSYNC55523128",
+                "cSYNC55512785",
+                "cSYNC55521940",
+                "cSYNC55514009",
+                "cSYNC55526407",
+                "cSYNC55520613",
+                "rx55500000000000237",
+                "rx55500000000000481",
+                "cSYNC55511862",
+            ]
         );
+        for c in &h.claims {
+            assert_eq!(c.origin, Origin::Site);
+            assert_eq!(c.member_id, MEMBER);
+            assert!(h.keys.contains_key(&c.id), "{}", c.id);
+            // Only a pharmacy claim is whole without its detail.
+            assert_eq!(c.detailed, c.kind == ClaimKind::Pharmacy, "{}", c.id);
+        }
     }
 
     #[test]
-    fn versions_and_reversals_are_one_claim() {
+    fn a_reprocessed_claim_is_its_latest_version() {
         let h = house();
-        assert_eq!(h.claims.len(), 9);
-        let rx = claim(&h, "rx55500000000000000");
-        assert!(rx.reversed);
-        assert_eq!(rx.versions, 2);
-        assert!(rx.totals.billed.0 > 0, "the original's amounts");
-        assert_eq!(rx.kind, ClaimKind::Pharmacy);
-        assert_eq!(rx.claim.lines[0].description, "EXAMPLEDRUG 10 MG");
-        let masked = claim(&h, "rx00000000000000000");
+        let c = claim(&h, "cSYNC55511862");
+        assert_eq!(c.versions, 2);
+        assert_eq!(c.processed.as_deref(), Some("2026-03-19"));
+        assert_eq!(c.claim.network, Some(Network::In), "the first version's was out");
+        assert!(!c.reversed);
+        assert_eq!(
+            c.totals,
+            nine(["1162.00", "693.70", "468.30", "374.64", "0.00", "0.00", "93.66", "0.00", "93.66"])
+        );
+        // The detail is read under the latest version's key; the documents
+        // may list the claim under either, whatever order the site's is.
+        assert_eq!(
+            h.keys[&c.id],
+            DetailKey {
+                claim_key: "SYNK-018".into(),
+                claim_type: "MEDICAL".into()
+            }
+        );
+        assert_eq!(h.all_keys[&c.id], ["SYNK-071", "SYNK-018"]);
+
+        // A version not processed yet is the newest.
+        let mut data = answer!("claims.json");
+        let rows = data["allClaimsAggregate"]["healthcareClaims"]["claims"]
+            .as_array_mut()
+            .unwrap();
+        let first = rows.iter_mut().find(|r| r["claimKey"] == "SYNK-071").unwrap();
+        first["processedDate"] = Value::Null;
+        first["claimStatus"] = "IN_PROCESS".into();
+        let c = claim(&household(data).unwrap(), "cSYNC55511862");
+        assert_eq!((c.versions, c.status.as_deref()), (2, Some("in_process")));
+        assert_eq!(c.totals.deductible, usd("1162.00"));
+    }
+
+    #[test]
+    fn a_reversed_pharmacy_claim_keeps_the_originals_amounts() {
+        let h = house();
+        let c = claim(&h, "rx55500000000000481");
+        assert!(c.reversed);
+        assert_eq!(c.versions, 2);
+        assert_eq!(c.processed.as_deref(), Some("2026-04-09"), "the reversal's date");
+        let original = nine([
+            "318.60", "97.15", "221.45", "176.45", "0.00", "45.00", "0.00", "0.00", "45.00",
+        ]);
+        assert_eq!(c.totals, original);
+        assert_eq!(c.claim.lines[0].amounts, original);
+        assert_eq!(fhir_of(&c)["status"], "cancelled");
+        let others = h.claims.iter().filter(|o| o.id != c.id);
+        for o in others {
+            assert!(!o.reversed, "{}", o.id);
+            assert_eq!(fhir_of(o)["status"], "active", "{}", o.id);
+        }
+    }
+
+    #[test]
+    fn a_pharmacy_claim_is_one_line_named_where_the_site_names_the_drug() {
+        let h = house();
+        let named = claim(&h, "rx55500000000000237");
+        assert_eq!(named.kind, ClaimKind::Pharmacy);
+        assert_eq!(named.claim_number.as_deref(), Some("555000000000002374"));
+        assert_eq!(named.claim.lines.len(), 1);
+        assert_eq!(named.claim.lines[0].description, "FLUTICASONE SPR 50MCG");
+        assert_eq!(named.claim.lines[0].date.as_deref(), Some("2026-04-03"));
+        assert_eq!(named.claim.lines[0].amounts, named.totals);
+        let masked = claim(&h, "rx55500000000000481");
         assert_eq!(masked.claim.lines[0].description, "Prescription drug");
-        assert_eq!(masked.totals.copay, Cents(1250));
-        let reprocessed = claim(&h, "cSYNC22222222");
-        assert_eq!(reprocessed.versions, 2);
-        assert_eq!(reprocessed.processed.as_deref(), Some("2026-10-15"));
-        assert_eq!(h.keys["cSYNC22222222"].claim_key, "SYNK-010");
-        let pending = claim(&h, "cSYNC11111111");
-        assert_eq!(pending.status.as_deref(), Some("in_process"));
-        assert_eq!(pending.processed, None);
-        let dental = claim(&h, "c000000000003");
-        assert_eq!(dental.kind, ClaimKind::Oral);
-        assert_eq!(dental.claim.network, Some(Network::Out));
+        let item = &fhir_of(&masked)["item"][0];
+        assert_eq!(item["productOrService"], json!({"text": "Prescription drug"}));
+        assert_eq!(fhir_of(&masked)["type"]["coding"][0]["code"], "pharmacy");
     }
 
     #[test]
-    fn a_claims_documents_are_the_ones_listing_it() {
-        let h = house();
-        let office = claim(&h, "cSYNC00000006");
-        assert_eq!(office.document.as_deref(), Some("00000000-0000-4000-8000-000000000001"));
-        let rx = claim(&h, "rx00000000000000000");
-        assert_eq!(rx.document.as_deref(), Some("00000000-0000-4000-8000-000000000003"));
-        let pending = claim(&h, "cSYNC11111111");
-        assert_eq!(pending.document, None);
+    fn a_claim_in_process_has_what_little_the_site_gives() {
+        let c = claim(&house(), "cSYNC555248");
+        assert_eq!(c.claim_number.as_deref(), Some("SYNC555248"));
+        assert_eq!(c.status.as_deref(), Some("in_process"));
+        assert_eq!((c.processed, c.claim.network), (None, None));
+        assert_eq!(c.service_end.as_deref(), Some("2026-11-03"));
+        // With no last day of service, the first is the last.
+        let mut data = answer!("claims.json");
+        let rows = data["allClaimsAggregate"]["healthcareClaims"]["claims"]
+            .as_array_mut()
+            .unwrap();
+        rows.iter_mut().for_each(|r| r["lastServiceDate"] = Value::Null);
+        let hospital = claim(&household(data).unwrap(), "cSYNC55512785");
+        assert_eq!(hospital.service_end.as_deref(), Some("2026-07-18"));
+        assert_eq!(
+            c.totals,
+            nine(["475.00", "0.00", "475.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00"])
+        );
     }
 
-    /// Some lines' procedure codes come with one more letter or digit. The
-    /// code is split from it, so it carries its system, and the character
-    /// stays on the line: two lines of one code can differ only in it.
     #[test]
-    fn a_procedure_code_with_one_more_character_is_split_on_the_line() {
+    fn a_denied_claim_owes_nothing() {
+        let before = claim(&house(), "cSYNC55523128");
+        assert_eq!(before.status.as_deref(), Some("provider_denied"));
+        let c = detailed("cSYNC55523128", answer!("claim-detail-provider-denied.json"));
+        assert_eq!(c.claim.network, None, "the site gives none");
+        assert!(fhir_of(&c).get("adjudication").is_none());
+        assert_eq!(c.totals.saved, usd("2200.00"));
+        assert_eq!((c.totals.allowed, c.totals.you_owe), (Cents(0), Cents(0)));
+        assert_eq!(
+            c.codes["W5"],
+            "THE PROVIDER DID NOT SEND THE RECORDS WE ASKED FOR. YOU DO NOT OWE THIS AMOUNT."
+        );
+    }
+
+    // --------------------------------------------------------- documents
+
+    const DOC: &str = "00000000-0000-4000-8000-0000000000";
+
+    fn doc_id(tail: &str) -> String {
+        format!("{DOC}{tail}")
+    }
+
+    #[test]
+    fn documents_are_one_per_id_and_member_newest_first() {
         let h = house();
-        let mut c = claim(&h, "cSYNC00000008").clone();
-        apply_detail(&mut c, fixture("claim-detail-suffixed.json")).unwrap();
-        let got: Vec<(&str, Option<&str>)> = c
+        let docs = documents(answer!("documents.json"), &h).unwrap();
+        let rows: Vec<(String, &str, String, &str, usize)> = docs
+            .iter()
+            .map(|d| {
+                (
+                    d.id.strip_prefix(DOC).unwrap().to_string(),
+                    d.date.as_deref().unwrap(),
+                    d.category(),
+                    d.label.as_deref().unwrap(),
+                    d.claim_keys.len(),
+                )
+            })
+            .collect();
+        let expected = [
+            ("a4", "2026-10-09", "eob", "Jordan", 1),
+            ("d4", "2026-10-07", "eob", "Jordan", 1),
+            ("b2", "2026-09-01", "health-statement", "Alex", 0),
+            ("a3", "2026-08-08", "eob", "Alex", 1),
+            ("b6", "2026-08-04", "prior-authorization-letters", "Sam", 0),
+            ("a9", "2026-07-02", "eob", "Sam", 1),
+            ("a6", "2026-05-22", "eob", "Alex", 1),
+            ("a5", "2026-05-07", "eob", "Sam", 2),
+            ("a8", "2026-04-15", "eob", "Alex", 1),
+            ("a2", "2026-03-23", "eob", "Alex", 1),
+            ("a1", "2026-01-12", "eob", "Alex", 1),
+        ]
+        .map(|(id, date, category, who, claims)| (id.to_string(), date, category.to_string(), who, claims));
+        // The plan's general form, addressed to no one, is not among them.
+        assert_eq!(rows, expected);
+        for d in &docs {
+            assert_eq!(d.patient, Some(patient_id(MEMBER, d.label.as_deref().unwrap())));
+        }
+        // One statement's rows are one document, whose rows need not be
+        // next to each other.
+        let shared = &docs[7];
+        assert_eq!(shared.claim_keys, ["SYNK-013", "SYNK-074"]);
+        assert_eq!(shared.class, "u_mber_eob");
+        assert_eq!(shared.name.as_deref(), Some("Claim EOB"));
+        assert_eq!(docs[1].class, "u_sb_dental_elec");
+        assert_eq!(docs[2].class, "u_mthly_health_stmt");
+        assert_eq!(docs[4].class, "u_prior_auth_doc");
+    }
+
+    #[test]
+    fn a_claims_documents_are_those_listing_any_of_its_versions() {
+        let h = linked();
+        let links = |id: &str| {
+            let c = claim(&h, id);
+            (c.documents, c.document)
+        };
+        assert_eq!(
+            links("cSYNC55511862"),
+            (vec![doc_id("a1"), doc_id("a2")], Some(doc_id("a2"))),
+            "one EOB for each version, the later last"
+        );
+        // One EOB of two claims, then one each of a pharmacy's and a
+        // dentist's.
+        for (id, tail) in [
+            ("cSYNC55526407", "a5"),
+            ("cSYNC55520613", "a5"),
+            ("rx55500000000000237", "a8"),
+            ("c555040000318", "d4"),
+        ] {
+            assert_eq!(links(id), (vec![doc_id(tail)], Some(doc_id(tail))), "{id}");
+        }
+        for id in ["cSYNC55523128", "rx55500000000000481", "cSYNC555248"] {
+            assert_eq!(links(id), (vec![], None), "{id}");
+        }
+    }
+
+    #[test]
+    fn a_claim_is_explained_in_its_latest_eob_not_a_later_letter() {
+        let mut h = house();
+        let mut data = answer!("documents.json");
+        let rows = data["multiDocTypeListSummary"]["documents"].as_array_mut().unwrap();
+        let letter = rows
+            .iter_mut()
+            .find(|r| r["documentType"] == "Prior Authorization Letters")
+            .unwrap();
+        letter["claimKey"] = "SYNK-056".into();
+        let docs = documents(data, &h).unwrap();
+        link_documents(&mut h, &docs);
+        let c = claim(&h, "cSYNC55521940");
+        assert_eq!(c.documents, [doc_id("a9"), doc_id("b6")]);
+        assert_eq!(c.document, Some(doc_id("a9")));
+    }
+
+    // ------------------------------------------------------------ detail
+
+    #[test]
+    fn a_professional_detail_reads_its_lines_codes_and_totals() {
+        let c = detailed("cSYNC55520613", answer!("claim-detail-professional.json"));
+        assert_eq!(c.kind, ClaimKind::Professional);
+        assert!(c.detailed);
+        assert_eq!(c.claim.network, Some(Network::In));
+        assert_eq!(c.processed.as_deref(), Some("2026-05-04"));
+        assert_eq!(
+            (c.service_start.as_deref(), c.service_end.as_deref()),
+            (Some("2026-04-07"), Some("2026-04-21"))
+        );
+        let total = nine([
+            "547.00", "337.90", "209.10", "65.20", "127.60", "0.00", "16.30", "0.00", "143.90",
+        ]);
+        assert_eq!((c.totals, c.claim.total), (total, Some(total)));
+        let lines: Vec<_> = c
+            .claim
+            .lines
+            .iter()
+            .map(|l| {
+                (
+                    l.description.as_str(),
+                    l.date.as_deref().unwrap(),
+                    l.procedure.as_ref().unwrap().code.as_str(),
+                    l.codes.join(" "),
+                )
+            })
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                ("THERAPY EVALUATION", "2026-04-07", "97161", "K4".to_string()),
+                ("THERAPY EXERCISE", "2026-04-14", "97110", "K4".to_string()),
+                ("HANDS-ON THERAPY", "2026-04-21", "97140", "K4".to_string()),
+                ("ELECTRICAL STIMULATION", "2026-04-21", "G0283", String::new()),
+            ]
+        );
+        // The site gives a medical line no allowed amount: it is what is
+        // charged less the write-off.
+        assert_eq!(
+            c.claim.lines[1].amounts,
+            nine(["148.00", "91.60", "56.40", "17.64", "34.35", "0.00", "4.41", "0.00", "38.76"])
+        );
+        for l in &c.claim.lines {
+            assert_eq!((l.date_end.as_ref(), l.revenue.as_ref()), (None, None));
+            assert_eq!(l.amounts.allowed.0, l.amounts.billed.0 - l.amounts.saved.0);
+            assert!(!l.left_out);
+        }
+        assert_eq!(c.codes.keys().collect::<Vec<_>>(), ["K4"]);
+    }
+
+    #[test]
+    fn an_institutional_detail_reads_revenue_codes_and_a_line_of_two_days() {
+        let c = detailed("cSYNC55512785", answer!("claim-detail-institutional.json"));
+        assert_eq!(c.kind, ClaimKind::Institutional);
+        assert_eq!(
+            c.totals,
+            nine(["1893.00", "1086.97", "806.03", "329.38", "119.30", "275.00", "82.35", "0.00", "476.65"])
+        );
+        let revenue: Vec<_> = c
+            .claim
+            .lines
+            .iter()
+            .map(|l| l.revenue.as_ref().unwrap().code.as_str())
+            .collect();
+        assert_eq!(revenue, ["0450", "0324", "0305", "0636", "0258"]);
+        let days: Vec<_> = c
+            .claim
+            .lines
+            .iter()
+            .map(|l| (l.date.as_deref().unwrap(), l.date_end.as_deref()))
+            .collect();
+        assert_eq!(
+            days,
+            [
+                ("2026-07-18", Some("2026-07-19")),
+                ("2026-07-18", None),
+                ("2026-07-18", None),
+                ("2026-07-19", None),
+                ("2026-07-19", None),
+            ]
+        );
+        assert_eq!(c.claim.lines[4].codes, ["Q9", "K4"], "as the site orders them");
+        assert_eq!(
+            c.codes.keys().collect::<Vec<_>>(),
+            ["K4", "Q9"],
+            "each once, in code order"
+        );
+        let items = fhir_of(&c)["item"].clone();
+        assert_eq!(
+            items[0]["servicedPeriod"],
+            json!({"start": "2026-07-18", "end": "2026-07-19"})
+        );
+        assert_eq!(items[3]["servicedDate"], "2026-07-19");
+        assert_eq!(
+            items[0]["revenue"]["coding"][0],
+            json!({"system": "https://www.nubc.org/CodeSystem/RevenueCodes", "code": "0450", "display": "EMERGENCY ROOM"})
+        );
+        // Two notes, numbered in code order.
+        assert_eq!(items[4]["noteNumber"], json!([2, 1]));
+    }
+
+    #[test]
+    fn a_dental_detail_reads_teeth_and_the_sites_allowed_amount() {
+        let before = claim(&house(), "c555040000318");
+        // The summary holds what is not covered with coinsurance.
+        assert_eq!(
+            (before.totals.coinsurance, before.totals.not_covered),
+            (usd("92.10"), Cents(0))
+        );
+        let c = detailed("c555040000318", answer!("claim-detail-dental.json"));
+        assert_eq!(c.kind, ClaimKind::Oral);
+        assert_eq!(c.claim.network, Some(Network::Out));
+        assert_eq!(
+            c.totals,
+            nine(["303.00", "0.00", "303.00", "180.90", "30.00", "0.00", "13.60", "78.50", "122.10"])
+        );
+        let lines: Vec<_> = c
             .claim
             .lines
             .iter()
             .map(|l| {
                 (
                     l.procedure.as_ref().unwrap().code.as_str(),
-                    l.procedure_suffix.as_deref(),
+                    l.tooth.as_deref(),
+                    l.amounts.billed,
+                    l.amounts.allowed,
                 )
             })
             .collect();
         assert_eq!(
-            got,
+            lines,
             [
-                ("71046", Some("7")),
-                ("71046", Some("8")),
-                ("80061", Some("8")),
-                ("E0110", Some("N")),
-                ("99213", None),
+                ("D0120", None, usd("71.00"), usd("52.00")),
+                ("D1120", Some("01-32"), usd("96.00"), usd("74.50")),
+                ("D1351", Some("19"), usd("68.00"), usd("49.00")),
+                ("D1351", Some("30"), usd("68.00"), usd("49.00")),
             ]
         );
-        assert_eq!(c.claim.lines[0].description, "Imaging/radiology");
-        assert_eq!(c.totals.billed, Cents(45500));
-
-        let eob = crate::fhir::explanation_of_benefit(&c, "Coverage/x", &[], None);
-        let first = &eob["item"][0]["productOrService"];
-        assert_eq!(
-            first["coding"],
-            json!([
-                { "system": "http://www.ama-assn.org/go/cpt", "code": "71046", "display": "Chest x-ray, 2 views" },
-                { "system": crate::fhir::SITE_PROCEDURE_SYSTEM, "code": "710467" },
-            ])
-        );
-        assert_eq!(first["text"], "Imaging/radiology");
-        let dme = &eob["item"][3]["productOrService"]["coding"];
-        assert_eq!(
-            dme[0]["system"],
-            "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets"
-        );
-        assert_eq!(dme[0]["code"], "E0110");
-        assert_eq!(dme[1]["code"], "E0110N");
-        let plain = &eob["item"][4]["productOrService"]["coding"];
-        assert_eq!(plain.as_array().unwrap().len(), 1, "{plain}");
-
-        let v = crate::app::claim_json(&c, true);
-        assert_eq!(
-            v["lines"][0]["procedure"],
-            json!({ "code": "71046", "display": "Chest x-ray, 2 views", "suffix": "7", "site_code": "710467" })
-        );
-        let plain = v["lines"][4]["procedure"].as_object().unwrap();
-        assert!(
-            !plain.contains_key("suffix") && !plain.contains_key("site_code"),
-            "{plain:?}"
-        );
     }
 
-    /// The detail of the statement's radiology claim (2026-08-20): the same
-    /// totals, and the codes a statement does not print.
     #[test]
-    fn a_detail_adds_lines_and_codes() {
-        let h = house();
-        let mut c = claim(&h, "cSYNC00000008").clone();
-        apply_detail(&mut c, fixture("claim-detail-medical.json")).unwrap();
-        assert_eq!(c.kind, ClaimKind::Professional);
-        assert_eq!(c.totals.billed, Cents(52000));
-        assert_eq!(c.totals.saved, Cents(25000));
-        assert_eq!(c.totals.allowed, Cents(27000));
-        assert_eq!(c.totals.plan_paid, Cents(17000));
-        assert_eq!(c.totals.you_owe, Cents(10000));
-        assert_eq!(c.claim.lines.len(), 2);
-        let first = &c.claim.lines[0];
-        assert_eq!(first.procedure.as_ref().unwrap().code, "70450");
-        assert_eq!(first.amounts.allowed, Cents(15000), "charged less the write-off");
-        assert_eq!(first.codes, ["D1"]);
-        assert_eq!(c.claim.lines[1].procedure.as_ref().unwrap().code, "G2211");
-        assert!(c.codes.contains_key("D1") && c.codes.contains_key("UG"));
-        assert!(c.detailed);
-
-        let mut inst = claim(&h, "cSYNC00000009").clone();
-        apply_detail(&mut inst, fixture("claim-detail-institutional.json")).unwrap();
-        assert_eq!(inst.kind, ClaimKind::Institutional);
-        assert_eq!(inst.claim.lines[0].revenue.as_ref().unwrap().code, "0450");
-
-        let mut dental = claim(&h, "c000000000003").clone();
-        apply_detail(&mut dental, fixture("claim-detail-dental.json")).unwrap();
-        assert_eq!(dental.kind, ClaimKind::Oral);
-        let line = &dental.claim.lines[0];
-        assert_eq!(line.procedure.as_ref().unwrap().code, "D1110");
-        assert_eq!(line.tooth.as_deref(), Some("01-32"));
+    fn a_detail_splits_coinsurance_from_what_is_not_covered() {
+        let id = "cSYNC55526407";
+        let before = claim(&house(), id).totals;
         assert_eq!(
-            line.amounts.allowed,
-            Cents(12000),
-            "the dental answer's own allowed amount"
+            (before.coinsurance, before.not_covered),
+            (usd("178.00"), Cents(0)),
+            "together in the summary"
         );
-    }
-
-    /// A line the provider wrote off in full, left out of the billed total
-    /// but counted in the discount: the claim's discount and allowed amount
-    /// are the counted line's. Counted in the billed total too, it changes
-    /// nothing.
-    #[test]
-    fn a_written_off_line_left_out_of_the_billed_total_leaves_the_discount() {
-        let h = house();
-        let mut c = claim(&h, "cSYNC00000008").clone();
-        apply_detail(&mut c, fixture("claim-detail-written-off.json")).unwrap();
-        assert_eq!(c.totals.billed, Cents(25000));
-        assert_eq!(c.totals.saved, Cents(10000), "the counted line's write-off");
-        assert_eq!(c.totals.allowed, Cents(15000));
-        assert_eq!(c.totals.plan_paid, Cents(12000));
-        assert_eq!(c.totals.you_owe, Cents(3000));
-        assert_eq!(c.claim.lines.len(), 2, "the written-off line is kept");
-        assert_eq!(c.claim.lines[0].amounts.allowed, Cents(0));
-        let left_out: Vec<bool> = c.claim.lines.iter().map(|l| l.left_out).collect();
-        assert_eq!(left_out, [true, false]);
-
-        let mut counted = fixture("claim-detail-written-off.json");
-        counted["claimDetailsAggregate"]["healthCareClaimDetails"]["balance"]["totalBilledAmount"]["value"] =
-            json!("650.00");
-        let mut c = claim(&h, "cSYNC00000008").clone();
-        apply_detail(&mut c, counted).unwrap();
-        assert_eq!(c.totals.billed, Cents(65000));
-        assert_eq!(c.totals.saved, Cents(50000));
-        assert_eq!(c.totals.allowed, Cents(15000));
-        assert!(c.claim.lines.iter().all(|l| !l.left_out));
-    }
-
-    /// A line the site replaced with another code: out of the billed total
-    /// and the amount owed, all of it not covered. A line of the same charge
-    /// that the plan paid on, and a counted line written off in full, are
-    /// not it. Its EOB item says so; the claim's totals are the site's.
-    #[test]
-    fn a_replaced_line_is_marked_left_out() {
-        let h = house();
-        let mut c = claim(&h, "cSYNC00000008").clone();
-        apply_detail(&mut c, fixture("claim-detail-replaced.json")).unwrap();
-        let left_out: Vec<bool> = c.claim.lines.iter().map(|l| l.left_out).collect();
-        assert_eq!(left_out, [false, true, false]);
-        assert_eq!(c.totals.billed, Cents(40000));
-        assert_eq!(c.totals.saved, Cents(25000), "a replaced line wrote nothing off");
-        assert_eq!(c.totals.allowed, Cents(15000));
-        assert_eq!(c.totals.you_owe, Cents(3000));
-
-        let eob = crate::fhir::explanation_of_benefit(&c, "Coverage/x", &[], None);
-        let marks: Vec<bool> = eob["item"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|item| {
-                item["adjudication"].as_array().unwrap().iter().any(|a| {
-                    a["category"]["coding"][0]["system"] == crate::fhir::ADJUDICATION_SYSTEM
-                        && a["category"]["coding"][0]["code"] == "not-counted"
-                })
-            })
-            .collect();
-        assert_eq!(marks, [false, true, false]);
-    }
-
-    fn line(billed: i64, paid: i64, owed: i64) -> ClaimLine {
-        ClaimLine {
-            amounts: Amounts {
-                billed: Cents(billed),
-                plan_paid: Cents(paid),
-                you_owe: Cents(owed),
-                ..Amounts::default()
+        let c = detailed(id, answer!("claim-detail-out-of-network.json"));
+        assert_eq!(
+            (c.totals.coinsurance, c.totals.not_covered),
+            (usd("22.80"), usd("155.20"))
+        );
+        assert_eq!(
+            Amounts {
+                coinsurance: before.coinsurance,
+                not_covered: Cents(0),
+                ..c.totals
             },
-            ..ClaimLine::default()
+            before
+        );
+    }
+
+    #[test]
+    fn a_detail_the_site_does_not_answer_is_an_error_naming_the_claim() {
+        let mut c = claim(&house(), "cSYNC55520613");
+        let e = apply_detail(&mut c, json!({"claimDetailsAggregate": null})).unwrap_err();
+        assert_eq!(e.exit_code(), 5);
+        assert!(e.to_string().contains("cSYNC55520613"), "{e}");
+        assert!(!c.detailed);
+    }
+
+    // --------------------------------------------------------- procedures
+
+    #[test]
+    fn a_character_the_site_appends_to_a_code_is_split_from_it() {
+        let hospital = detailed("cSYNC55512785", answer!("claim-detail-institutional.json"));
+        let therapy = detailed("cSYNC55520613", answer!("claim-detail-professional.json"));
+        for (c, n, code, suffix, system, display, text) in [
+            (
+                &hospital,
+                1,
+                "71046",
+                "R",
+                "http://www.ama-assn.org/go/cpt",
+                "X-RAY OF THE CHEST, 2 VIEWS",
+                "CHEST X-RAY",
+            ),
+            (
+                &therapy,
+                3,
+                "G0283",
+                "4",
+                "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets",
+                "ELECTRICAL STIMULATION, UNATTENDED",
+                "ELECTRICAL STIMULATION",
+            ),
+        ] {
+            let site_code = format!("{code}{suffix}");
+            let line = &c.claim.lines[n];
+            let procedure = Coded {
+                code: code.into(),
+                display: Some(display.into()),
+            };
+            assert_eq!(line.procedure, Some(procedure));
+            assert_eq!(line.procedure_suffix.as_deref(), Some(suffix));
+            assert_eq!(
+                fhir_of(c)["item"][n]["productOrService"],
+                json!({
+                    "coding": [
+                        {"system": system, "code": code, "display": display},
+                        {"system": crate::fhir::SITE_PROCEDURE_SYSTEM, "code": site_code},
+                    ],
+                    "text": text,
+                })
+            );
+            let v = crate::app::claim_json(c, true);
+            assert_eq!(
+                v["lines"][n]["procedure"],
+                json!({"code": code, "display": display, "suffix": suffix, "site_code": site_code})
+            );
+            // The other lines have one coding, and neither key.
+            for (k, l) in c.claim.lines.iter().enumerate().filter(|(k, _)| *k != n) {
+                assert_eq!(l.procedure_suffix, None);
+                let p = &v["lines"][k]["procedure"];
+                assert!(p.get("suffix").is_none() && p.get("site_code").is_none(), "{p}");
+                let codings = fhir_of(c)["item"][k]["productOrService"]["coding"].clone();
+                assert_eq!(codings.as_array().unwrap().len(), 1);
+            }
         }
     }
 
-    /// Two sets that fit as well as each other mark nothing, and neither do
-    /// totals that leave nothing out or a plan paid that is not the lines'.
     #[test]
-    fn left_out_lines_need_exactly_one_set_that_fits() {
-        let lines = [line(500, 200, 0), line(300, 0, 300), line(300, 0, 300)];
-        assert!(
-            left_out_lines(&lines, Cents(800), Cents(200), Cents(300)).is_empty(),
-            "two fit"
-        );
-        let lines = [line(500, 200, 0), line(300, 0, 300), line(100, 0, 0)];
-        assert_eq!(left_out_lines(&lines, Cents(600), Cents(200), Cents(0)), [1]);
-        assert!(
-            left_out_lines(&lines, Cents(900), Cents(200), Cents(300)).is_empty(),
-            "nothing short"
-        );
-        assert!(
-            left_out_lines(&lines, Cents(600), Cents(150), Cents(0)).is_empty(),
-            "paid differs"
-        );
-        let many: Vec<ClaimLine> = (0..=LEFT_OUT_CANDIDATES).map(|_| line(100, 0, 0)).collect();
-        assert!(
-            left_out_lines(&many, Cents(100), Cents(0), Cents(0)).is_empty(),
-            "too many to try"
-        );
-    }
-
-    /// The answer with every plan period starting on `start` and every
-    /// period indicator `indicator`.
-    fn spending_with(start: &str, indicator: Value) -> Value {
-        let text = fixture("spending.json")
-            .to_string()
-            .replace("\"2026-01-01\"", &format!("\"{start}\""))
-            .replace("\"CALENDAR_YEAR\"", &indicator.to_string());
-        serde_json::from_str(&text).unwrap()
-    }
-
-    #[test]
-    fn a_calendar_year_plan_counts_from_january_whenever_coverage_began() {
-        // Coverage that took effect in November of the year before.
-        let b = balances(spending_with("2025-11-06", json!("CALENDAR_YEAR")), "2026-11-17").unwrap();
-        let year = BenefitPeriod {
-            start: "2026-01-01".into(),
-            end: "2026-12-31".into(),
+    fn a_line_without_a_usable_procedure_takes_the_service_code_of_that_shape() {
+        let with = |procedures: Value, service: &str| {
+            let mut data = answer!("claim-detail-professional.json");
+            let line = &mut service_lines(&mut data)[0];
+            line["procedures"] = procedures;
+            line["serviceInfo"]["code"] = service.into();
+            detailed("cSYNC55520613", data)
         };
-        assert!(b
-            .balances
+        let code = |c: &ClaimRecord| {
+            let l = &c.claim.lines[0];
+            (l.procedure.as_ref().map(|p| p.code.clone()), l.procedure_suffix.clone())
+        };
+        let some = |s: &str| Some(s.to_string());
+        assert_eq!(code(&with(json!([]), "97161")), (some("97161"), None));
+        let blank = json!([{"code": " ", "description": ""}]);
+        assert_eq!(code(&with(blank, "71046R")), (some("71046"), some("R")));
+        // A service code of no procedure's shape is not taken.
+        let c = with(json!([]), "0420");
+        assert_eq!(code(&c), (None, None));
+        assert_eq!(
+            fhir_of(&c)["item"][0]["productOrService"],
+            json!({"text": "THERAPY EVALUATION"})
+        );
+        // A procedure code of another shape is kept as text.
+        let c = with(json!([{"code": "LOCAL7", "description": "CLINIC FEE"}]), "97161");
+        assert_eq!(code(&c), (some("LOCAL7"), None));
+        assert_eq!(
+            fhir_of(&c)["item"][0]["productOrService"],
+            json!({"text": "LOCAL7 THERAPY EVALUATION"})
+        );
+    }
+
+    // ---------------------------------------------------- left-out lines
+
+    #[test]
+    fn lines_the_totals_leave_out_are_marked_and_their_write_offs_taken_out() {
+        let id = "cSYNC55521940";
+        let before = claim(&house(), id).totals;
+        assert_eq!(
+            (before.billed, before.saved, before.allowed),
+            (usd("329.00"), usd("397.85"), usd("-68.85")),
+            "the summary's discount counts the lines its billed total leaves out"
+        );
+        let c = detailed(id, answer!("claim-detail-left-out-discount.json"));
+        let marked: Vec<bool> = c.claim.lines.iter().map(|l| l.left_out).collect();
+        assert_eq!(
+            marked,
+            [false, false, false, true, true],
+            "not the vitamin D line, which the plan paid nothing on too"
+        );
+        assert_eq!(
+            c.totals,
+            nine(["329.00", "267.85", "61.15", "61.15", "0.00", "0.00", "0.00", "0.00", "0.00"])
+        );
+        assert_eq!(c.claim.total, Some(c.totals));
+        // A marked line keeps the site's amounts.
+        assert_eq!(
+            c.claim.lines[3].amounts,
+            nine(["92.00", "92.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00"])
+        );
+
+        let v = fhir_of(&c);
+        for (n, item) in v["item"].as_array().unwrap().iter().enumerate() {
+            let entries = &item["adjudication"];
+            let last = entries.as_array().unwrap().last().unwrap();
+            if n < 3 {
+                assert!(!categories(entries).contains(&"not-counted"), "line {n}");
+                continue;
+            }
+            assert_eq!(
+                *last,
+                json!({"category": {"coding": [{
+                    "system": "https://github.com/own-your-health/uhc-cli/fhir/adjudication",
+                    "code": "not-counted",
+                    "display": "Not counted in the claim's totals",
+                }]}}),
+                "a mark, with no amount"
+            );
+            assert_eq!(entries.as_array().unwrap().len(), 10, "beside the nine amounts");
+        }
+        assert_eq!(amount_of(&v["total"], "discount"), 267.85);
+        assert_eq!(amount_of(&v["total"], "eligible"), 61.15);
+        let counted: Vec<Value> = crate::app::claim_json(&c, true)["lines"]
+            .as_array()
+            .unwrap()
             .iter()
-            .all(|r| r.plan_year == Some(2026) && r.period.as_ref() == Some(&year)));
-        // Through the new year the period is the new year's.
-        let b = balances(spending_with("2025-11-06", json!("CALENDAR_YEAR")), "2027-01-02").unwrap();
-        assert!(b.balances.iter().all(|r| r.plan_year == Some(2027)
-            && r.period
-                .as_ref()
-                .is_some_and(|p| p.start == "2027-01-01" && p.end == "2027-12-31")));
+            .map(|l| l["counted"].clone())
+            .collect();
+        assert_eq!(counted, [true, true, true, false, false]);
     }
 
     #[test]
-    fn without_the_calendar_year_mark_balances_have_no_period() {
-        for indicator in [json!(null), json!("PLAN_YEAR")] {
-            let b = balances(spending_with("2025-11-06", indicator.clone()), "2026-11-17").unwrap();
-            assert!(b.calendar_year.is_empty(), "{indicator}");
-            assert_eq!(b.balances.len(), 16);
-            assert!(
-                b.balances
-                    .iter()
-                    .all(|r| r.period.is_none() && r.plan_year == Some(2025)),
-                "{indicator}: the plan year is the plan period's start"
+    fn a_left_out_line_can_have_an_amount_owed() {
+        let c = detailed("cSYNC55514009", answer!("claim-detail-left-out-owed.json"));
+        let marked: Vec<bool> = c.claim.lines.iter().map(|l| l.left_out).collect();
+        assert_eq!(marked, [false, true, false, false]);
+        assert_eq!(c.claim.lines[1].amounts.you_owe, usd("28.00"));
+        assert_eq!(c.claim.lines[1].amounts.not_covered, usd("28.00"));
+        assert_eq!(
+            c.totals,
+            nine(["535.50", "251.15", "284.35", "111.08", "118.40", "45.00", "9.87", "0.00", "173.27"]),
+            "neither its charge nor what is owed on it"
+        );
+        let v = fhir_of(&c);
+        assert!(categories(&v["item"][1]["adjudication"]).contains(&"not-counted"));
+        assert_eq!(amount_of(&v["item"][1]["adjudication"], "memberliability"), 28.0);
+        assert_eq!(amount_of(&v["total"], "memberliability"), 173.27);
+    }
+
+    #[test]
+    fn a_claim_whose_totals_count_every_line_has_none_marked() {
+        for (id, detail) in [
+            ("cSYNC55511862", answer!("claim-detail-reprocessed.json")),
+            ("cSYNC55512785", answer!("claim-detail-institutional.json")),
+            ("cSYNC55520613", answer!("claim-detail-professional.json")),
+            ("cSYNC55523128", answer!("claim-detail-provider-denied.json")),
+            ("cSYNC55531742", answer!("claim-detail-no-suffix.json")),
+            ("cSYNC55526407", answer!("claim-detail-out-of-network.json")),
+            ("c555040000318", answer!("claim-detail-dental.json")),
+        ] {
+            let c = detailed(id, detail);
+            assert!(c.claim.lines.iter().all(|l| !l.left_out), "{id}");
+            let sum = c.claim.lines.iter().fold(Amounts::default(), |a, l| a + l.amounts);
+            assert_eq!((sum.billed, sum.saved), (c.totals.billed, c.totals.saved), "{id}");
+            assert_eq!(
+                (sum.plan_paid, sum.you_owe),
+                (c.totals.plan_paid, c.totals.you_owe),
+                "{id}"
             );
+        }
+    }
+
+    /// With no set marked, the site's discount is kept as given; an allowed
+    /// amount it makes negative is not written.
+    #[test]
+    fn totals_no_set_of_lines_explains_are_kept_as_given() {
+        let mut data = answer!("claim-detail-left-out-discount.json");
+        data["claimDetailsAggregate"]["healthCareClaimDetails"]["balance"]["totalBilledAmount"]["value"] =
+            "300.00".into();
+        let c = detailed("cSYNC55521940", data);
+        assert!(c.claim.lines.iter().all(|l| !l.left_out));
+        assert_eq!((c.totals.saved, c.totals.allowed), (usd("397.85"), usd("-97.85")));
+        let total = fhir_of(&c)["total"].clone();
+        assert!(!categories(&total).contains(&"eligible"), "{total}");
+        assert_eq!(amount_of(&total, "discount"), 397.85);
+    }
+
+    /// Lines as (charged, plan paid, owed) in cents; the rest written off.
+    fn lines(rows: &[(i64, i64, i64)]) -> Vec<ClaimLine> {
+        rows.iter()
+            .map(|&(charged, paid, owed)| ClaimLine {
+                amounts: Amounts {
+                    billed: Cents(charged),
+                    saved: Cents(charged - paid - owed),
+                    allowed: Cents(paid + owed),
+                    plan_paid: Cents(paid),
+                    you_owe: Cents(owed),
+                    ..Amounts::default()
+                },
+                ..ClaimLine::default()
+            })
+            .collect()
+    }
+
+    /// What [`left_out_lines`] marks when the totals are short of the lines'
+    /// by `billed` and `owed`.
+    fn short_by(lines: &[ClaimLine], billed: i64, owed: i64) -> Vec<usize> {
+        let all = lines.iter().fold(Amounts::default(), |a, l| a + l.amounts);
+        left_out_lines(
+            lines,
+            Cents(all.billed.0 - billed),
+            all.plan_paid,
+            Cents(all.you_owe.0 - owed),
+        )
+    }
+
+    #[test]
+    fn the_left_out_lines_are_the_one_set_that_fits() {
+        let l = lines(&[(9_150, 6_020, 0), (4_310, 0, 0), (2_675, 0, 2_140), (7_390, 0, 5_505)]);
+        assert_eq!(short_by(&l, 2_675, 2_140), [2]);
+        assert_eq!(short_by(&l, 4_310, 0), [1]);
+        assert_eq!(short_by(&l, 4_310 + 7_390, 5_505), [1, 3]);
+        assert_eq!(short_by(&l, 4_310 + 2_675 + 7_390, 2_140 + 5_505), [1, 2, 3]);
+        // A line charged nothing is in no set, so it makes no second one.
+        let l = lines(&[(9_150, 6_020, 0), (2_675, 0, 2_140), (0, 0, 0)]);
+        assert_eq!(short_by(&l, 2_675, 2_140), [1]);
+    }
+
+    #[test]
+    fn no_line_is_marked_where_the_amounts_do_not_decide() {
+        let l = lines(&[(9_150, 6_020, 0), (4_310, 0, 0), (2_675, 0, 2_140), (7_390, 0, 5_505)]);
+        let none: [usize; 0] = [];
+        // Nothing is short, or the totals are over.
+        assert_eq!(short_by(&l, 0, 0), none);
+        assert_eq!(short_by(&l, 0, 2_140), none);
+        assert_eq!(short_by(&l, -2_675, -2_140), none);
+        // No set fits: the charge alone, or what is owed alone.
+        assert_eq!(short_by(&l, 2_675, 0), none);
+        assert_eq!(short_by(&l, 2_676, 2_140), none);
+        // A line the plan paid on is never one.
+        assert_eq!(short_by(&l, 9_150, 0), none);
+        // Two sets fit: two lines alike, or one line and two others.
+        let alike = lines(&[(9_150, 6_020, 0), (2_675, 0, 2_140), (2_675, 0, 2_140)]);
+        assert_eq!(short_by(&alike, 2_675, 2_140), none);
+        assert_eq!(short_by(&alike, 5_350, 4_280), [1, 2], "both is one set");
+        let sums = lines(&[(9_150, 6_020, 0), (5_000, 0, 0), (3_000, 0, 0), (2_000, 0, 0)]);
+        assert_eq!(short_by(&sums, 5_000, 0), none);
+        // The lines' plan paid is not the claim's.
+        let all = l.iter().fold(Amounts::default(), |a, l| a + l.amounts);
+        for paid in [all.plan_paid.0 - 1, all.plan_paid.0 + 1] {
+            assert_eq!(
+                left_out_lines(
+                    &l,
+                    Cents(all.billed.0 - 2_675),
+                    Cents(paid),
+                    Cents(all.you_owe.0 - 2_140)
+                ),
+                none
+            );
+        }
+        // No lines at all.
+        assert_eq!(left_out_lines(&[], Cents(-100), Cents(0), Cents(0)), none);
+    }
+
+    #[test]
+    fn no_line_is_marked_beyond_the_most_sets_tried() {
+        // Each line's charge is twice the one before's, so one set makes up
+        // any sum. A line the plan paid on is no candidate.
+        let of = |candidates: usize| {
+            let mut rows: Vec<(i64, i64, i64)> = (0..candidates).map(|k| (1 << k, 0, 0)).collect();
+            rows.push((500, 120, 0));
+            lines(&rows)
+        };
+        assert_eq!(short_by(&of(LEFT_OUT_CANDIDATES), 5, 0), [0, 2]);
+        assert!(short_by(&of(LEFT_OUT_CANDIDATES + 1), 5, 0).is_empty());
+    }
+
+    // ---------------------------------------------------------- balances
+
+    /// Every benefit of a plan balances answer, with the list it is in.
+    fn each_benefit(data: &mut Value, mut f: impl FnMut(&str, &mut Value)) {
+        for (list, inner) in [
+            ("benefits", "benefitsResponses"),
+            ("accumulators", "accumulatorSummaries"),
+        ] {
+            for dep in data["spendingOverviews"][list].as_array_mut().unwrap() {
+                for response in dep[inner].as_array_mut().unwrap() {
+                    for benefit in response["benefits"].as_array_mut().unwrap() {
+                        f(list, benefit);
+                    }
+                }
+            }
         }
     }
 
     #[test]
     fn balances_are_each_members_and_the_familys_once() {
-        let PlanBalances {
-            members,
-            balances: rows,
-            calendar_year,
-        } = balances(fixture("spending.json"), "2026-11-17").unwrap();
-        assert_eq!(members.len(), 3);
-        let year = BenefitPeriod {
-            start: "2026-01-01".into(),
-            end: "2026-12-31".into(),
-        };
-        assert_eq!(calendar_year.len(), 3, "the medical plan counts by calendar year");
-        assert!(rows.iter().all(|r| r.period.as_ref() == Some(&year)));
-        // Three members and the family, two networks, two limits.
-        assert_eq!(rows.len(), 16);
-        let alex = patient_id("SYNM000001", "ALEX");
-        let row = |p: &str, n: Network, l: Limit| {
-            rows.iter()
-                .find(|r| r.patient == p && r.network == n && r.limit == l)
-                .unwrap()
-        };
-        let d = row(&alex, Network::In, Limit::Deductible);
-        assert_eq!(
-            (d.maximum, d.used, d.remaining),
-            (Cents(125000), Cents(5000), Cents(120000))
-        );
-        assert_eq!(d.plan_year, Some(2026));
-        assert_eq!(d.as_of.as_deref(), Some("2026-11-17"));
-        let fam = row(&family_id("SYNM000001"), Network::In, Limit::OutOfPocket);
-        assert_eq!((fam.maximum, fam.used), (Cents(800000), Cents(29250)));
-        assert!(fam.family && fam.label == "Family");
-        let out = row(&alex, Network::Out, Limit::Deductible);
-        assert_eq!(out.maximum, Cents(300000));
+        let b = balances(answer!("spending.json"), TODAY).unwrap();
+        let rows: Vec<_> = b
+            .balances
+            .iter()
+            .map(|r| {
+                (
+                    r.label.as_str(),
+                    r.network.code(),
+                    r.limit.code(),
+                    [r.maximum, r.used, r.remaining],
+                    r.met,
+                )
+            })
+            .collect();
+        let (ded, oop) = ("deductible", "out_of_pocket");
+        let expected = [
+            ("Alex", "in", ded, ["1150.00", "1150.00", "0.00"], true),
+            ("Alex", "in", oop, ["5200.00", "1893.44", "3306.56"], false),
+            ("Alex", "out", ded, ["2450.00", "0.00", "2450.00"], false),
+            ("Alex", "out", oop, ["9750.00", "0.00", "9750.00"], false),
+            ("Jordan", "in", ded, ["1150.00", "164.55", "985.45"], false),
+            ("Jordan", "in", oop, ["5200.00", "246.55", "4953.45"], false),
+            ("Jordan", "out", ded, ["2450.00", "0.00", "2450.00"], false),
+            ("Jordan", "out", oop, ["9750.00", "0.00", "9750.00"], false),
+            ("Sam", "in", ded, ["1150.00", "262.80", "887.20"], false),
+            ("Sam", "in", oop, ["5200.00", "537.93", "4662.07"], false),
+            ("Sam", "out", ded, ["2450.00", "110.80", "2339.20"], false),
+            ("Sam", "out", oop, ["9750.00", "133.60", "9616.40"], false),
+            ("Family", "in", ded, ["2300.00", "1577.35", "722.65"], false),
+            ("Family", "in", oop, ["10400.00", "2677.92", "7722.08"], false),
+            ("Family", "out", ded, ["4900.00", "110.80", "4789.20"], false),
+            ("Family", "out", oop, ["19500.00", "133.60", "19366.40"], false),
+        ]
+        .map(|(who, net, limit, money, met)| (who, net, limit, money.map(usd), met));
+        assert_eq!(rows, expected, "medical only: no dental or pharmacy maximum");
+        for r in &b.balances {
+            assert_eq!(r.family, r.label == "Family");
+            let patient = if r.family {
+                family_id(MEMBER)
+            } else {
+                patient_id(MEMBER, &r.label)
+            };
+            assert_eq!(r.patient, patient);
+            assert_eq!(r.as_of.as_deref(), Some(TODAY));
+            assert_eq!(r.document, None);
+        }
+        assert_eq!(b.members.len(), 3);
     }
 
     #[test]
-    fn documents_are_one_per_id_and_member() {
-        let h = house();
-        let docs = documents(fixture("documents.json"), &h).unwrap();
-        assert_eq!(docs.len(), 5, "the form addressed to no one is left out");
-        let eob = docs.iter().find(|d| d.id.ends_with("000000000001")).unwrap();
-        assert_eq!(eob.claim_keys.len(), 2);
-        assert!(eob.is_eob());
-        assert_eq!(eob.category(), "eob");
-        assert_eq!(eob.label.as_deref(), Some("Sam"));
-        let letter = docs.iter().find(|d| d.id.ends_with("000000000005")).unwrap();
-        assert_eq!(letter.category(), "prior-authorization-letters");
-        assert!(!docs.iter().any(|d| d.id.ends_with("000000000006")));
-        assert!(docs.iter().all(|d| d.patient.is_some()));
+    fn a_calendar_year_plan_counts_the_year_it_is_read_in() {
+        for (today, year) in [(TODAY, 2026), ("2026-12-31", 2026), ("2027-01-01", 2027)] {
+            let b = balances(answer!("spending.json"), today).unwrap();
+            // Alex's coverage took effect in 2023, Sam's in March 2026.
+            assert_eq!(
+                b.members[0].site.as_ref().unwrap().plan_start.as_deref(),
+                Some("2023-04-01")
+            );
+            let everyone: Vec<&str> = b.members.iter().map(|m| m.id.as_str()).collect();
+            assert_eq!(b.calendar_year, everyone);
+            let period = BenefitPeriod {
+                start: format!("{year}-01-01"),
+                end: format!("{year}-12-31"),
+            };
+            assert_eq!(b.balances.len(), 16);
+            for r in &b.balances {
+                assert_eq!(r.plan_year, Some(year), "{today} {}", r.label);
+                assert_eq!(r.period.as_ref(), Some(&period), "{today} {}", r.label);
+            }
+        }
+    }
+
+    #[test]
+    fn without_the_calendar_year_mark_there_is_no_period() {
+        let mut data = answer!("spending.json");
+        each_benefit(&mut data, |_, b| b["benefitsPeriodIndicator"] = Value::Null);
+        // Another coverage's mark is not the medical plan's.
+        each_benefit(&mut data, |_, b| {
+            if b["coverageType"] != "MEDICAL" {
+                b["benefitsPeriodIndicator"] = "CALENDAR_YEAR".into();
+            }
+        });
+        let b = balances(data, TODAY).unwrap();
+        assert!(b.calendar_year.is_empty());
+        assert_eq!(b.balances.len(), 16);
+        for r in &b.balances {
+            assert_eq!(r.period, None);
+            // The year the member's coverage took effect; the family's rows
+            // are read with the first member's.
+            let year = match r.label.as_str() {
+                "Alex" | "Family" => 2023,
+                _ => 2026,
+            };
+            assert_eq!(r.plan_year, Some(year), "{}", r.label);
+        }
+    }
+
+    /// The site marks both the maximums and the progress: either is enough.
+    #[test]
+    fn a_mark_on_the_maximums_or_the_progress_is_enough() {
+        for keep in ["benefits", "accumulators"] {
+            let mut data = answer!("spending.json");
+            each_benefit(&mut data, |list, b| {
+                if list != keep {
+                    b["benefitsPeriodIndicator"] = Value::Null;
+                }
+            });
+            assert_eq!(balances(data, TODAY).unwrap().calendar_year.len(), 3, "{keep}");
+        }
+    }
+
+    /// One member's mark is that member's alone.
+    #[test]
+    fn a_member_without_the_mark_has_no_period() {
+        let mut data = answer!("spending.json");
+        for (list, inner) in [
+            ("benefits", "benefitsResponses"),
+            ("accumulators", "accumulatorSummaries"),
+        ] {
+            for dep in data["spendingOverviews"][list].as_array_mut().unwrap() {
+                if dep["depSeqNbr"] == "01" {
+                    for b in dep[inner][0]["benefits"].as_array_mut().unwrap() {
+                        b["benefitsPeriodIndicator"] = Value::Null;
+                    }
+                }
+            }
+        }
+        let b = balances(data, TODAY).unwrap();
+        assert_eq!(
+            b.calendar_year,
+            [patient_id(MEMBER, "ALEX"), patient_id(MEMBER, "JORDAN")]
+        );
+        for r in &b.balances {
+            assert_eq!(r.period.is_none(), r.label == "Sam", "{}", r.label);
+        }
     }
 }

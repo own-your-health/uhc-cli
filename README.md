@@ -146,9 +146,8 @@ sign-in and take no `--profile`. `api` reads the site, so it takes
 A member is the same patient from either source: organization `uhc`, and
 an id derived from the member id and first name that both the site and a
 statement carry. medrec files the two streams as one patient and merges
-the claims they share (statements print a few claims differently from the
-site: a newborn before naming, pharmacy reversals, a claim reprocessed
-under a new number; `docs/fhir.md` § Where the sources still differ).
+the claims they share (a statement can print a claim differently from the
+site; `docs/fhir.md` § Where the sources still differ).
 `--patient` takes that id. With `--profile` it also takes the member's
 label: your own name for it, which `patients label` sets
 (medical-common DESIGN §1). The first name the site shows is the member's
@@ -191,12 +190,11 @@ the message) when there is one.
 | `info` | `cli-info/v1`: profiles `health-records/v1` and `documents/v1`; capabilities `login-profiles`, `records-files` (`records export --files <DIR>`, no sign-in) and `patient-labels` (`patients label`); `auth.required` true (without `--files`, a record command signs in) |
 
 A `claim/v1` line's `procedure` is `{code, display}`. Where the site
-appended a letter or digit to a CPT or HCPCS code (`710467`), `code` is the
+appended a letter or digit to a CPT or HCPCS code (`71046R`), `code` is the
 five-character code, `suffix` the character and `site_code` the site's
 whole code; `suffix` and `site_code` appear only on such lines. Every line
-has `counted`: `false` on a line the claim's totals leave out (a code the
-site replaced, or a line written off in full; see docs/fhir.md), `true`
-otherwise.
+has `counted`: `false` on a line the claim's totals leave out (docs/fhir.md),
+`true` otherwise.
 
 Exit codes: 0 ok, 1 other (pdftotext missing), 2 usage, 3 sign-in not
 finished or session refused, 4 not found, 5 the statements could not be

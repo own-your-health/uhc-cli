@@ -3,89 +3,167 @@
     "multiDocTypeListSummary": {
       "documents": [
         {
-          "memberName": "SAM EXAMPLE",
-          "claimType": "MEDICAL",
-          "documentType": "Explanation of Benefits",
-          "documentClass": "u_mber_eob",
-          "documentId": "00000000-0000-4000-8000-000000000001",
-          "documentName": "Explanation of Benefits",
-          "dateCreated": "2026-08-16",
-          "claimIDs": [
-            "SYNC000000"
-          ],
-          "claimKey": "SYNK-001"
-        },
-        {
-          "memberName": "SAM EXAMPLE",
-          "claimType": "MEDICAL",
-          "documentType": "Explanation of Benefits",
-          "documentClass": "u_mber_eob",
-          "documentId": "00000000-0000-4000-8000-000000000001",
-          "documentName": "Explanation of Benefits",
-          "dateCreated": "2026-08-16",
-          "claimIDs": [
-            "SYNC000000"
-          ],
-          "claimKey": "SYNK-002"
-        },
-        {
-          "memberName": "SAM EXAMPLE",
-          "claimType": "MEDICAL",
-          "documentType": "Health Statement",
-          "documentClass": "u_mthly_health_stmt",
-          "documentId": "00000000-0000-4000-8000-000000000002",
-          "documentName": "Health Statement",
-          "dateCreated": "2026-08-20",
-          "claimIDs": [],
-          "claimKey": ""
-        },
-        {
-          "memberName": "SAM EXAMPLE",
-          "claimType": "RX",
-          "documentType": "Explanation of Benefits",
-          "documentClass": "u_mber_eob",
-          "documentId": "00000000-0000-4000-8000-000000000003",
-          "documentName": "Explanation of Benefits",
-          "dateCreated": "2026-08-06",
-          "claimIDs": [
-            "000000000000000009"
-          ],
-          "claimKey": "SYNK-003"
-        },
-        {
           "memberName": "ALEX EXAMPLE",
-          "claimType": "DENTAL",
+          "claimType": "MEDICAL",
           "documentType": "Explanation of Benefits",
-          "documentClass": "u_sb_dental_elec",
-          "documentId": "00000000-0000-4000-8000-000000000004",
-          "documentName": "Explanation of Benefits",
-          "dateCreated": "2026-06-11",
+          "documentClass": "u_mber_eob",
+          "documentId": "00000000-0000-4000-8000-0000000000a6",
+          "documentName": "Claim EOB",
+          "dateCreated": "2026-05-22",
           "claimIDs": [
-            "000000000003"
+            "SYNC555140-09"
           ],
-          "claimKey": "SYNK-007"
+          "claimKey": "SYNK-035"
         },
         {
-          "memberName": "JORDAN EXAMPLE",
-          "claimType": "RX",
-          "documentType": "Prior Authorization Letters",
-          "documentClass": "u_prior_auth_doc",
-          "documentId": "00000000-0000-4000-8000-000000000005",
-          "documentName": "Prior Authorization Approval",
-          "dateCreated": "2026-09-02",
-          "claimIDs": [],
-          "claimKey": ""
+          "memberName": "SAM EXAMPLE",
+          "claimType": "MEDICAL",
+          "documentType": "Explanation of Benefits",
+          "documentClass": "u_mber_eob",
+          "documentId": "00000000-0000-4000-8000-0000000000a5",
+          "documentName": "Claim EOB",
+          "dateCreated": "2026-05-07",
+          "claimIDs": [
+            "SYNC555206-13"
+          ],
+          "claimKey": "SYNK-013"
         },
         {
           "memberName": "",
           "claimType": "",
           "documentType": "Other Forms",
           "documentClass": "Proof of Coverage",
-          "documentId": "00000000-0000-4000-8000-000000000006",
+          "documentId": "00000000-0000-4000-8000-0000000000c5",
           "documentName": "Proof of Coverage",
           "dateCreated": "",
           "claimIDs": [],
           "claimKey": ""
+        },
+        {
+          "memberName": "ALEX EXAMPLE",
+          "claimType": "MEDICAL",
+          "documentType": "Explanation of Benefits",
+          "documentClass": "u_mber_eob",
+          "documentId": "00000000-0000-4000-8000-0000000000a3",
+          "documentName": "Claim EOB",
+          "dateCreated": "2026-08-08",
+          "claimIDs": [
+            "SYNC555127"
+          ],
+          "claimKey": "SYNK-024"
+        },
+        {
+          "memberName": "JORDAN EXAMPLE",
+          "claimType": "MEDICAL",
+          "documentType": "Explanation of Benefits",
+          "documentClass": "u_mber_eob",
+          "documentId": "00000000-0000-4000-8000-0000000000a4",
+          "documentName": "Claim EOB",
+          "dateCreated": "2026-10-09",
+          "claimIDs": [
+            "SYNC55531742"
+          ],
+          "claimKey": "SYNK-029"
+        },
+        {
+          "memberName": "ALEX EXAMPLE",
+          "claimType": "",
+          "documentType": "Health Statement",
+          "documentClass": "u_mthly_health_stmt",
+          "documentId": "00000000-0000-4000-8000-0000000000b2",
+          "documentName": "Monthly Health Statement",
+          "dateCreated": "2026-09-01",
+          "claimIDs": [],
+          "claimKey": ""
+        },
+        {
+          "memberName": "ALEX EXAMPLE",
+          "claimType": "MEDICAL",
+          "documentType": "Explanation of Benefits",
+          "documentClass": "u_mber_eob",
+          "documentId": "00000000-0000-4000-8000-0000000000a1",
+          "documentName": "Claim EOB",
+          "dateCreated": "2026-01-12",
+          "claimIDs": [
+            "SYNC555118-62"
+          ],
+          "claimKey": "SYNK-071"
+        },
+        {
+          "memberName": "SAM EXAMPLE",
+          "claimType": "MEDICAL",
+          "documentType": "Explanation of Benefits",
+          "documentClass": "u_mber_eob",
+          "documentId": "00000000-0000-4000-8000-0000000000a5",
+          "documentName": "Claim EOB",
+          "dateCreated": "2026-05-07",
+          "claimIDs": [
+            "SYNC555264"
+          ],
+          "claimKey": "SYNK-074"
+        },
+        {
+          "memberName": "SAM EXAMPLE",
+          "claimType": "MEDICAL",
+          "documentType": "Explanation of Benefits",
+          "documentClass": "u_mber_eob",
+          "documentId": "00000000-0000-4000-8000-0000000000a9",
+          "documentName": "Claim EOB",
+          "dateCreated": "2026-07-02",
+          "claimIDs": [
+            "SYNC555219"
+          ],
+          "claimKey": "SYNK-056"
+        },
+        {
+          "memberName": "ALEX EXAMPLE",
+          "claimType": "RX",
+          "documentType": "Explanation of Benefits",
+          "documentClass": "u_mber_eob",
+          "documentId": "00000000-0000-4000-8000-0000000000a8",
+          "documentName": "Claim EOB",
+          "dateCreated": "2026-04-15",
+          "claimIDs": [
+            "555000000000002374"
+          ],
+          "claimKey": "SYNK-042"
+        },
+        {
+          "memberName": "JORDAN EXAMPLE",
+          "claimType": "DENTAL",
+          "documentType": "Explanation of Benefits",
+          "documentClass": "u_sb_dental_elec",
+          "documentId": "00000000-0000-4000-8000-0000000000d4",
+          "documentName": "Dental EOB",
+          "dateCreated": "2026-10-07",
+          "claimIDs": [
+            "555040000318"
+          ],
+          "claimKey": "SYNK-065"
+        },
+        {
+          "memberName": "SAM EXAMPLE",
+          "claimType": "",
+          "documentType": "Prior Authorization Letters",
+          "documentClass": "u_prior_auth_doc",
+          "documentId": "00000000-0000-4000-8000-0000000000b6",
+          "documentName": "Prior Authorization Decision",
+          "dateCreated": "2026-08-04",
+          "claimIDs": [],
+          "claimKey": ""
+        },
+        {
+          "memberName": "ALEX EXAMPLE",
+          "claimType": "MEDICAL",
+          "documentType": "Explanation of Benefits",
+          "documentClass": "u_mber_eob",
+          "documentId": "00000000-0000-4000-8000-0000000000a2",
+          "documentName": "Claim EOB",
+          "dateCreated": "2026-03-23",
+          "claimIDs": [
+            "SYNC555118-62"
+          ],
+          "claimKey": "SYNK-018"
         }
       ]
     }

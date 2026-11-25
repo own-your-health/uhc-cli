@@ -2,33 +2,33 @@
   "data": {
     "claimDetailsAggregate": {
       "healthCareClaimDetails": {
-        "claimId": "000000000003",
+        "claimId": "555040000318",
         "claimIdSuffix": null,
-        "claimKey": "SYNK-007",
+        "claimKey": "SYNK-065",
         "claimType": "DENTAL",
         "claimStatus": "PROCESSED",
         "claimNetworkStatus": "OUT_OF_NETWORK",
-        "providerName": "EXAMPLE DENTAL",
+        "providerName": "EXAMPLE FAMILY DENTAL",
         "claimDates": {
-          "dateProcessed": "2026-06-10",
-          "serviceStartDate": "2026-06-02",
-          "lastServiceDate": "2026-06-02"
+          "dateProcessed": "2026-10-05",
+          "serviceStartDate": "2026-09-22",
+          "lastServiceDate": "2026-09-22"
         },
         "balance": {
           "totalBilledAmount": {
-            "value": "150.00",
+            "value": "303.00",
             "iso4217": "USD"
           },
           "healthPlanDiscount": {
-            "value": "30.00",
+            "value": "0.00",
             "iso4217": "USD"
           },
           "healthPlanPay": {
-            "value": "96.00",
+            "value": "180.90",
             "iso4217": "USD"
           },
           "deductible": {
-            "value": "0.00",
+            "value": "30.00",
             "iso4217": "USD"
           },
           "copay": {
@@ -36,54 +36,59 @@
             "iso4217": "USD"
           },
           "claimCoinsurance": {
-            "value": "24.00",
+            "value": "13.60",
             "iso4217": "USD"
           },
           "claimMemberNotCovered": {
-            "value": "0.00",
+            "value": "78.50",
             "iso4217": "USD"
           },
           "patientResponsibility": {
-            "value": "24.00",
+            "value": "122.10",
             "iso4217": "USD"
           }
         },
         "serviceLines": [
           {
-            "serviceDate": "2026-06-02",
-            "lastServiceDate": "2026-06-02",
+            "serviceDate": "2026-09-22",
+            "lastServiceDate": "2026-09-22",
             "procedures": [
               {
-                "code": "D1110",
-                "description": "Prophylaxis - adult"
+                "code": "D0120",
+                "description": "PERIODIC ORAL EVALUATION"
               }
             ],
             "revenues": [],
             "serviceInfo": {
-              "code": "D1110",
-              "description": "Prophylaxis - adult"
+              "code": "D0120",
+              "description": "DENTAL CHECKUP"
             },
             "providedServiceInfo": {
-              "code": "02",
-              "description": "Preventive"
+              "code": "D0120",
+              "description": "DENTAL CHECKUP"
             },
-            "serviceRemarks": [],
-            "toothNumber": "01-32",
+            "serviceRemarks": [
+              {
+                "code": "J6",
+                "description": "THIS PROVIDER IS NOT IN THE NETWORK AND MAY BILL MORE THAN THE PLAN ALLOWS."
+              }
+            ],
+            "toothNumber": null,
             "serviceAdjudication": {
               "chargedAmount": {
-                "value": "150.00",
+                "value": "71.00",
                 "iso4217": "USD"
               },
               "allowedAmount": {
-                "value": "120.00",
+                "value": "52.00",
                 "iso4217": "USD"
               },
               "providerWriteOff": {
-                "value": "30.00",
+                "value": "0.00",
                 "iso4217": "USD"
               },
               "planPaidAmount": {
-                "value": "96.00",
+                "value": "52.00",
                 "iso4217": "USD"
               },
               "deductible": {
@@ -95,15 +100,207 @@
                 "iso4217": "USD"
               },
               "coinsurance": {
-                "value": "24.00",
-                "iso4217": "USD"
-              },
-              "memberNotCoveredAmount": {
                 "value": "0.00",
                 "iso4217": "USD"
               },
+              "memberNotCoveredAmount": {
+                "value": "19.00",
+                "iso4217": "USD"
+              },
               "patientResponsibility": {
-                "value": "24.00",
+                "value": "19.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-09-22",
+            "lastServiceDate": "2026-09-22",
+            "procedures": [
+              {
+                "code": "D1120",
+                "description": "CLEANING, CHILD"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "D1120",
+              "description": "CLEANING"
+            },
+            "providedServiceInfo": {
+              "code": "D1120",
+              "description": "CLEANING"
+            },
+            "serviceRemarks": [
+              {
+                "code": "J6",
+                "description": "THIS PROVIDER IS NOT IN THE NETWORK AND MAY BILL MORE THAN THE PLAN ALLOWS."
+              }
+            ],
+            "toothNumber": "01-32",
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "96.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": {
+                "value": "74.50",
+                "iso4217": "USD"
+              },
+              "providerWriteOff": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "74.50",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "21.50",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "21.50",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-09-22",
+            "lastServiceDate": "2026-09-22",
+            "procedures": [
+              {
+                "code": "D1351",
+                "description": "SEALANT, PER TOOTH"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "D1351",
+              "description": "SEALANT"
+            },
+            "providedServiceInfo": {
+              "code": "D1351",
+              "description": "SEALANT"
+            },
+            "serviceRemarks": [
+              {
+                "code": "J6",
+                "description": "THIS PROVIDER IS NOT IN THE NETWORK AND MAY BILL MORE THAN THE PLAN ALLOWS."
+              }
+            ],
+            "toothNumber": "19",
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "68.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": {
+                "value": "49.00",
+                "iso4217": "USD"
+              },
+              "providerWriteOff": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "39.20",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "9.80",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "19.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "28.80",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-09-22",
+            "lastServiceDate": "2026-09-22",
+            "procedures": [
+              {
+                "code": "D1351",
+                "description": "SEALANT, PER TOOTH"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "D1351",
+              "description": "SEALANT"
+            },
+            "providedServiceInfo": {
+              "code": "D1351",
+              "description": "SEALANT"
+            },
+            "serviceRemarks": [
+              {
+                "code": "J6",
+                "description": "THIS PROVIDER IS NOT IN THE NETWORK AND MAY BILL MORE THAN THE PLAN ALLOWS."
+              }
+            ],
+            "toothNumber": "30",
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "68.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": {
+                "value": "49.00",
+                "iso4217": "USD"
+              },
+              "providerWriteOff": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "15.20",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "30.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "3.80",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "19.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "52.80",
                 "iso4217": "USD"
               }
             }

@@ -39,7 +39,10 @@ owns the records stream, the export file and the profile's DTOs. Every
 These come from the household's plan and are not negotiable.
 
 - The repository carries no personal data, in code, fixtures, docs, commits,
-  pull requests or issues. Fixtures are synthetic (`tests/fixtures/README.md`);
+  pull requests or issues. Fixtures are synthetic (`tests/fixtures/README.md`):
+  a fixture's claims, services, dates, amounts and combinations are invented
+  from the rule it tests. Only field names, types, the site's own type and
+  status values, and a statement's layout follow UHC's;
   `tests/no_personal_data.rs` scans every tracked file and checks every
   identity field in the fixtures against its dummy shape.
 - Records and their contents are never sent to an outside service: no

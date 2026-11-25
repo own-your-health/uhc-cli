@@ -240,12 +240,8 @@ only; every other id (`claimKey`, `claimType`, `documentId`,
 | `documents download` | claims, documents, each PDF (`--all` skips a file already saved under its name) |
 | `records export` | claims, documents, spending (for the benefit period only: when it fails, the claims go out without one), each of the member's claims' details (with `--since`, those processed since), each of the member's documents (with `--since`, created since) |
 
-Measured 2026-11-17 on one household's account:
-
-| Window | One answer |
-|---|---|
-| Claims, 2016-01-01 to today | every claim: back to 2022 (dental) and 2023 (medical); no paging |
-| Documents, 2016-01-01 to today | every document, created from 2022 on, one row per document and claim; no paging |
+A window from 2016-01-01 to today is one answer with no paging: `claims`
+lists every claim the site has, `documents` one row per document and claim.
 
 How the answers read:
 
@@ -256,7 +252,7 @@ How the answers read:
 - A medical claim's `claimId` is `<base>-<suffix>` or `<base>`, with the
   suffix in `claimIdSuffix` too; `<base><suffix>` is the claim number a
   statement prints. A pharmacy claim's is 18 digits; its first 17 are a
-  statement's "Patient account number" for it (one sample). A dental
+  statement's "Patient account number" for it (little checked). A dental
   claim's is 12 digits without a suffix; no dental statement has been
   compared.
 - A reprocessed claim is listed once per version, with the same id and a
@@ -277,10 +273,10 @@ How the answers read:
   the maximums by `type` (`INDIVIDUAL_DEDUCTIBLE`, `INDIVIDUAL_OOP`,
   `FAMILY_DEDUCTIBLE`, `FAMILY_OOP`), `accumulators[].accumulatorSummaries`
   the progress by `accumulatorType` and `type`, both per `depSeqNbr`.
-  `benefitsPeriodIndicator` on each says how the plan counts: medical
-  `CALENDAR_YEAR`, the only value seen, and `null` for dental and
-  pharmacy (`RX`). Neither carries a period's dates. Dental has annual and lifetime maximums instead
-  (`uhc accumulators` reports medical only); `tier1` and pharmacy are null.
+  `benefitsPeriodIndicator` on each says how the plan counts
+  (`CALENDAR_YEAR`, the value uhc reads) or is `null`. Neither carries a
+  period's dates. `uhc accumulators` reports medical only. A network's rows
+  (`tier1` among them) can be null.
 - Documents: one member, class and creation date per `documentId`, and one
   row per claim it covers (`claimKey`). `memberName` is `FIRST LAST`. The
   plan's general forms ("Other Forms": proof of coverage and the like) have
@@ -291,9 +287,8 @@ How the answers read:
 ### Traps
 
 - A coverage's `planPeriod.startDate` is the day the member's current
-  coverage took effect, not the plan year's start: a change to the
-  household (a member added) starts a new period mid-year, and its
-  `endDate` can be `9999-12-31`. The plan year is in the balances
+  coverage took effect, not the plan year's start, and it can fall inside a
+  plan year. Its `endDate` can be `9999-12-31`. The plan year is in the balances
   answer's `benefitsPeriodIndicator`, as a kind of period with no dates.
 - A request without a browser's `User-Agent` gets `403 text/html` from the
   edge, signed in or not. uhc sends the user agent captured with the
@@ -313,25 +308,17 @@ How the answers read:
 - Answers set `AWSALBTG`, `AWSALBTGCORS` and `__cf_bm`; uhc keeps what they
   set and writes the session back once a command has succeeded.
 - `benefit-details?benefitName=` for a benefit the plan does not list loads
-  no `benefitDetails` at all. Home health care and private-duty nursing
-  are only in the certificate of coverage, not the benefit pages.
+  no `benefitDetails` at all. Some benefits are only in the certificate of
+  coverage, not the benefit pages.
 - `uhc.com`'s legal pages answer `403` to fetch tools.
 - A claim's `balance.totalBilledAmount` and `patientResponsibility` can
   leave out a service line that stays in `serviceLines[]` with its own
-  amounts. Two kinds have been seen:
-  - a code the site replaced with another, all of it not covered and owed;
-  - a line the provider wrote off in full (charged equals
-    `providerWriteOff`), whose write-off `balance.healthPlanDiscount` still
-    counts, so billed less the discount can be negative.
-
-  Lines of both shapes also occur counted, so the shape does not decide
-  it. Nothing on the line marks it: `lineAdjudicationStatus` and
-  `deniedClaimInfo` were null or empty on every such line read. Its remark
-  codes differed from the counted lines' in every claim read. uhc finds
-  the lines from the amounts instead (`portal::left_out_lines`): the one
-  set the plan paid nothing on whose charges and amounts owed make up
-  exactly what the totals are short. docs/fhir.md gives when it marks
-  none.
+  amounts, and no field on the line says so. `balance.healthPlanDiscount`
+  can still count such a line's `providerWriteOff`, so billed less the
+  discount can be negative. uhc finds the lines from the amounts
+  (`portal::left_out_lines`): the one set the plan paid nothing on whose
+  charges and amounts owed make up exactly what the totals are short.
+  docs/fhir.md gives when it marks none.
 - The site's own claim page (`GetHealthcareClaimDetails`) asks for more
   than uhc does. On each service line it adds `lineAdjudicationStatus`,
   `deniedClaimInfo` (`explanation`, `category`, `cta`), `billingCode`,
@@ -339,11 +326,9 @@ How the answers read:
   `claimDisposition`, `isReprocessedClaim`, `balance.totalContractAmount`,
   `balance.claimAdjustmentAmount` (shown in place of `healthPlanPay` when
   present) and `claimHistory[]` (past claim ids, keys, dates and statuses,
-  nothing per line). uhc reads none of them. On the claims read for
-  left-out lines, every one of the line fields and `totalContractAmount`
-  was null or empty.
+  nothing per line). uhc reads none of them.
 - `procedures[].code` is sometimes a CPT or HCPCS code with one more letter
-  or digit (`710467`), and the site gives no field that says what the
+  or digit (`71046R`), and the site gives no field that says what the
   character means. Its claim page shows `procedures[0].code` only on dental
   lines; on the others it shows `serviceInfo.code` as the "Billing code"
   and `planCode` as the "Plan code". Neither explains the character: on a

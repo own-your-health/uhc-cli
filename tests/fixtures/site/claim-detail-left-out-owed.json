@@ -1,0 +1,300 @@
+{
+  "data": {
+    "claimDetailsAggregate": {
+      "healthCareClaimDetails": {
+        "claimId": "SYNC555140-09",
+        "claimIdSuffix": "09",
+        "claimKey": "SYNK-035",
+        "claimType": "MEDICAL",
+        "claimStatus": "PROCESSED",
+        "claimNetworkStatus": "IN_NETWORK",
+        "providerName": "EXAMPLE DERMATOLOGY PARTNERS",
+        "claimDates": {
+          "dateProcessed": "2026-05-20",
+          "serviceStartDate": "2026-05-06",
+          "lastServiceDate": "2026-05-06"
+        },
+        "balance": {
+          "totalBilledAmount": {
+            "value": "535.50",
+            "iso4217": "USD"
+          },
+          "healthPlanDiscount": {
+            "value": "251.15",
+            "iso4217": "USD"
+          },
+          "healthPlanPay": {
+            "value": "111.08",
+            "iso4217": "USD"
+          },
+          "deductible": {
+            "value": "118.40",
+            "iso4217": "USD"
+          },
+          "copay": {
+            "value": "45.00",
+            "iso4217": "USD"
+          },
+          "claimCoinsurance": {
+            "value": "9.87",
+            "iso4217": "USD"
+          },
+          "claimMemberNotCovered": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "patientResponsibility": {
+            "value": "173.27",
+            "iso4217": "USD"
+          }
+        },
+        "serviceLines": [
+          {
+            "serviceDate": "2026-05-06",
+            "lastServiceDate": "2026-05-06",
+            "procedures": [
+              {
+                "code": "99213",
+                "description": "OFFICE VISIT, ESTABLISHED PATIENT"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "99213",
+              "description": "SPECIALIST VISIT"
+            },
+            "providedServiceInfo": {
+              "code": "99213",
+              "description": "SPECIALIST VISIT"
+            },
+            "serviceRemarks": [
+              {
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "205.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "88.40",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "71.60",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "45.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "45.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-05-06",
+            "lastServiceDate": "2026-05-06",
+            "procedures": [
+              {
+                "code": "A9270",
+                "description": "NONCOVERED ITEM"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "A9270",
+              "description": "COMPRESSION SLEEVE"
+            },
+            "providedServiceInfo": {
+              "code": "A9270",
+              "description": "COMPRESSION SLEEVE"
+            },
+            "serviceRemarks": [
+              {
+                "code": "H2",
+                "description": "YOUR PLAN DOES NOT COVER THIS SERVICE OR ITEM."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "28.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "28.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "28.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-05-06",
+            "lastServiceDate": "2026-05-06",
+            "procedures": [
+              {
+                "code": "11102",
+                "description": "SKIN BIOPSY, FIRST LESION"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "11102",
+              "description": "SKIN BIOPSY"
+            },
+            "providedServiceInfo": {
+              "code": "11102",
+              "description": "SKIN BIOPSY"
+            },
+            "serviceRemarks": [
+              {
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "312.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "144.25",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "39.48",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "118.40",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "9.87",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "128.27",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-05-06",
+            "lastServiceDate": "2026-05-06",
+            "procedures": [
+              {
+                "code": "99070",
+                "description": "SUPPLIES BEYOND THE USUAL"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "99070",
+              "description": "OFFICE SUPPLIES"
+            },
+            "providedServiceInfo": {
+              "code": "99070",
+              "description": "OFFICE SUPPLIES"
+            },
+            "serviceRemarks": [
+              {
+                "code": "Q9",
+                "description": "THIS SERVICE IS PART OF ANOTHER SERVICE FROM THE SAME DAY AND IS NOT PAID SEPARATELY."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "18.50",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "18.50",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "0.00",
+                "iso4217": "USD"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

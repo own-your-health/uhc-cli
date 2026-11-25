@@ -2,33 +2,33 @@
   "data": {
     "claimDetailsAggregate": {
       "healthCareClaimDetails": {
-        "claimId": "SYNC222222-22",
-        "claimIdSuffix": "22",
-        "claimKey": "SYNK-010",
+        "claimId": "SYNC555118-62",
+        "claimIdSuffix": "62",
+        "claimKey": "SYNK-018",
         "claimType": "MEDICAL",
         "claimStatus": "PROCESSED",
         "claimNetworkStatus": "IN_NETWORK",
-        "providerName": "EXAMPLE LAB",
+        "providerName": "EXAMPLE IMAGING ASSOCIATES",
         "claimDates": {
-          "dateProcessed": "2026-10-15",
-          "serviceStartDate": "2026-10-01",
-          "lastServiceDate": "2026-10-01"
+          "dateProcessed": "2026-03-19",
+          "serviceStartDate": "2025-12-11",
+          "lastServiceDate": "2025-12-11"
         },
         "balance": {
           "totalBilledAmount": {
-            "value": "80.00",
+            "value": "1162.00",
             "iso4217": "USD"
           },
           "healthPlanDiscount": {
-            "value": "30.00",
+            "value": "693.70",
             "iso4217": "USD"
           },
           "healthPlanPay": {
-            "value": "40.00",
+            "value": "374.64",
             "iso4217": "USD"
           },
           "deductible": {
-            "value": "10.00",
+            "value": "0.00",
             "iso4217": "USD"
           },
           "copay": {
@@ -36,7 +36,7 @@
             "iso4217": "USD"
           },
           "claimCoinsurance": {
-            "value": "0.00",
+            "value": "93.66",
             "iso4217": "USD"
           },
           "claimMemberNotCovered": {
@@ -44,52 +44,56 @@
             "iso4217": "USD"
           },
           "patientResponsibility": {
-            "value": "10.00",
+            "value": "93.66",
             "iso4217": "USD"
           }
         },
         "serviceLines": [
           {
-            "serviceDate": "2026-10-01",
-            "lastServiceDate": "2026-10-01",
+            "serviceDate": "2025-12-11",
+            "lastServiceDate": "2025-12-11",
             "procedures": [
               {
-                "code": "80053",
-                "description": "Comprehensive metabolic panel"
+                "code": "73721",
+                "description": "MRI OF A LEG JOINT, NO CONTRAST"
               }
             ],
             "revenues": [],
             "serviceInfo": {
-              "code": "80053",
-              "description": "Comprehensive metabolic panel"
+              "code": "73721",
+              "description": "KNEE MRI"
             },
             "providedServiceInfo": {
-              "code": "80053",
-              "description": "Comprehen metabolic panel"
+              "code": "73721",
+              "description": "KNEE MRI"
             },
             "serviceRemarks": [
               {
-                "code": "D1",
-                "description": "You have received a discount for using a health care professional in your plan's network."
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
+              },
+              {
+                "code": "T3",
+                "description": "WE PROCESSED THIS CLAIM AGAIN WITH NEW INFORMATION FROM THE PROVIDER."
               }
             ],
             "toothNumber": null,
             "serviceAdjudication": {
               "chargedAmount": {
-                "value": "80.00",
+                "value": "1065.00",
                 "iso4217": "USD"
               },
               "allowedAmount": null,
               "providerWriteOff": {
-                "value": "30.00",
+                "value": "640.20",
                 "iso4217": "USD"
               },
               "planPaidAmount": {
-                "value": "40.00",
+                "value": "339.84",
                 "iso4217": "USD"
               },
               "deductible": {
-                "value": "10.00",
+                "value": "0.00",
                 "iso4217": "USD"
               },
               "copay": {
@@ -97,7 +101,7 @@
                 "iso4217": "USD"
               },
               "coinsurance": {
-                "value": "0.00",
+                "value": "84.96",
                 "iso4217": "USD"
               },
               "memberNotCoveredAmount": {
@@ -105,7 +109,72 @@
                 "iso4217": "USD"
               },
               "patientResponsibility": {
-                "value": "10.00",
+                "value": "84.96",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2025-12-11",
+            "lastServiceDate": "2025-12-11",
+            "procedures": [
+              {
+                "code": "73562",
+                "description": "X-RAY OF THE KNEE, 3 VIEWS"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "73562",
+              "description": "KNEE X-RAY"
+            },
+            "providedServiceInfo": {
+              "code": "73562",
+              "description": "KNEE X-RAY"
+            },
+            "serviceRemarks": [
+              {
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
+              },
+              {
+                "code": "T3",
+                "description": "WE PROCESSED THIS CLAIM AGAIN WITH NEW INFORMATION FROM THE PROVIDER."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "97.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "53.50",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "34.80",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "8.70",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "8.70",
                 "iso4217": "USD"
               }
             }

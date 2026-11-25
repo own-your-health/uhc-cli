@@ -133,7 +133,7 @@ pub fn procedure_system(code: &str) -> Option<&'static str> {
 }
 
 /// A procedure code split from the one letter or digit the site appends to
-/// some codes (`710467`, `E0110N`): the code, and that character where
+/// some codes (`71046R`): the code, and that character where
 /// there is one. The site does not say what the character means, so it is
 /// kept as given. A code of any other shape comes back whole.
 pub fn split_procedure(code: &str) -> (&str, Option<&str>) {
@@ -654,10 +654,9 @@ mod tests {
 
     #[test]
     fn a_procedure_code_with_one_more_character_splits_from_it() {
-        assert_eq!(split_procedure("800618"), ("80061", Some("8")));
-        assert_eq!(split_procedure("710467"), ("71046", Some("7")));
-        assert_eq!(split_procedure("E0110N"), ("E0110", Some("N")));
         assert_eq!(split_procedure("0001U0"), ("0001U", Some("0")));
+        assert_eq!(split_procedure("71046R"), ("71046", Some("R")));
+        assert_eq!(split_procedure("G02834"), ("G0283", Some("4")));
         assert_eq!(split_procedure("80053"), ("80053", None));
         assert_eq!(split_procedure("D1110"), ("D1110", None));
         for whole in ["80053a", "8005", "ABCDE1", "80053XY", "80053-"] {

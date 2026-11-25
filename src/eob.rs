@@ -140,9 +140,8 @@ pub struct ClaimLine {
     pub revenue: Option<Coded>,
     /// The site's tooth or tooth range, on a dental line (`01-32`).
     pub tooth: Option<String>,
-    /// The claim's totals leave this line out (`portal::left_out_lines`): a
-    /// line the site replaced with another code, or one the provider wrote
-    /// off in full. Its own amounts are kept as the site gives them.
+    /// The claim's totals leave this line out (`portal::left_out_lines`).
+    /// Its own amounts are kept as the site gives them.
     pub left_out: bool,
 }
 
@@ -664,7 +663,7 @@ fn field(line: &str, label: &str) -> Option<String> {
 }
 
 /// A member id as the member site and current statements print it.
-/// Statements into 2025 printed the same id with one letter before its
+/// Older statements print the same id with one letter before its
 /// digits (`A` + nine digits where the site has the nine digits), which
 /// would give each member a second patient id; that letter is dropped. An
 /// id of any other shape is kept as printed.

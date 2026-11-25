@@ -2,41 +2,41 @@
   "data": {
     "claimDetailsAggregate": {
       "healthCareClaimDetails": {
-        "claimId": "SYNC000000-09",
-        "claimIdSuffix": "09",
-        "claimKey": "SYNK-004",
+        "claimId": "SYNC555127",
+        "claimIdSuffix": "85",
+        "claimKey": "SYNK-024",
         "claimType": "MEDICAL",
         "claimStatus": "PROCESSED",
         "claimNetworkStatus": "IN_NETWORK",
-        "providerName": "EXAMPLE HOSPITAL",
+        "providerName": "EXAMPLE COMMUNITY HOSPITAL",
         "claimDates": {
-          "dateProcessed": "2026-09-20",
-          "serviceStartDate": "2026-09-10",
-          "lastServiceDate": "2026-09-10"
+          "dateProcessed": "2026-08-06",
+          "serviceStartDate": "2026-07-18",
+          "lastServiceDate": "2026-07-19"
         },
         "balance": {
           "totalBilledAmount": {
-            "value": "900.00",
+            "value": "1893.00",
             "iso4217": "USD"
           },
           "healthPlanDiscount": {
-            "value": "400.00",
+            "value": "1086.97",
             "iso4217": "USD"
           },
           "healthPlanPay": {
-            "value": "300.00",
+            "value": "329.38",
             "iso4217": "USD"
           },
           "deductible": {
-            "value": "150.00",
+            "value": "119.30",
             "iso4217": "USD"
           },
           "copay": {
-            "value": "50.00",
+            "value": "275.00",
             "iso4217": "USD"
           },
           "claimCoinsurance": {
-            "value": "0.00",
+            "value": "82.35",
             "iso4217": "USD"
           },
           "claimMemberNotCovered": {
@@ -44,61 +44,127 @@
             "iso4217": "USD"
           },
           "patientResponsibility": {
-            "value": "200.00",
+            "value": "476.65",
             "iso4217": "USD"
           }
         },
         "serviceLines": [
           {
-            "serviceDate": "2026-09-10",
-            "lastServiceDate": "2026-09-10",
+            "serviceDate": "2026-07-18",
+            "lastServiceDate": "2026-07-19",
             "procedures": [
               {
-                "code": "99283",
-                "description": "Emergency department visit, moderate"
+                "code": "99284",
+                "description": "EMERGENCY VISIT, MODERATE"
               }
             ],
             "revenues": [
               {
                 "code": "0450",
-                "description": "Emergency room"
+                "description": "EMERGENCY ROOM"
               }
             ],
             "serviceInfo": {
-              "code": "99283",
-              "description": "Emergency department visit, moderate"
+              "code": "99284",
+              "description": "EMERGENCY ROOM VISIT"
             },
             "providedServiceInfo": {
-              "code": "99283",
-              "description": "Emergency dept visit"
+              "code": "99284",
+              "description": "EMERGENCY ROOM VISIT"
             },
             "serviceRemarks": [
               {
-                "code": "D1",
-                "description": "You have received a discount for using a health care professional in your plan's network."
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
               }
             ],
             "toothNumber": null,
             "serviceAdjudication": {
               "chargedAmount": {
-                "value": "900.00",
+                "value": "1386.00",
                 "iso4217": "USD"
               },
               "allowedAmount": null,
               "providerWriteOff": {
-                "value": "400.00",
+                "value": "702.15",
                 "iso4217": "USD"
               },
               "planPaidAmount": {
-                "value": "300.00",
+                "value": "327.08",
                 "iso4217": "USD"
               },
               "deductible": {
-                "value": "150.00",
+                "value": "0.00",
                 "iso4217": "USD"
               },
               "copay": {
-                "value": "50.00",
+                "value": "275.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "81.77",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "356.77",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-07-18",
+            "lastServiceDate": "2026-07-18",
+            "procedures": [
+              {
+                "code": "71046R",
+                "description": "X-RAY OF THE CHEST, 2 VIEWS"
+              }
+            ],
+            "revenues": [
+              {
+                "code": "0324",
+                "description": "CHEST X-RAY"
+              }
+            ],
+            "serviceInfo": {
+              "code": "71046R",
+              "description": "CHEST X-RAY"
+            },
+            "providedServiceInfo": {
+              "code": "71046R",
+              "description": "CHEST X-RAY"
+            },
+            "serviceRemarks": [
+              {
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "318.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "209.40",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "108.60",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
                 "iso4217": "USD"
               },
               "coinsurance": {
@@ -110,7 +176,209 @@
                 "iso4217": "USD"
               },
               "patientResponsibility": {
-                "value": "200.00",
+                "value": "108.60",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-07-18",
+            "lastServiceDate": "2026-07-18",
+            "procedures": [
+              {
+                "code": "85025",
+                "description": "COMPLETE BLOOD COUNT"
+              }
+            ],
+            "revenues": [
+              {
+                "code": "0305",
+                "description": "HEMATOLOGY LABORATORY"
+              }
+            ],
+            "serviceInfo": {
+              "code": "85025",
+              "description": "BLOOD COUNT"
+            },
+            "providedServiceInfo": {
+              "code": "85025",
+              "description": "BLOOD COUNT"
+            },
+            "serviceRemarks": [
+              {
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "82.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "71.30",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "10.70",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "10.70",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-07-19",
+            "lastServiceDate": "2026-07-19",
+            "procedures": [
+              {
+                "code": "J1885",
+                "description": "KETOROLAC INJECTION, 15 MG"
+              }
+            ],
+            "revenues": [
+              {
+                "code": "0636",
+                "description": "MEDICINES WITH A DETAIL CODE"
+              }
+            ],
+            "serviceInfo": {
+              "code": "J1885",
+              "description": "PAIN MEDICINE INJECTION"
+            },
+            "providedServiceInfo": {
+              "code": "J1885",
+              "description": "PAIN MEDICINE INJECTION"
+            },
+            "serviceRemarks": [
+              {
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "46.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "43.12",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "2.30",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.58",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "0.58",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-07-19",
+            "lastServiceDate": "2026-07-19",
+            "procedures": [
+              {
+                "code": "J7030",
+                "description": "SALINE INFUSION, 1000 CC"
+              }
+            ],
+            "revenues": [
+              {
+                "code": "0258",
+                "description": "IV SOLUTIONS"
+              }
+            ],
+            "serviceInfo": {
+              "code": "J7030",
+              "description": "IV FLUID"
+            },
+            "providedServiceInfo": {
+              "code": "J7030",
+              "description": "IV FLUID"
+            },
+            "serviceRemarks": [
+              {
+                "code": "Q9",
+                "description": "THIS SERVICE IS PART OF ANOTHER SERVICE FROM THE SAME DAY AND IS NOT PAID SEPARATELY."
+              },
+              {
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "61.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "61.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "0.00",
                 "iso4217": "USD"
               }
             }

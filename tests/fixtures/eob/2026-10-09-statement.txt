@@ -1,0 +1,80 @@
+   SYNTHETIC TEST DATA - NOT A REAL STATEMENT
+   UnitedHealthcare                                                          Explanation of Benefits
+                                                                             Member/Patient:   JORDAN EXAMPLE
+                                                                             Member ID:        SYNM000001
+                                                                             Relationship:     CH
+                                                                             Group name:       EXAMPLE EMPLOYER
+                                                                             Group number:     SYNG0001
+
+   Hi, JORDAN.                                                               Claim summary
+   THIS IS NOT A BILL. This Explanation of Benefits (EOB) is a summary of    Services in this statement occurred
+   services received and how plan benefits were applied.                     between Sep. 3, 2026 - Sep. 24, 2026
+                                                                             Provider billed               $695.00
+                                                                             Your total amount owed        $275.45
+   Plan balances
+                     As of 10/09/2026 for plan year 2026
+
+    Balances for JORDAN                                      Maximum         Progress so far        Remaining
+                                                              amount                                  amount
+         Network           Deductible                      $1,150.00            $164.55              $985.45
+                           Out-of-pocket limit             $5,200.00            $246.55            $4,953.45
+         Out-of-Network    Deductible                      $2,450.00              $0.00            $2,450.00
+                           Out-of-pocket limit             $9,750.00              $0.00            $9,750.00
+
+    Balances for FAMILY                                      Maximum         Progress so far        Remaining
+                                                              amount                                  amount
+         Network           Deductible                      $2,300.00          $1,577.35              $722.65
+                           Out-of-pocket limit            $10,400.00          $2,658.45            $7,741.55
+         Out-of-Network    Deductible                      $4,900.00            $110.80            $4,789.20
+                           Out-of-pocket limit            $19,500.00            $133.60           $19,366.40
+
+   STD-EOB
+   000000000000000-A-S-PS-E
+   Page 1 of 4
+
+   10/09/2026
+
+   Claim detail for JORDAN
+   Provider: EXAMPLE SPEECH AND HEARING CENTER                               Patient account number: SYNA0051
+   Status: Network                                                           Claim number: SYNC55531742
+
+   SPEECH EVALUATION                 K4       $296.00     $131.45     $164.55       $0.00     $164.55      $0.00      $0.00       $0.00     $164.55
+   09/03/2026
+   SPEECH THERAPY                    M3 K4    $142.00      $63.80      $78.20      $46.20       $0.00     $32.00      $0.00       $0.00      $32.00
+   09/10/2026
+
+   STD-EOB
+   000000000000000-A-S-PS-E
+   Page 2 of 4
+
+   10/09/2026
+
+   Claim detail for JORDAN (continued)
+   Provider: EXAMPLE SPEECH AND HEARING CENTER                               Claim number: SYNC55531742
+
+   SPEECH THERAPY                    M3 K4    $142.00      $63.80      $78.20      $46.20       $0.00     $32.00      $0.00       $0.00      $32.00
+   09/17/2026
+   GROUP SPEECH THERAPY              M3 K4     $64.00      $28.35      $35.65      $17.65       $0.00     $18.00      $0.00       $0.00      $18.00
+   09/24/2026
+   SPEECH SCREENING                  H2 K4     $51.00      $22.10      $28.90       $0.00       $0.00      $0.00      $0.00      $28.90      $28.90
+   09/24/2026
+
+   Total amount                               $695.00     $309.50     $385.50     $110.05     $164.55     $82.00      $0.00      $28.90     $275.45
+
+   STD-EOB
+   000000000000000-A-S-PS-E
+   Page 3 of 4
+
+   10/09/2026
+
+   Claim detail for JORDAN continued
+   Explanation of your claim processing codes
+   H2 -- YOUR PLAN DOES NOT COVER THIS SERVICE OR ITEM.
+   K4 -- THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN.
+   M3 -- YOUR PLAN COVERS A SET NUMBER OF THESE VISITS EACH YEAR.
+
+   STD-EOB
+   000000000000000-A-S-PS-E
+   Page 4 of 4
+
+   10/09/2026

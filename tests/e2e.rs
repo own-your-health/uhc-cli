@@ -750,7 +750,7 @@ fn an_export_file_is_private_and_replaced_safely() {
     assert!(std::fs::symlink_metadata(&path).unwrap().file_type().is_symlink());
 }
 
-/// Statements into 2025 printed the member id with a letter before its
+/// Older statements print the member id with a letter before its
 /// digits, later ones and the member site without it. Both are one member,
 /// with the site's id, and the export carries the digits.
 #[test]

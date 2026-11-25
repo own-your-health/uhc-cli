@@ -6,10 +6,8 @@
   including v0.3.5 were published under MIT OR Apache-2.0. Each release
   archive carries `LICENSE` beside the binary.
 - A member-site claim's line that the claim's totals leave out is marked.
-  The site keeps such a line in the claim with its own amounts: a code it
-  replaced with another (all of it not covered and owed), or a line the
-  provider wrote off in full. Its totals leave the line out, and nothing on
-  the line says so.
+  The site keeps such a line in the claim with its own amounts, and nothing
+  on the line says so.
   - FHIR: the line's `item.adjudication` gains an entry, category
     `https://github.com/own-your-health/uhc-cli/fhir/adjudication` code
     `not-counted`, with no amount.
@@ -28,8 +26,7 @@
 
 - Fixed: a member-site claim's allowed amount (FHIR `eligible`, `allowed`
   in `claims get --json`) could be negative. The site's billed total can
-  leave out a line the provider wrote off in full while its discount still
-  counts that write-off, so billed less the discount fell below zero. When
+  leave out a line whose write-off its discount still counts. When
   the lines' charges exceed the billed total by exactly the charges of the
   lines written off in full, the claim's discount (`saved`) now leaves
   those write-offs out too, and the allowed amount is the counted lines'.
@@ -50,9 +47,6 @@
   - Changed in `accumulators`: `plan_year`, and so `--year`, is that
     calendar year. It was the year the member's current coverage took
     effect, which is wrong when that coverage began in an earlier year.
-    Coverage that took effect in November 2025 gave 2026's balances
-    `plan_year` 2025, so `--year 2025` listed them; now they are 2026,
-    and `--year 2025` lists none.
   - `records export` from the site gives each claim
     `ExplanationOfBenefit.benefitPeriod`: the calendar year it was served
     in, the same in every export. The site describes only the current
@@ -73,15 +67,15 @@
 ## v0.3.3
 
 - A procedure code the site sends with one more letter or digit
-  (`710467`, `E0110N`) is split from it. The line's FHIR
+  (`71046R`) is split from it. The line's FHIR
   `productOrService` codes the CPT or HCPCS code, where it was text
   before, and keeps the site's whole code as a second coding (system
   `https://github.com/own-your-health/uhc-cli/fhir/site-procedure-code`).
   The site does not say what it means, so uhc keeps it as given.
 - Changed in `claims get --json` (`claim/v1`): on such a line,
   `procedure.code` is now the first five characters (`71046`), where it
-  was the site's whole code (`710467`). The procedure adds `suffix` (`7`)
-  and `site_code` (`710467`), both only on such lines. Other lines are
+  was the site's whole code (`71046R`). The procedure adds `suffix` (`R`)
+  and `site_code` (`71046R`), both only on such lines. Other lines are
   unchanged.
 - url 2.5.9 (and form_urlencoded 1.2.3) in the lockfile, for
   RUSTSEC-2026-0592: url 2.5.8 and older could overflow the stack in
@@ -189,16 +183,15 @@ rows follow it now.
 
 The statements and the site now agree on who a member is.
 
-- A member id printed with a letter before its digits (statements into
-  2025: `A` + nine digits) is the site's nine digits. Each member on
-  those statements had a second patient id, so a store filed their older
-  claims apart from the site's.
+- A member id printed with a letter before its digits (older statements:
+  `A` + nine digits) is the site's nine digits. Each member on those
+  statements had a second patient id, so a store filed their claims apart
+  from the site's.
 - A missing or unknown `--patient` names the source's own command
   (`uhc --profile <NAME> patients list` or `uhc --files <DIR> patients
   list`); plain `uhc patients list` names no source and is exit 2.
 - docs/fhir.md lists the claims the two sources still file differently,
-  and why: a newborn's claim before naming, pharmacy reversal rows, a claim
-  reprocessed under a new number.
+  and why.
 
 ## v0.2.0
 
