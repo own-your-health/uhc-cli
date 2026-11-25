@@ -1,0 +1,361 @@
+{
+  "data": {
+    "claimDetailsAggregate": {
+      "healthCareClaimDetails": {
+        "claimId": "SYNC555219",
+        "claimIdSuffix": "40",
+        "claimKey": "SYNK-056",
+        "claimType": "MEDICAL",
+        "claimStatus": "PROCESSED",
+        "claimNetworkStatus": "IN_NETWORK",
+        "providerName": "EXAMPLE CLINICAL LABORATORY",
+        "claimDates": {
+          "dateProcessed": "2026-06-30",
+          "serviceStartDate": "2026-06-16",
+          "lastServiceDate": "2026-06-16"
+        },
+        "balance": {
+          "totalBilledAmount": {
+            "value": "329.00",
+            "iso4217": "USD"
+          },
+          "healthPlanDiscount": {
+            "value": "397.85",
+            "iso4217": "USD"
+          },
+          "healthPlanPay": {
+            "value": "61.15",
+            "iso4217": "USD"
+          },
+          "deductible": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "copay": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "claimCoinsurance": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "claimMemberNotCovered": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "patientResponsibility": {
+            "value": "0.00",
+            "iso4217": "USD"
+          }
+        },
+        "serviceLines": [
+          {
+            "serviceDate": "2026-06-16",
+            "lastServiceDate": "2026-06-16",
+            "procedures": [
+              {
+                "code": "80050",
+                "description": "GENERAL HEALTH PANEL"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "80050",
+              "description": "BLOOD PANEL"
+            },
+            "providedServiceInfo": {
+              "code": "80050",
+              "description": "BLOOD PANEL"
+            },
+            "serviceRemarks": [
+              {
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "118.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "74.20",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "43.80",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "0.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-06-16",
+            "lastServiceDate": "2026-06-16",
+            "procedures": [
+              {
+                "code": "82306",
+                "description": "VITAMIN D LEVEL"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "82306",
+              "description": "VITAMIN D TEST"
+            },
+            "providedServiceInfo": {
+              "code": "82306",
+              "description": "VITAMIN D TEST"
+            },
+            "serviceRemarks": [
+              {
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "164.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "164.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "0.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-06-16",
+            "lastServiceDate": "2026-06-16",
+            "procedures": [
+              {
+                "code": "83036",
+                "description": "HEMOGLOBIN A1C"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "83036",
+              "description": "BLOOD SUGAR TEST"
+            },
+            "providedServiceInfo": {
+              "code": "83036",
+              "description": "BLOOD SUGAR TEST"
+            },
+            "serviceRemarks": [
+              {
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "47.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "29.65",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "17.35",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "0.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-06-16",
+            "lastServiceDate": "2026-06-16",
+            "procedures": [
+              {
+                "code": "84443",
+                "description": "THYROID STIMULATING HORMONE"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "84443",
+              "description": "THYROID TEST"
+            },
+            "providedServiceInfo": {
+              "code": "84443",
+              "description": "THYROID TEST"
+            },
+            "serviceRemarks": [
+              {
+                "code": "Q9",
+                "description": "THIS SERVICE IS PART OF ANOTHER SERVICE FROM THE SAME DAY AND IS NOT PAID SEPARATELY."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "92.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "92.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "0.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-06-16",
+            "lastServiceDate": "2026-06-16",
+            "procedures": [
+              {
+                "code": "85025",
+                "description": "COMPLETE BLOOD COUNT"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "85025",
+              "description": "BLOOD COUNT"
+            },
+            "providedServiceInfo": {
+              "code": "85025",
+              "description": "BLOOD COUNT"
+            },
+            "serviceRemarks": [
+              {
+                "code": "Q9",
+                "description": "THIS SERVICE IS PART OF ANOTHER SERVICE FROM THE SAME DAY AND IS NOT PAID SEPARATELY."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "38.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "38.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "0.00",
+                "iso4217": "USD"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

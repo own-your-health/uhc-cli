@@ -1,0 +1,239 @@
+{
+  "data": {
+    "claimDetailsAggregate": {
+      "healthCareClaimDetails": {
+        "claimId": "SYNC555264",
+        "claimIdSuffix": "07",
+        "claimKey": "SYNK-074",
+        "claimType": "MEDICAL",
+        "claimStatus": "PROCESSED",
+        "claimNetworkStatus": "OUT_OF_NETWORK",
+        "providerName": "EXAMPLE CHIROPRACTIC",
+        "claimDates": {
+          "dateProcessed": "2026-05-02",
+          "serviceStartDate": "2026-04-16",
+          "lastServiceDate": "2026-04-16"
+        },
+        "balance": {
+          "totalBilledAmount": {
+            "value": "323.00",
+            "iso4217": "USD"
+          },
+          "healthPlanDiscount": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "healthPlanPay": {
+            "value": "34.20",
+            "iso4217": "USD"
+          },
+          "deductible": {
+            "value": "110.80",
+            "iso4217": "USD"
+          },
+          "copay": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "claimCoinsurance": {
+            "value": "22.80",
+            "iso4217": "USD"
+          },
+          "claimMemberNotCovered": {
+            "value": "155.20",
+            "iso4217": "USD"
+          },
+          "patientResponsibility": {
+            "value": "288.80",
+            "iso4217": "USD"
+          }
+        },
+        "serviceLines": [
+          {
+            "serviceDate": "2026-04-16",
+            "lastServiceDate": "2026-04-16",
+            "procedures": [
+              {
+                "code": "72100",
+                "description": "X-RAY OF THE LOWER SPINE, 2 VIEWS"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "72100",
+              "description": "LOWER BACK X-RAY"
+            },
+            "providedServiceInfo": {
+              "code": "72100",
+              "description": "LOWER BACK X-RAY"
+            },
+            "serviceRemarks": [
+              {
+                "code": "J6",
+                "description": "THIS PROVIDER IS NOT IN THE NETWORK AND MAY BILL MORE THAN THE PLAN ALLOWS."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "173.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "110.80",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "62.20",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "173.00",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-04-16",
+            "lastServiceDate": "2026-04-16",
+            "procedures": [
+              {
+                "code": "98941",
+                "description": "SPINAL ADJUSTMENT, 3 TO 4 REGIONS"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "98941",
+              "description": "CHIROPRACTIC ADJUSTMENT"
+            },
+            "providedServiceInfo": {
+              "code": "98941",
+              "description": "CHIROPRACTIC ADJUSTMENT"
+            },
+            "serviceRemarks": [
+              {
+                "code": "J6",
+                "description": "THIS PROVIDER IS NOT IN THE NETWORK AND MAY BILL MORE THAN THE PLAN ALLOWS."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "96.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "34.20",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "22.80",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "39.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "61.80",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-04-16",
+            "lastServiceDate": "2026-04-16",
+            "procedures": [
+              {
+                "code": "97012",
+                "description": "MECHANICAL TRACTION"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "97012",
+              "description": "TRACTION"
+            },
+            "providedServiceInfo": {
+              "code": "97012",
+              "description": "TRACTION"
+            },
+            "serviceRemarks": [
+              {
+                "code": "H2",
+                "description": "YOUR PLAN DOES NOT COVER THIS SERVICE OR ITEM."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "54.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "54.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "54.00",
+                "iso4217": "USD"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

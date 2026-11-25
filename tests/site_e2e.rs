@@ -328,447 +328,8 @@ fn ids(items: &Value) -> Vec<String> {
         .collect()
 }
 
-#[test]
-fn patients_list() {
-    let h = Household::new();
-    let v = h.json(&["patients", "list"]);
-    assert_eq!(v["schema"], "patient-list/v1");
-    assert_eq!(ids(&v), [id("ALEX"), id("JORDAN"), id("SAM")]);
-    let sam = &v["items"][2];
-    // The site's first name is the member's name, never a label (medical-common
-    // DESIGN §1.3): a member has a label once `patients label` gives it one.
-    assert!(
-        v["items"].as_array().unwrap().iter().all(|m| m.get("label").is_none()),
-        "{v}"
-    );
-    assert_eq!(sam["name"], "Sam Example");
-    assert_eq!(sam["member_role"], "dependent");
-    assert_eq!(sam["coverage_relationship"], "spouse");
-    assert_eq!(sam["member_id"], "SYNM000001");
-    assert_eq!(sam["claims"], 4);
-    assert_eq!(sam["statements"], 2);
-    assert_eq!(sam["latest_statement"], "2026-08-16");
-    assert_eq!(v["items"][0]["relationship"], "self");
-    // Each request carries the session and the browser's user agent.
-    for r in h.server.seen() {
-        assert_eq!(r.headers["user-agent"], AGENT, "{}", r.target);
-        assert!(r.headers["cookie"].contains("dummy_session=abc"), "{}", r.target);
-        assert_eq!(r.method, "POST");
-    }
-    assert_eq!(h.server.seen().len(), 2, "the claims and the documents");
-    // The variables are dates only: no member or plan id goes out.
-    for r in h.server.seen() {
-        let body: Value = serde_json::from_str(&r.body).unwrap();
-        for key in body["variables"].as_object().unwrap().keys() {
-            assert!(key.ends_with("tartDate") || key.ends_with("topDate"), "{key}");
-        }
-    }
-}
-
-#[test]
-fn claims_list_and_get() {
-    let h = Household::new();
-    let v = h.json(&["claims", "list"]);
-    assert_eq!(v["schema"], "claim-list/v1");
-    let all = ids(&v);
-    assert_eq!(all.len(), 9, "{all:?}");
-    // The statement fixture's claims, under the statement's ids.
-    for statement_id in ["cSYNC00000006", "cSYNC00000008", "rx00000000000000000"] {
-        assert!(all.contains(&statement_id.to_string()), "{statement_id}: {all:?}");
-    }
-    assert_eq!(all[0], "cSYNC11111111", "newest service first");
-    let rx = v["items"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|c| c["id"] == "rx55500000000000000")
-        .unwrap();
-    assert_eq!(rx["reversed"], true);
-    assert_eq!(rx["type"], "pharmacy");
-    assert_eq!(rx["lines"], 1);
-    let office = v["items"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|c| c["id"] == "cSYNC00000006")
-        .unwrap();
-    assert_eq!(office["claim_number"], "SYNC00000006");
-    assert_eq!(office["billed"]["amount"], "200.00");
-    assert_eq!(office["you_owe"]["amount"], "35.00");
-    assert_eq!(office["network"], "in");
-    assert_eq!(office["processed"], "2026-08-15");
-    assert!(office.get("lines").is_none(), "a summary has no lines: {office}");
-
-    let sam = h.json(&["claims", "list", "--patient", &id("SAM"), "--since", "2026-08-10"]);
-    assert_eq!(ids(&sam), ["cSYNC33333333", "cSYNC00000008"]);
-    assert_eq!(h.server.count("claimDetails"), 0, "claims list reads no detail");
-
-    let c = h.json(&["claims", "get", "cSYNC00000008"]);
-    assert_eq!(c["schema"], "claim/v1");
-    assert_eq!(c["type"], "professional");
-    assert_eq!(c["document"], "00000000-0000-4000-8000-000000000001");
-    let lines = c["lines"].as_array().unwrap();
-    assert_eq!(lines.len(), 2);
-    assert_eq!(lines[0]["procedure"]["code"], "70450");
-    assert_eq!(lines[0]["codes"], json!(["D1"]));
-    assert_eq!(c["allowed"]["amount"], "270.00");
-    assert!(c["codes"]["UG"].is_string());
-    assert_eq!(h.server.count("claimDetails"), 1);
-
-    let e = h.run(&["claims", "get", "cNOSUCHCLAIM"]).unwrap_err();
-    assert_eq!(e.exit_code(), 4);
-}
-
-#[test]
-fn accumulators() {
-    let h = Household::new();
-    let v = h.json(&["accumulators"]);
-    assert_eq!(v["schema"], "accumulator-list/v1");
-    let items = v["items"].as_array().unwrap();
-    assert_eq!(items.len(), 16);
-    let alex = h.json(&["accumulators", "--patient", &id("ALEX"), "--year", "2026"]);
-    let rows = alex["items"].as_array().unwrap();
-    assert_eq!(rows.len(), 8, "Alex's and the family's");
-    let family: Vec<&Value> = rows.iter().filter(|r| r["family"] == true).collect();
-    assert!(!family.is_empty());
-    assert!(
-        family.iter().all(|r| r["first_name"].is_null()),
-        "a family row names no one"
-    );
-    let ded = rows
-        .iter()
-        .find(|r| r["first_name"] == "Alex" && r["network"] == "in" && r["limit"] == "deductible")
-        .unwrap();
-    assert_eq!(ded["maximum"]["amount"], "1250.00");
-    assert_eq!(ded["used"]["amount"], "50.00");
-    assert_eq!(ded["remaining"]["amount"], "1200.00");
-    assert_eq!(ded["met"], false);
-    assert!(ded.get("document").is_none());
-    assert_eq!(ded["plan_year"], 2026);
-    assert_eq!(ded["period"], json!({ "start": "2026-01-01", "end": "2026-12-31" }));
-    assert_eq!(h.json(&["accumulators", "--year", "2025"])["items"], json!([]));
-}
-
-/// The site marks the medical plan as counting by calendar year and gives
-/// no dates: each claim's benefit period is its year of service, whenever
-/// it is exported, and the balances' is the year of the day read.
-#[test]
-fn a_calendar_year_plan_dates_each_claim_by_its_year_of_service() {
-    let year_2026 = json!({ "start": "2026-01-01", "end": "2026-12-31" });
-    for today in ["2026-11-17", "2027-01-15"] {
-        let h = Household::on(today, true);
-        let (code, stream) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
-        assert_eq!(code, 0);
-        let eobs = of_type(&stream, "ExplanationOfBenefit");
-        assert_eq!(eobs.len(), 4);
-        for e in &eobs {
-            assert_eq!(e["benefitPeriod"], year_2026, "{today}: {}", e["id"]);
-        }
-        assert_eq!(stream.last().unwrap()["skipped"], json!([]), "{today}");
-        assert_eq!(h.server.count("spending"), 1, "one plan balances read");
-    }
-
-    let h = Household::on("2027-01-15", true);
-    let rows = h.json(&["accumulators", "--year", "2027"]);
-    assert_eq!(rows["items"].as_array().unwrap().len(), 16);
-    assert_eq!(
-        rows["items"][0]["period"],
-        json!({ "start": "2027-01-01", "end": "2027-12-31" })
-    );
-}
-
-#[test]
-fn documents_list_and_download() {
-    let h = Household::new();
-    let v = h.json(&["documents", "list"]);
-    assert_eq!(v["schema"], "document-list/v1");
-    let items = v["items"].as_array().unwrap();
-    assert_eq!(items.len(), 5);
-    let eob = items
-        .iter()
-        .find(|d| d["id"] == format!("doc-00000000-0000-4000-8000-000000000001-{}", id("SAM")))
-        .unwrap();
-    assert_eq!(eob["category"], "eob");
-    assert_eq!(eob["date"], "2026-08-16");
-    assert_eq!(
-        eob["file"],
-        "2026-08-16_uhc-eob_00000000-0000-4000-8000-000000000001.pdf"
-    );
-    assert_eq!(eob["name"], "UnitedHealthcare Explanation of Benefits 2026-08-16, Sam");
-
-    let dir = tmp("downloads");
-    let one = h.json(&[
-        "documents",
-        "download",
-        "00000000-0000-4000-8000-000000000005",
-        "-o",
-        dir.to_str().unwrap(),
-    ]);
-    assert_eq!(one["schema"], "document-download/v1");
-    let saved = PathBuf::from(one["path"].as_str().unwrap());
-    assert_eq!(std::fs::read(&saved).unwrap(), pdf());
-    let pdf_gets = h
-        .server
-        .seen()
-        .into_iter()
-        .filter(|r| r.method == "GET")
-        .collect::<Vec<_>>();
-    assert_eq!(pdf_gets.len(), 1);
-    assert!(
-        pdf_gets[0].target.ends_with("?documentClass=u_prior_auth_doc"),
-        "{}",
-        pdf_gets[0].target
-    );
-    assert!(pdf_gets[0].headers["accept"].contains("application/pdf"));
-    // Onto the file it saved: refused before any download.
-    let again = h.run(&[
-        "documents",
-        "download",
-        "00000000-0000-4000-8000-000000000005",
-        "-o",
-        saved.to_str().unwrap(),
-    ]);
-    assert_eq!(again.unwrap_err().exit_code(), 2);
-
-    let all = h.json(&["documents", "download", "--all", "-o", dir.to_str().unwrap()]);
-    assert_eq!(all["schema"], "document-download-batch/v1");
-    assert_eq!(all["count"], 4);
-    assert_eq!(all["skipped"].as_array().unwrap().len(), 1, "the one saved before");
-    let gets = || h.server.seen().into_iter().filter(|r| r.method == "GET").count();
-    assert_eq!(gets(), 5);
-    // A re-run reads no document again.
-    let rerun = h.json(&["documents", "download", "--all", "-o", dir.to_str().unwrap()]);
-    assert_eq!(rerun["count"], 0);
-    assert_eq!(rerun["skipped"].as_array().unwrap().len(), 5);
-    assert!(rerun["skipped"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .all(|s| s["code"] == "exists"));
-    assert_eq!(gets(), 5);
-    assert_eq!(h.run(&["documents", "download", "00000"]).unwrap_err().exit_code(), 2);
-}
-
 fn of_type<'a>(stream: &'a [Value], kind: &str) -> Vec<&'a Value> {
     stream.iter().filter(|l| l["resourceType"] == kind).collect()
-}
-
-#[test]
-fn records_export_carries_the_sites_codes() {
-    let h = Household::new();
-    let (code, stream) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
-    assert_eq!(code, 0);
-    let header = &stream[0];
-    assert_eq!(header["schema"], "records-stream/v1");
-    assert_eq!(header["method"], "portal");
-    assert_eq!(header["patient"]["id"], id("SAM"));
-    let trailer = stream.last().unwrap();
-    assert_eq!(trailer["complete"], true, "{trailer}");
-
-    let patient = &of_type(&stream, "Patient")[0];
-    assert_eq!(patient["birthDate"], "1982-01-01");
-    assert_eq!(patient["gender"], "female");
-    assert_eq!(patient["name"][0]["family"], "Example");
-    assert_eq!(patient["meta"]["source"], "uhc:member-site");
-    let coverage = &of_type(&stream, "Coverage")[0];
-    assert_eq!(
-        coverage["period"],
-        json!({ "start": "2026-01-01", "end": "2026-12-31" })
-    );
-    assert_eq!(coverage["relationship"]["coding"][0]["code"], "spouse");
-
-    let eobs = of_type(&stream, "ExplanationOfBenefit");
-    let eob_ids: Vec<&str> = eobs.iter().map(|e| e["id"].as_str().unwrap()).collect();
-    assert_eq!(
-        eob_ids,
-        ["cSYNC33333333", "cSYNC00000008", "rx00000000000000000", "cSYNC00000006"]
-    );
-    let radiology = eobs.iter().find(|e| e["id"] == "cSYNC00000008").unwrap();
-    assert_eq!(radiology["type"]["coding"][0]["code"], "professional");
-    assert_eq!(radiology["created"], "2026-08-16");
-    let first = &radiology["item"][0]["productOrService"]["coding"][0];
-    assert_eq!(first["system"], "http://www.ama-assn.org/go/cpt");
-    assert_eq!(first["code"], "70450");
-    let second = &radiology["item"][1]["productOrService"]["coding"][0];
-    assert_eq!(
-        second["system"],
-        "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets"
-    );
-    let notes: Vec<&str> = radiology["processNote"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|n| n["text"].as_str().unwrap())
-        .collect();
-    assert!(notes.iter().any(|n| n.starts_with("D1 -- ")), "{notes:?}");
-    assert_eq!(radiology["adjudication"][0]["reason"]["coding"][0]["code"], "innetwork");
-    assert_eq!(
-        radiology["supportingInfo"][0]["valueReference"]["reference"],
-        format!(
-            "DocumentReference/doc-00000000-0000-4000-8000-000000000001-{}",
-            id("SAM")
-        )
-    );
-    assert!(radiology.get("benefitBalance").is_none());
-    let rx = eobs.iter().find(|e| e["id"] == "rx00000000000000000").unwrap();
-    assert_eq!(rx["type"]["coding"][0]["code"], "pharmacy");
-    assert_eq!(rx["status"], "active");
-
-    let docs = of_type(&stream, "DocumentReference");
-    assert_eq!(docs.len(), 3, "Sam's two EOBs and the health statement");
-    let eob_doc = docs
-        .iter()
-        .find(|d| d["id"] == format!("doc-00000000-0000-4000-8000-000000000001-{}", id("SAM")))
-        .unwrap();
-    let related: Vec<&str> = eob_doc["context"]["related"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|r| r["reference"].as_str().unwrap())
-        .collect();
-    assert_eq!(
-        related,
-        [
-            "ExplanationOfBenefit/cSYNC00000008",
-            "ExplanationOfBenefit/cSYNC00000006"
-        ]
-    );
-    assert_eq!(of_type(&stream, "Binary").len(), 3);
-    // Three claims' details (the pharmacy claim has none) and three PDFs.
-    assert_eq!(h.server.count("claimDetails"), 3);
-    assert_eq!(h.server.seen().iter().filter(|r| r.method == "GET").count(), 3);
-}
-
-/// The plan balances only add the benefit period: when they fail, the
-/// claims go out without one and the trailer says so. A refused session
-/// still stops the export.
-#[test]
-fn the_claims_go_out_when_the_plan_balances_fail() {
-    let h = Household::new();
-    h.server
-        .fail_on("q=spending", 500, "application/json", r#"{"error":"Internal"}"#);
-    let (code, stream) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
-    assert_eq!(code, 0);
-    let eobs = of_type(&stream, "ExplanationOfBenefit");
-    assert_eq!(eobs.len(), 4);
-    assert!(eobs.iter().all(|e| e.get("benefitPeriod").is_none()));
-    assert_eq!(of_type(&stream, "DocumentReference").len(), 3);
-    let trailer = stream.last().unwrap();
-    assert_eq!(trailer["complete"], true, "{trailer}");
-    let skipped = trailer["skipped"].as_array().unwrap();
-    assert_eq!(skipped.len(), 1, "{trailer}");
-    assert_eq!(skipped[0]["code"], "upstream");
-    assert_eq!(skipped[0]["resource_type"], "ExplanationOfBenefit");
-    assert!(skipped[0].get("id").is_none());
-    assert!(skipped[0]["reason"].as_str().unwrap().contains("benefitPeriod"));
-
-    let h = Household::new();
-    h.server
-        .fail_on("q=spending", 401, "application/json", &fixture("unauthorized.json"));
-    let e = h
-        .run(&["records", "export", "--patient", &id("SAM"), "--ndjson"])
-        .unwrap_err();
-    assert_eq!(e.exit_code(), 3);
-    assert_eq!(h.server.count("claimDetails"), 0, "no detail read after a refusal");
-}
-
-/// One claim is one record whichever source it came from: the statement
-/// fixture's claims and member read through the files source carry the
-/// ids the site's export gives them.
-#[test]
-fn the_ids_are_the_statements() {
-    let text = std::fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/fixtures/eob/2026-08-20-statement.txt"
-    ))
-    .unwrap();
-    let book = Book::new(vec![StatementFile::new(
-        "statement.pdf".into(),
-        text.as_bytes(),
-        uhc::eob::parse(&text),
-    )]);
-    let statement_claims: Vec<String> = book.claims().into_iter().map(|c| c.id).collect();
-    let statement_members: Vec<String> = book.members().into_iter().map(|m| m.id).collect();
-
-    let h = Household::new();
-    let (_, stream) = h.stream(&["records", "export", "--patient", &id("SAM"), "--ndjson"]);
-    let site_claims: Vec<String> = of_type(&stream, "ExplanationOfBenefit")
-        .iter()
-        .map(|e| e["id"].as_str().unwrap().to_string())
-        .collect();
-    assert_eq!(statement_claims.len(), 3);
-    for c in &statement_claims {
-        assert!(site_claims.contains(c), "{c} is not among {site_claims:?}");
-    }
-    assert_eq!(statement_members, [id("SAM")]);
-    assert_eq!(of_type(&stream, "Patient")[0]["id"], id("SAM"));
-    assert_eq!(
-        of_type(&stream, "Coverage")[0]["id"],
-        uhc::fhir::coverage(&book.members()[0])["id"]
-    );
-}
-
-#[test]
-fn records_export_since_reads_only_what_changed() {
-    let h = Household::new();
-    let (code, stream) = h.stream(&[
-        "records",
-        "export",
-        "--patient",
-        &id("SAM"),
-        "--since",
-        "2026-08-16",
-        "--ndjson",
-    ]);
-    assert_eq!(code, 0);
-    assert_eq!(stream[0]["since"], "2026-08-16");
-    let eobs: Vec<&str> = of_type(&stream, "ExplanationOfBenefit")
-        .iter()
-        .map(|e| e["id"].as_str().unwrap())
-        .collect();
-    assert_eq!(eobs, ["cSYNC33333333", "cSYNC00000008"]);
-    assert_eq!(h.server.count("claimDetails"), 2);
-    // The EOB of 2026-08-16 and the health statement of 2026-08-20.
-    assert_eq!(of_type(&stream, "DocumentReference").len(), 2);
-}
-
-#[test]
-fn a_claim_in_process_is_skipped() {
-    let h = Household::new();
-    let (code, stream) = h.stream(&["records", "export", "--patient", &id("JORDAN"), "--ndjson"]);
-    assert_eq!(code, 0);
-    let trailer = stream.last().unwrap();
-    let skipped = trailer["skipped"].as_array().unwrap();
-    assert!(
-        skipped
-            .iter()
-            .any(|s| s["code"] == "in_process" && s["id"] == "cSYNC11111111"),
-        "{trailer}"
-    );
-    let eobs = of_type(&stream, "ExplanationOfBenefit");
-    assert_eq!(eobs.len(), 1);
-    assert_eq!(eobs[0]["type"]["coding"][0]["code"], "institutional");
-    assert_eq!(
-        eobs[0]["item"][0]["revenue"]["coding"][0]["system"],
-        "https://www.nubc.org/CodeSystem/RevenueCodes"
-    );
-}
-
-#[test]
-fn the_dental_claim_is_oral() {
-    let h = Household::new();
-    let (_, stream) = h.stream(&["records", "export", "--patient", &id("ALEX"), "--ndjson"]);
-    let eobs = of_type(&stream, "ExplanationOfBenefit");
-    let dental = eobs.iter().find(|e| e["id"] == "c000000000003").unwrap();
-    assert_eq!(dental["type"]["coding"][0]["code"], "oral");
-    assert_eq!(
-        dental["item"][0]["productOrService"]["coding"][0]["system"],
-        "http://ada.org/cdt"
-    );
-    assert_eq!(dental["item"][0]["bodySite"]["text"], "Tooth 01-32");
-    assert_eq!(dental["adjudication"][0]["reason"]["coding"][0]["code"], "outofnetwork");
-    let rx = eobs.iter().find(|e| e["id"] == "rx55500000000000000").unwrap();
-    assert_eq!(rx["status"], "cancelled");
 }
 
 #[test]
@@ -986,7 +547,7 @@ fn patients_label_names_one_member_of_the_profile() {
             .as_array()
             .unwrap()
             .len(),
-        4
+        6
     );
     let reads = reads + 1;
 
@@ -1056,7 +617,7 @@ fn unreadable_settings_do_not_stop_a_read() {
             .as_array()
             .unwrap()
             .len(),
-        4
+        6
     );
     assert_eq!(std::fs::read(&h.config).unwrap(), before, "left as it was");
     assert!(h.run(&["patients", "label", "--patient", &id("SAM"), "Robin"]).is_err());
@@ -1211,4 +772,951 @@ fn a_newer_sign_in_is_not_overwritten() {
     site.household().unwrap();
     assert!(site.finish().unwrap());
     assert!(h.stored().cookie_header.expose().contains("AWSALBTG=dummy-rotated"));
+}
+
+// ------------------------------------------------- the fixtures' household
+
+/// A site document's `documents list` id: the export's `DocumentReference`.
+fn doc(tail: &str, first: &str) -> String {
+    format!("doc-00000000-0000-4000-8000-0000000000{tail}-{}", id(first))
+}
+
+fn named<'a>(stream: &'a [Value], kind: &str, id: &str) -> &'a Value {
+    let found = of_type(stream, kind).into_iter().find(|r| r["id"] == id);
+    found.unwrap_or_else(|| panic!("no {kind}/{id} in the stream"))
+}
+
+fn ids_of(stream: &[Value], kind: &str) -> Vec<String> {
+    of_type(stream, kind)
+        .iter()
+        .map(|r| r["id"].as_str().unwrap().to_string())
+        .collect()
+}
+
+/// The amount of one category of a line's or a claim's adjudication.
+fn amount(entries: &Value, code: &str) -> Value {
+    let entries = entries.as_array().unwrap();
+    let found = entries.iter().find(|e| e["category"]["coding"][0]["code"] == code);
+    found.map(|e| e["amount"]["value"].clone()).unwrap_or_default()
+}
+
+fn variables(r: &Seen) -> Value {
+    serde_json::from_str::<Value>(&r.body).unwrap()["variables"].clone()
+}
+
+fn export(h: &Household, first: &str, more: &[&str]) -> Vec<Value> {
+    let who = id(first);
+    let mut args = vec!["records", "export", "--patient", &who, "--ndjson"];
+    args.extend_from_slice(more);
+    let (code, stream) = h.stream(&args);
+    assert_eq!(code, 0);
+    assert_eq!(stream.last().unwrap()["complete"], true);
+    stream
+}
+
+// ---------------------------------------------------------------- patients
+
+/// The profile's members, the subscriber first, with their ids, coverage,
+/// claims and EOBs. The two reads carry the session, the browser's user
+/// agent and dates.
+#[test]
+fn patients_list_is_the_profiles_members() {
+    let h = Household::new();
+    let v = h.json(&["patients", "list"]);
+    assert_eq!(v["schema"], "patient-list/v1");
+    assert_eq!(ids(&v), [id("ALEX"), id("JORDAN"), id("SAM")]);
+    let expected = [
+        ("Alex Example", "subscriber", "self", 4, 5, "2026-08-08"),
+        ("Jordan Example", "dependent", "child", 2, 2, "2026-10-09"),
+        ("Sam Example", "dependent", "spouse", 6, 2, "2026-07-02"),
+    ];
+    for (m, (name, role, relationship, claims, statements, latest)) in
+        v["items"].as_array().unwrap().iter().zip(expected)
+    {
+        assert_eq!(m["name"], name);
+        assert_eq!(m["organization"], "uhc");
+        assert_eq!(m["kind"], "member");
+        assert_eq!(m["member_role"], role, "{name}");
+        assert_eq!(m["coverage_relationship"], relationship, "{name}");
+        // The sign-in is the subscriber's: only their record is their own.
+        assert_eq!(m.get("relationship").is_some(), role == "subscriber", "{name}");
+        assert_eq!(m["member_id"], "SYNM000001");
+        assert_eq!(m["group_number"], "SYNG0001");
+        assert!(m.get("group_name").is_none(), "{name}");
+        assert!(m.get("label").is_none(), "a first name is no label");
+        assert_eq!(m["claims"], claims, "{name}");
+        assert_eq!(m["statements"], statements, "{name}");
+        assert_eq!(m["latest_statement"], latest, "{name}");
+    }
+
+    let seen = h.server.seen();
+    assert_eq!(seen.len(), 2, "the claims and the documents");
+    for r in &seen {
+        assert_eq!(r.method, "POST");
+        assert_eq!(r.headers["user-agent"], AGENT);
+        assert!(r.headers["cookie"].contains("dummy_session=abc"));
+        assert_eq!(r.headers["accept"], "application/json");
+    }
+    assert_eq!(
+        variables(&seen[0]),
+        json!({"startDate": "2016-01-01", "stopDate": "2026-11-17"})
+    );
+    assert_eq!(
+        variables(&seen[1]),
+        json!({"processedStartDate": "2016-01-01", "processedStopDate": "2026-11-17"})
+    );
+    // The documents service's token, for it alone.
+    assert!(!seen[0].headers.contains_key("xsrf-token"));
+    assert_eq!(seen[1].headers["xsrf-token"], "dummyToken");
+}
+
+// ------------------------------------------------------------------ claims
+
+#[test]
+fn claims_list_is_each_claim_once_and_reads_no_detail() {
+    let h = Household::new();
+    let v = h.json(&["claims", "list"]);
+    assert_eq!(v["schema"], "claim-list/v1");
+    assert_eq!(
+        ids(&v),
+        [
+            "cSYNC555248",
+            "c555040000318",
+            "cSYNC55531742",
+            "cSYNC55523128",
+            "cSYNC55512785",
+            "cSYNC55521940",
+            "cSYNC55514009",
+            "cSYNC55526407",
+            "cSYNC55520613",
+            "rx55500000000000237",
+            "rx55500000000000481",
+            "cSYNC55511862",
+        ],
+        "newest service first"
+    );
+    assert_eq!(h.server.seen().len(), 1, "one read, no detail");
+    let of = |id: &str| -> Value {
+        let items = v["items"].as_array().unwrap();
+        items.iter().find(|c| c["id"] == id).unwrap().clone()
+    };
+    let c = of("cSYNC55511862");
+    assert_eq!(c["claim_number"], "SYNC55511862");
+    assert_eq!(c["patient"], id("ALEX"));
+    assert_eq!(c["first_name"], "Alex");
+    assert_eq!((&c["versions"], &c["processed"]), (&json!(2), &json!("2026-03-19")));
+    assert_eq!((&c["type"], &c["network"]), (&json!("medical"), &json!("in")));
+    assert_eq!(c["you_owe"], json!({"amount": "93.66", "currency": "USD"}));
+    assert!(c.get("lines").is_none(), "not read: {c}");
+    let reversed = of("rx55500000000000481");
+    assert_eq!(
+        (&reversed["reversed"], &reversed["versions"]),
+        (&json!(true), &json!(2))
+    );
+    assert_eq!(reversed["plan_paid"]["amount"], "176.45");
+    assert_eq!(reversed["lines"], 1);
+    assert_eq!(of("c555040000318")["network"], "out");
+    assert_eq!(of("c555040000318")["type"], "oral");
+    assert_eq!(of("cSYNC55523128")["status"], "provider_denied");
+    let waiting = of("cSYNC555248");
+    assert_eq!(waiting["status"], "in_process");
+    assert!(waiting.get("processed").is_none() && waiting.get("network").is_none());
+
+    // One member's, and those served since a day.
+    let jordan = h.json(&["claims", "list", "--patient", &id("JORDAN")]);
+    assert_eq!(ids(&jordan), ["c555040000318", "cSYNC55531742"]);
+    let since = h.json(&["claims", "list", "--since", "2026-08-11"]);
+    assert_eq!(
+        ids(&since),
+        ["cSYNC555248", "c555040000318", "cSYNC55531742", "cSYNC55523128"],
+        "the day itself counts"
+    );
+    let both = h.json(&["claims", "list", "--patient", &id("SAM"), "--since", "2026-06-17"]);
+    assert_eq!(ids(&both), ["cSYNC555248", "cSYNC55523128"]);
+    let e = h.run(&["claims", "list", "--patient", "nobody"]).unwrap_err();
+    assert_eq!(e.exit_code(), 4);
+    assert_eq!(h.server.count("q=claimDetails"), 0);
+}
+
+#[test]
+fn claims_get_reads_the_latest_versions_detail() {
+    let h = Household::new();
+    let v = h.json(&["claims", "get", "cSYNC55511862"]);
+    assert_eq!(v["schema"], "claim/v1");
+    assert_eq!((&v["id"], &v["versions"]), (&json!("cSYNC55511862"), &json!(2)));
+    assert_eq!(v["type"], "professional");
+    assert_eq!(
+        v["document"], "00000000-0000-4000-8000-0000000000a2",
+        "the latest EOB listing any version"
+    );
+    assert_eq!(v["coinsurance"]["amount"], "93.66");
+    assert_eq!(v["lines"].as_array().unwrap().len(), 2);
+    let mri = &v["lines"][0];
+    assert_eq!(mri["description"], "KNEE MRI");
+    assert_eq!(
+        mri["procedure"],
+        json!({"code": "73721", "display": "MRI OF A LEG JOINT, NO CONTRAST"})
+    );
+    assert_eq!(mri["codes"], json!(["K4", "T3"]));
+    assert_eq!(mri["counted"], true);
+    assert_eq!(v["codes"].as_object().unwrap().len(), 2);
+    let seen = h.server.seen();
+    assert_eq!(seen.len(), 3, "the claims, the documents and one detail");
+    assert_eq!(
+        variables(&seen[2]),
+        json!({"claimKey": "SYNK-018", "claimType": "MEDICAL"})
+    );
+
+    // By its claim number too; a line with a split code, and one the totals
+    // leave out.
+    let v = h.json(&["claims", "get", "SYNC55512785"]);
+    assert_eq!(v["type"], "institutional");
+    assert_eq!(
+        v["lines"][1]["procedure"],
+        json!({
+            "code": "71046",
+            "display": "X-RAY OF THE CHEST, 2 VIEWS",
+            "suffix": "R",
+            "site_code": "71046R",
+        })
+    );
+    assert_eq!(v["lines"][1]["revenue"]["code"], "0324");
+    let v = h.json(&["claims", "get", "cSYNC55514009"]);
+    assert_eq!(v["lines"][1]["counted"], false);
+    assert_eq!(v["lines"][1]["you_owe"]["amount"], "28.00");
+    assert_eq!(v["you_owe"]["amount"], "173.27");
+
+    // A pharmacy claim has no detail to read.
+    let details = h.server.count("q=claimDetails");
+    assert_eq!(details, 3);
+    let v = h.json(&["claims", "get", "rx55500000000000237"]);
+    assert_eq!(v["type"], "pharmacy");
+    assert_eq!(v["lines"][0]["description"], "FLUTICASONE SPR 50MCG");
+    // A claim the site does not list is exit 4.
+    let e = h.run(&["claims", "get", "cSYNC00000000"]).unwrap_err();
+    assert_eq!(e.exit_code(), 4);
+    assert_eq!(h.server.count("q=claimDetails"), details, "no detail read");
+}
+
+// ------------------------------------------------------------ accumulators
+
+#[test]
+fn accumulators_are_each_members_and_the_familys() {
+    let h = Household::new();
+    let v = h.json(&["accumulators"]);
+    assert_eq!(v["schema"], "accumulator-list/v1");
+    let rows = v["items"].as_array().unwrap();
+    assert_eq!(rows.len(), 16, "three members and the family, four each");
+    assert_eq!(h.server.seen().len(), 1, "the plan balances");
+    assert_eq!(variables(&h.server.seen()[0]), json!({}));
+    for r in rows {
+        assert_eq!(r["plan_year"], 2026);
+        assert_eq!(r["as_of"], "2026-11-17");
+        assert_eq!(r["period"], json!({"start": "2026-01-01", "end": "2026-12-31"}));
+    }
+    // The family's rows name no one.
+    let family: Vec<&Value> = rows.iter().filter(|r| r["family"] == true).collect();
+    assert_eq!(family.len(), 4);
+    for r in &family {
+        assert_eq!(r["first_name"], Value::Null);
+        assert!(r["patient"].as_str().unwrap().starts_with("family-"));
+    }
+    assert_eq!(family[0]["maximum"]["amount"], "2300.00");
+    assert_eq!(family[0]["used"]["amount"], "1577.35");
+    let met: Vec<&Value> = rows.iter().filter(|r| r["met"] == true).collect();
+    assert_eq!(met.len(), 1);
+    assert_eq!(
+        (&met[0]["first_name"], &met[0]["network"], &met[0]["limit"]),
+        (&json!("Alex"), &json!("in"), &json!("deductible"))
+    );
+    assert_eq!(met[0]["remaining"]["amount"], "0.00");
+
+    // One member's rows, and the family's with them.
+    let v = h.json(&["accumulators", "--patient", &id("JORDAN")]);
+    let names: Vec<Value> = v["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["first_name"].clone())
+        .collect();
+    let (jordan, none) = (json!("Jordan"), Value::Null);
+    assert_eq!(
+        names,
+        [&jordan, &jordan, &jordan, &jordan, &none, &none, &none, &none].map(Value::clone)
+    );
+    // The plan year is the calendar year, not the year a coverage began.
+    let of_year = |h: &Household, y: &str| ids_len(&h.json(&["accumulators", "--year", y]));
+    assert_eq!(of_year(&h, "2026"), 16);
+    assert_eq!(of_year(&h, "2023"), 0);
+    let next = Household::on("2027-01-04", true);
+    assert_eq!(of_year(&next, "2026"), 0);
+    let v = next.json(&["accumulators", "--year", "2027"]);
+    assert_eq!(ids_len(&v), 16);
+    assert_eq!(
+        v["items"][0]["period"],
+        json!({"start": "2027-01-01", "end": "2027-12-31"})
+    );
+}
+
+fn ids_len(list: &Value) -> usize {
+    list["items"].as_array().unwrap().len()
+}
+
+// --------------------------------------------------------------- documents
+
+#[test]
+fn documents_list_is_one_row_per_document_and_member() {
+    let h = Household::new();
+    let v = h.json(&["documents", "list"]);
+    assert_eq!(v["schema"], "document-list/v1");
+    assert_eq!(
+        ids(&v),
+        [
+            doc("a4", "JORDAN"),
+            doc("d4", "JORDAN"),
+            doc("b2", "ALEX"),
+            doc("a3", "ALEX"),
+            doc("b6", "SAM"),
+            doc("a9", "SAM"),
+            doc("a6", "ALEX"),
+            doc("a5", "SAM"),
+            doc("a8", "ALEX"),
+            doc("a2", "ALEX"),
+            doc("a1", "ALEX"),
+        ],
+        "newest first, without the plan's general form"
+    );
+    let rows = v["items"].as_array().unwrap();
+    assert_eq!(rows[7]["name"], "UnitedHealthcare Claim EOB 2026-05-07, Sam");
+    assert_eq!(rows[7]["category"], "eob");
+    assert_eq!(
+        rows[7]["file"],
+        "2026-05-07_uhc-eob_00000000-0000-4000-8000-0000000000a5.pdf"
+    );
+    assert_eq!(rows[1]["category"], "eob", "a dental EOB is one too");
+    assert_eq!(rows[2]["category"], "health-statement");
+    assert_eq!(rows[4]["category"], "prior-authorization-letters");
+    let v = h.json(&["documents", "list", "--since", "2026-08-08", "--until", "2026-10-07"]);
+    assert_eq!(ids(&v), [doc("d4", "JORDAN"), doc("b2", "ALEX"), doc("a3", "ALEX")]);
+    let v = h.json(&["documents", "list", "--limit", "2"]);
+    assert_eq!(ids(&v), [doc("a4", "JORDAN"), doc("d4", "JORDAN")]);
+    assert_eq!(h.server.count("doc360"), 0, "a list downloads nothing");
+}
+
+#[test]
+fn documents_download_saves_one_and_never_onto_a_file() {
+    let h = Household::new();
+    let dir = tmp("one");
+    let dental = doc("d4", "JORDAN");
+    let into = dir.to_str().unwrap();
+    let v = h.json(&["documents", "download", &dental, "-o", into]);
+    assert_eq!(v["schema"], "document-download/v1");
+    assert_eq!(v["id"], dental.as_str());
+    let path = PathBuf::from(v["path"].as_str().unwrap());
+    assert_eq!(
+        path.file_name().unwrap(),
+        "2026-10-07_uhc-eob_00000000-0000-4000-8000-0000000000d4.pdf"
+    );
+    assert_eq!(std::fs::read(&path).unwrap(), pdf());
+    assert_eq!(v["bytes"], pdf().len());
+    let get = h.server.seen().into_iter().find(|r| r.method == "GET").unwrap();
+    assert!(
+        get.target
+            .ends_with("/00000000-0000-4000-8000-0000000000d4?documentClass=u_sb_dental_elec"),
+        "{}",
+        get.target
+    );
+    assert_eq!(get.headers["user-agent"], AGENT);
+    assert!(get.headers["cookie"].contains("dummy_session=abc"));
+
+    // Onto a file that is there: exit 2, and not read again.
+    std::fs::write(&path, b"kept").unwrap();
+    for target in [into, path.to_str().unwrap()] {
+        let e = h.run(&["documents", "download", &dental, "-o", target]).unwrap_err();
+        assert_eq!(e.exit_code(), 2);
+        assert!(e.to_string().contains("--overwrite"), "{e}");
+    }
+    assert_eq!(std::fs::read(&path).unwrap(), b"kept");
+    assert_eq!(h.server.count("doc360"), 1);
+    h.json(&["documents", "download", &dental, "--overwrite", "-o", into]);
+    assert_eq!(std::fs::read(&path).unwrap(), pdf());
+
+    // By the site's own document id, to stdout.
+    let (code, out) = h
+        .run(&[
+            "documents",
+            "download",
+            "00000000-0000-4000-8000-0000000000b2",
+            "-o",
+            "-",
+        ])
+        .unwrap();
+    assert_eq!((code, out), (0, pdf()));
+}
+
+#[test]
+fn a_prefix_that_names_no_one_document_downloads_nothing() {
+    let h = Household::new();
+    // Too short to name one is a usage error.
+    let e = h.run(&["documents", "download", "0000"]).unwrap_err();
+    assert_eq!(e.exit_code(), 2);
+    // One several documents share, or none has, names no document.
+    for q in ["00000000-0000", "doc-00000000", "ffffffff"] {
+        let e = h.run(&["documents", "download", q]).unwrap_err();
+        assert_eq!(e.exit_code(), 4, "{q}: {e}");
+    }
+    let e = h.run(&["documents", "download", "00000000-0000"]).unwrap_err();
+    assert!(e.to_string().contains("matches 11 documents"), "{e}");
+    for who in ["ALEX", "JORDAN", "SAM"] {
+        assert!(!e.to_string().contains(&id(who)), "{e}");
+    }
+    assert_eq!(h.server.count("doc360"), 0);
+}
+
+#[test]
+fn documents_download_all_skips_what_is_saved() {
+    let h = Household::new();
+    let dir = tmp("all").join("archive");
+    let all = ["documents", "download", "--all", "-o", dir.to_str().unwrap()];
+    let v = h.json(&all);
+    assert_eq!(v["schema"], "document-download-batch/v1");
+    assert_eq!(v["count"], 11);
+    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 11);
+    assert_eq!(h.server.count("doc360"), 11);
+
+    // The site's bytes differ on each download, so a file of a document's
+    // name is that document, whatever it holds.
+    let kept = dir.join("2026-09-01_uhc-health-statement_00000000-0000-4000-8000-0000000000b2.pdf");
+    std::fs::write(&kept, b"kept").unwrap();
+    std::fs::remove_file(dir.join("2026-05-07_uhc-eob_00000000-0000-4000-8000-0000000000a5.pdf")).unwrap();
+    let v = h.json(&all);
+    assert_eq!(v["count"], 1);
+    assert_eq!(v["items"][0]["id"], doc("a5", "SAM"));
+    let skipped = v["skipped"].as_array().unwrap();
+    assert_eq!(skipped.len(), 10);
+    assert!(skipped.iter().all(|s| s["code"] == "exists"), "{v}");
+    assert_eq!(h.server.count("doc360"), 12, "only the missing one is read");
+    assert_eq!(std::fs::read(&kept).unwrap(), b"kept");
+
+    let mut overwrite = all.to_vec();
+    overwrite.push("--overwrite");
+    assert_eq!(h.json(&overwrite)["count"], 11);
+    assert_eq!(std::fs::read(&kept).unwrap(), pdf());
+}
+
+// ----------------------------------------------------------------- records
+
+/// The whole of one member's record: the profile's Patient and Coverage,
+/// each claim with its detail's codes, notes and network, and each document
+/// with the claims it lists.
+#[test]
+fn records_export_carries_the_claims_codes_and_the_members_documents() {
+    let h = Household::new();
+    let stream = export(&h, "ALEX", &[]);
+    let alex = id("ALEX");
+    assert_eq!(stream[0]["schema"], "records-stream/v1");
+    assert_eq!(stream[0]["method"], "portal");
+    assert_eq!(stream[0]["organization"]["fhir_base"], "https://member.uhc.com/myuhc");
+    assert_eq!(stream[0]["patient"]["member_role"], "subscriber");
+    let trailer = stream.last().unwrap();
+    assert_eq!(
+        trailer["counts"],
+        json!({
+            "Binary": 6, "Coverage": 1, "DocumentReference": 6, "ExplanationOfBenefit": 4,
+            "Organization": 1, "Patient": 1,
+        })
+    );
+    // What was read: one detail for each claim that has one (a pharmacy's
+    // has none) and one PDF for each document, the rest once.
+    for (target, n) in [
+        ("q=claims&", 1),
+        ("documents-aggregate-api/v1/graphql", 1),
+        ("q=spending", 1),
+        ("q=claimDetails", 3),
+        ("doc360", 6),
+    ] {
+        assert_eq!(h.server.count(target), n, "{target}");
+    }
+    assert_eq!(h.server.seen().len(), 12);
+
+    for r in &stream[1..stream.len() - 1] {
+        assert_eq!(r["meta"]["source"], "uhc:member-site");
+        assert_eq!(r["meta"]["tag"][0]["code"], "mapped-from-member-site");
+    }
+    let patient = named(&stream, "Patient", &alex);
+    assert_eq!(patient["identifier"][0]["value"], "SYNM000001");
+    assert_eq!(
+        patient["name"],
+        json!([{"text": "Alex Example", "family": "Example", "given": ["Alex"]}])
+    );
+    assert_eq!(patient["birthDate"], "1984-01-01");
+    assert_eq!(patient["gender"], "female");
+    let coverage = of_type(&stream, "Coverage")[0];
+    assert_eq!(coverage["status"], "active");
+    assert_eq!(coverage["subscriberId"], "SYNM000001");
+    assert_eq!(coverage["relationship"]["coding"][0]["code"], "self");
+    assert_eq!(
+        coverage["period"],
+        json!({"start": "2023-04-01", "end": "9999-12-31"}),
+        "the medical coverage's, though dental is listed first"
+    );
+    assert_eq!(coverage["class"][0]["value"], "SYNG0001");
+    assert_eq!(coverage["payor"][0]["reference"], "Organization/uhc");
+
+    assert_eq!(
+        ids_of(&stream, "ExplanationOfBenefit"),
+        ["cSYNC55512785", "cSYNC55514009", "rx55500000000000237", "cSYNC55511862"]
+    );
+    let eob = named(&stream, "ExplanationOfBenefit", "cSYNC55512785");
+    assert_eq!(eob["status"], "active");
+    assert_eq!(eob["patient"]["reference"], format!("Patient/{alex}"));
+    assert_eq!(
+        eob["insurance"][0]["coverage"]["reference"],
+        format!("Coverage/{}", coverage["id"].as_str().unwrap())
+    );
+    assert_eq!(eob["identifier"][0]["value"], "SYNC55512785");
+    assert_eq!(eob["type"]["coding"][0]["code"], "institutional");
+    assert_eq!(eob["created"], "2026-08-06");
+    assert_eq!(
+        eob["billablePeriod"],
+        json!({"start": "2026-07-18", "end": "2026-07-19"})
+    );
+    assert_eq!(eob["provider"]["display"], "EXAMPLE COMMUNITY HOSPITAL");
+    assert_eq!(
+        eob["adjudication"][0]["category"]["coding"][0]["code"],
+        "benefitpaymentstatus"
+    );
+    assert_eq!(eob["adjudication"][0]["reason"]["coding"][0]["code"], "innetwork");
+    const CPT: &str = "http://www.ama-assn.org/go/cpt";
+    const HCPCS: &str = "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets";
+    let items = eob["item"].as_array().unwrap();
+    let coded: Vec<(&str, &str, &str)> = items
+        .iter()
+        .map(|i| {
+            let p = &i["productOrService"]["coding"][0];
+            (
+                i["revenue"]["coding"][0]["code"].as_str().unwrap(),
+                p["system"].as_str().unwrap(),
+                p["code"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        coded,
+        [
+            ("0450", CPT, "99284"),
+            ("0324", CPT, "71046"),
+            ("0305", CPT, "85025"),
+            ("0636", HCPCS, "J1885"),
+            ("0258", HCPCS, "J7030"),
+        ]
+    );
+    assert_eq!(
+        items[0]["productOrService"],
+        json!({
+            "coding": [{"system": CPT, "code": "99284", "display": "EMERGENCY VISIT, MODERATE"}],
+            "text": "EMERGENCY ROOM VISIT",
+        })
+    );
+    assert_eq!(
+        items[1]["productOrService"]["coding"][1],
+        json!({
+            "system": "https://github.com/own-your-health/uhc-cli/fhir/site-procedure-code",
+            "code": "71046R",
+        })
+    );
+    assert_eq!(items[0]["net"], json!({"value": 1386.0, "currency": "USD"}));
+    assert_eq!(
+        eob["processNote"],
+        json!([
+            {"number": 1, "type": "print",
+             "text": "K4 -- THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."},
+            {"number": 2, "type": "print",
+             "text": "Q9 -- THIS SERVICE IS PART OF ANOTHER SERVICE FROM THE SAME DAY AND IS NOT PAID SEPARATELY."},
+        ])
+    );
+    assert_eq!(items[0]["noteNumber"], json!([1]));
+    assert_eq!(amount(&eob["total"], "submitted"), 1893.0);
+    assert_eq!(amount(&eob["total"], "memberliability"), 476.65);
+    assert!(
+        eob.get("benefitBalance").is_none(),
+        "the site shows today's balances only"
+    );
+
+    // Each claim points at the latest EOB listing it, and each document at
+    // the exported claims its rows list.
+    let info = |id: &str| named(&stream, "ExplanationOfBenefit", id)["supportingInfo"].clone();
+    let points_at = |id: &str, tail: &str| {
+        assert_eq!(
+            info(id),
+            json!([{
+                "sequence": 1,
+                "category": {"coding": [{
+                    "system": "http://terminology.hl7.org/CodeSystem/claiminformationcategory",
+                    "code": "info",
+                }]},
+                "valueReference": {"reference": format!("DocumentReference/{}", doc(tail, "ALEX"))},
+            }]),
+            "{id}"
+        );
+    };
+    points_at("cSYNC55512785", "a3");
+    points_at("cSYNC55514009", "a6");
+    points_at("cSYNC55511862", "a2");
+    points_at("rx55500000000000237", "a8");
+    assert_eq!(
+        ids_of(&stream, "DocumentReference"),
+        ["b2", "a3", "a6", "a8", "a2", "a1"].map(|t| doc(t, "ALEX"))
+    );
+    for (tail, claim) in [
+        ("a3", "cSYNC55512785"),
+        ("a6", "cSYNC55514009"),
+        ("a8", "rx55500000000000237"),
+        ("a2", "cSYNC55511862"),
+        // The first version's statement is a document of the claim too.
+        ("a1", "cSYNC55511862"),
+    ] {
+        let d = named(&stream, "DocumentReference", &doc(tail, "ALEX"));
+        assert_eq!(
+            d["context"]["related"],
+            json!([{"reference": format!("ExplanationOfBenefit/{claim}")}]),
+            "{tail}"
+        );
+        assert_eq!(d["category"], json!([{"text": "EOB"}]));
+        assert_eq!(d["type"]["text"], "Explanation of Benefits");
+        assert_eq!(d["subject"]["reference"], format!("Patient/{alex}"));
+    }
+    let statement = named(&stream, "DocumentReference", &doc("b2", "ALEX"));
+    assert_eq!(statement["type"]["text"], "Health Statement");
+    assert_eq!(statement["category"], json!([{"text": "Health Statement"}]));
+    assert_eq!(statement["date"], "2026-09-01T00:00:00Z");
+    assert!(statement.get("context").is_none(), "it lists no claim");
+    let attachment = &statement["content"][0]["attachment"];
+    let binary = attachment["url"].as_str().unwrap().strip_prefix("Binary/").unwrap();
+    assert_eq!(attachment["size"], pdf().len());
+    assert_eq!(named(&stream, "Binary", binary)["contentType"], "application/pdf");
+}
+
+/// A dental claim out of network, with its CDT codes and teeth.
+#[test]
+fn an_oral_claim_carries_cdt_codes_and_its_teeth() {
+    let h = Household::new();
+    let stream = export(&h, "JORDAN", &[]);
+    let eob = named(&stream, "ExplanationOfBenefit", "c555040000318");
+    assert_eq!(
+        eob["type"],
+        json!({
+            "coding": [{
+                "system": "http://terminology.hl7.org/CodeSystem/claim-type",
+                "code": "oral",
+                "display": "Oral",
+            }],
+            "text": "Dental claim",
+        })
+    );
+    assert_eq!(eob["identifier"][0]["value"], "555040000318");
+    assert_eq!(eob["adjudication"][0]["reason"]["coding"][0]["code"], "outofnetwork");
+    let rows: Vec<(Value, Value, Value, Value)> = eob["item"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| {
+            let coding = &i["productOrService"]["coding"][0];
+            (
+                coding["system"].clone(),
+                coding["code"].clone(),
+                i["bodySite"]["text"].clone(),
+                amount(&i["adjudication"], "eligible"),
+            )
+        })
+        .collect();
+    let cdt = json!("http://ada.org/cdt");
+    assert_eq!(
+        rows,
+        [
+            (cdt.clone(), json!("D0120"), Value::Null, json!(52.0)),
+            (cdt.clone(), json!("D1120"), json!("Tooth 01-32"), json!(74.5)),
+            (cdt.clone(), json!("D1351"), json!("Tooth 19"), json!(49.0)),
+            (cdt, json!("D1351"), json!("Tooth 30"), json!(49.0)),
+        ],
+        "the site's allowed amount, not the charge less a write-off"
+    );
+    assert_eq!(amount(&eob["total"], "noncovered"), 78.5);
+
+    let dental = named(&stream, "DocumentReference", &doc("d4", "JORDAN"));
+    assert_eq!(
+        dental["context"]["related"],
+        json!([{"reference": "ExplanationOfBenefit/c555040000318"}])
+    );
+    assert_eq!(h.server.count("q=claimDetails"), 2);
+    assert_eq!(h.server.count("doc360"), 2);
+}
+
+/// An EOB of two claims is one document, of both.
+#[test]
+fn an_eob_of_two_claims_is_one_document() {
+    let h = Household::new();
+    let stream = export(&h, "SAM", &[]);
+    let claims = ["cSYNC55526407", "cSYNC55520613"];
+    let shared = named(&stream, "DocumentReference", &doc("a5", "SAM"));
+    let related = claims.map(|c| json!({"reference": format!("ExplanationOfBenefit/{c}")}));
+    assert_eq!(shared["context"]["related"], json!(related));
+    for (c, network) in claims.iter().zip(["outofnetwork", "innetwork"]) {
+        let eob = named(&stream, "ExplanationOfBenefit", c);
+        assert_eq!(
+            eob["supportingInfo"][0]["valueReference"]["reference"],
+            format!("DocumentReference/{}", doc("a5", "SAM"))
+        );
+        assert_eq!(eob["adjudication"][0]["reason"]["coding"][0]["code"], network);
+    }
+    let shared_id = doc("a5", "SAM");
+    let held = ids_of(&stream, "DocumentReference");
+    assert_eq!(held.iter().filter(|d| **d == shared_id).count(), 1);
+    assert_eq!(h.server.count("doc360"), 3, "its PDF once, with the other two");
+}
+
+/// A reversed pharmacy claim is `cancelled`, with the original's amounts. A
+/// claim in process is left out, and the trailer says so.
+#[test]
+fn a_reversed_claim_is_cancelled_and_one_in_process_is_skipped() {
+    let h = Household::new();
+    let stream = export(&h, "SAM", &[]);
+    assert_eq!(
+        ids_of(&stream, "ExplanationOfBenefit"),
+        [
+            "cSYNC55523128",
+            "cSYNC55521940",
+            "cSYNC55526407",
+            "cSYNC55520613",
+            "rx55500000000000481"
+        ]
+    );
+    for eob in of_type(&stream, "ExplanationOfBenefit") {
+        let reversed = eob["id"] == "rx55500000000000481";
+        let status = if reversed { "cancelled" } else { "active" };
+        assert_eq!(eob["status"], status, "{}", eob["id"]);
+    }
+    let reversed = named(&stream, "ExplanationOfBenefit", "rx55500000000000481");
+    assert_eq!(reversed["type"]["coding"][0]["code"], "pharmacy");
+    assert_eq!(amount(&reversed["total"], "submitted"), 318.6);
+    assert_eq!(amount(&reversed["total"], "memberliability"), 45.0);
+    assert_eq!(
+        reversed["item"][0]["productOrService"],
+        json!({"text": "Prescription drug"}),
+        "the site masks its name"
+    );
+    assert_eq!(reversed["supportingInfo"], json!([]), "no document lists it");
+
+    let trailer = stream.last().unwrap();
+    let skipped = trailer["skipped"].as_array().unwrap();
+    assert_eq!(skipped.len(), 1, "{trailer}");
+    assert_eq!(skipped[0]["code"], "in_process");
+    assert_eq!(skipped[0]["resource_type"], "ExplanationOfBenefit");
+    assert_eq!(skipped[0]["id"], "cSYNC555248");
+    assert_eq!(h.server.count("q=claimDetails"), 4, "none for the one in process");
+
+    // Lines the totals leave out are marked, in a stream as in a claim.
+    let lab = named(&stream, "ExplanationOfBenefit", "cSYNC55521940");
+    let marked: Vec<bool> = lab["item"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| {
+            let entries = i["adjudication"].as_array().unwrap();
+            entries
+                .iter()
+                .any(|e| e["category"]["coding"][0]["code"] == "not-counted")
+        })
+        .collect();
+    assert_eq!(marked, [false, false, false, true, true]);
+    assert_eq!(amount(&lab["total"], "discount"), 267.85);
+    assert_eq!(amount(&lab["total"], "eligible"), 61.15);
+    // A denied claim the site gives no network for has no network status.
+    let denied = named(&stream, "ExplanationOfBenefit", "cSYNC55523128");
+    assert!(denied.get("adjudication").is_none());
+    assert_eq!(amount(&denied["total"], "memberliability"), 0.0);
+}
+
+/// A claim's benefit period is the calendar year it was served in, whenever
+/// it is read.
+#[test]
+fn a_claims_benefit_period_is_its_year_of_service() {
+    for today in ["2026-11-17", "2027-02-03"] {
+        let h = Household::on(today, true);
+        let stream = export(&h, "ALEX", &[]);
+        let periods: Vec<(&str, &Value)> = of_type(&stream, "ExplanationOfBenefit")
+            .iter()
+            .map(|e| (e["id"].as_str().unwrap(), &e["benefitPeriod"]))
+            .collect();
+        let (last, this) = (
+            json!({"start": "2025-01-01", "end": "2025-12-31"}),
+            json!({"start": "2026-01-01", "end": "2026-12-31"}),
+        );
+        assert_eq!(
+            periods,
+            [
+                ("cSYNC55512785", &this),
+                ("cSYNC55514009", &this),
+                ("rx55500000000000237", &this),
+                // Served in December 2025, processed in 2026.
+                ("cSYNC55511862", &last),
+            ],
+            "{today}"
+        );
+    }
+}
+
+/// The plan balances are read for the benefit period only: without them the
+/// claims go out without one, and the trailer says so.
+#[test]
+fn claims_go_out_without_a_benefit_period_when_the_balances_fail() {
+    let h = Household::new();
+    h.server.fail_on("q=spending", 503, "text/html", "<p>down</p>");
+    let stream = export(&h, "ALEX", &[]);
+    let eobs = of_type(&stream, "ExplanationOfBenefit");
+    assert_eq!(eobs.len(), 4);
+    for e in &eobs {
+        assert!(e.get("benefitPeriod").is_none(), "{}", e["id"]);
+    }
+    assert_eq!(of_type(&stream, "DocumentReference").len(), 6, "the rest as ever");
+    let skipped = stream.last().unwrap()["skipped"].as_array().unwrap();
+    assert_eq!(skipped.len(), 1);
+    assert_eq!(skipped[0]["code"], "upstream");
+    let reason = skipped[0]["reason"].as_str().unwrap();
+    assert!(reason.contains("benefitPeriod"), "{reason}");
+}
+
+#[test]
+fn a_session_refused_at_the_balances_is_exit_3() {
+    let h = Household::new();
+    h.server
+        .fail_on("q=spending", 401, "application/json", &fixture("unauthorized.json"));
+    let e = h
+        .run(&["records", "export", "--patient", &id("ALEX"), "--ndjson"])
+        .unwrap_err();
+    assert_eq!(e.exit_code(), 3);
+    assert_eq!(h.server.seen().len(), 3, "nothing read after it");
+    assert_eq!(h.stored().cookie_header.expose(), COOKIES, "not written back");
+}
+
+/// `--since` reads the details of the claims processed since and the PDFs
+/// created since, and no others.
+#[test]
+fn since_reads_only_what_changed() {
+    let h = Household::new();
+    let stream = export(&h, "ALEX", &["--since", "2026-08-06"]);
+    assert_eq!(stream[0]["since"], "2026-08-06");
+    assert_eq!(
+        stream[0]["since_unbounded"],
+        json!(["Coverage", "Organization", "Patient"])
+    );
+    assert_eq!(
+        ids_of(&stream, "ExplanationOfBenefit"),
+        ["cSYNC55512785"],
+        "processed that day"
+    );
+    assert_eq!(
+        ids_of(&stream, "DocumentReference"),
+        ["b2", "a3"].map(|t| doc(t, "ALEX"))
+    );
+    assert_eq!(of_type(&stream, "Patient").len(), 1);
+    assert_eq!(of_type(&stream, "Coverage").len(), 1);
+    assert_eq!(h.server.count("q=claimDetails"), 1);
+    assert_eq!(h.server.count("doc360"), 2);
+
+    // The day after: the statement is still new, its claim is not.
+    let h = Household::new();
+    let stream = export(&h, "ALEX", &["--since", "2026-08-07"]);
+    assert!(of_type(&stream, "ExplanationOfBenefit").is_empty());
+    assert_eq!(h.server.count("q=claimDetails"), 0);
+    let d = named(&stream, "DocumentReference", &doc("a3", "ALEX"));
+    assert!(d.get("context").is_none(), "only claims the stream carries: {d}");
+
+    // A claim served long before counts by when it was processed; its first
+    // version's statement is older, so not read.
+    let h = Household::new();
+    let stream = export(&h, "ALEX", &["--since", "2026-03-19"]);
+    let reprocessed = named(&stream, "ExplanationOfBenefit", "cSYNC55511862");
+    assert_eq!(
+        reprocessed["supportingInfo"][0]["valueReference"]["reference"],
+        format!("DocumentReference/{}", doc("a2", "ALEX"))
+    );
+    assert_eq!(
+        ids_of(&stream, "DocumentReference"),
+        ["b2", "a3", "a6", "a8", "a2"].map(|t| doc(t, "ALEX"))
+    );
+    assert_eq!(h.server.count("doc360"), 5);
+
+    // A claim points at no statement the stream does not carry.
+    let h = Household::new();
+    let earlier = fixture("documents.json").replace("2026-03-23", "2026-03-18");
+    h.server
+        .fail_on("documents-aggregate-api/v1/graphql", 200, "application/json", &earlier);
+    let stream = export(&h, "ALEX", &["--since", "2026-03-19"]);
+    assert_eq!(
+        named(&stream, "ExplanationOfBenefit", "cSYNC55511862")["supportingInfo"],
+        json!([])
+    );
+    assert_eq!(h.server.count("doc360"), 4);
+
+    // A claim in process is skipped whatever the day.
+    let h = Household::new();
+    let stream = export(&h, "SAM", &["--since", "2026-11-10"]);
+    assert_eq!(stream.last().unwrap()["skipped"][0]["code"], "in_process");
+    assert!(of_type(&stream, "ExplanationOfBenefit").is_empty());
+    assert!(of_type(&stream, "DocumentReference").is_empty());
+}
+
+/// A member, a coverage and a claim have one id from either source, so a
+/// store holds one record of each.
+#[test]
+fn the_sites_ids_are_the_statements() {
+    let h = Household::new();
+    let site = ids(&h.json(&["patients", "list"]));
+    for (day, first, shared, only) in [
+        // A suffix beside the claim id, and one in it too.
+        (
+            "2026-05-07",
+            "SAM",
+            vec!["cSYNC55526407", "cSYNC55520613"],
+            vec!["cSYNC55527315"],
+        ),
+        // A pharmacy's 17 digits.
+        ("2026-04-15", "ALEX", vec!["rx55500000000000237"], vec!["cSYNC55511903"]),
+        // No suffix.
+        ("2026-10-09", "JORDAN", vec!["cSYNC55531742"], vec![]),
+    ] {
+        let path = format!("{}/tests/fixtures/eob/{day}-statement.txt", env!("CARGO_MANIFEST_DIR"));
+        let text = std::fs::read_to_string(path).unwrap();
+        let file = StatementFile::new(PathBuf::from("s.pdf"), text.as_bytes(), uhc::eob::parse(&text));
+        let book = Book::new(vec![file]);
+        let members = book.members();
+        assert_eq!(members.len(), 1, "{day}");
+        let m = &members[0];
+        assert_eq!(m.id, id(first));
+        assert!(site.contains(&m.id), "{site:?}");
+        let stream = export(&h, first, &[]);
+        assert_eq!(ids_of(&stream, "Coverage"), [uhc::fhir::coverage_id(m)]);
+        assert_eq!(
+            named(&stream, "Patient", &m.id)["identifier"],
+            uhc::fhir::patient(m, None)["identifier"]
+        );
+
+        let on_site = ids_of(&stream, "ExplanationOfBenefit");
+        let (both, printed_only): (Vec<_>, Vec<_>) = book.claims().into_iter().partition(|c| on_site.contains(&c.id));
+        let both_ids: Vec<&str> = both.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(both_ids, shared, "{day}");
+        // The rest are the statement's alone: the site does not list them.
+        let rest: Vec<&str> = printed_only.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(rest, only, "{day}");
+        for c in &both {
+            let eob = named(&stream, "ExplanationOfBenefit", &c.id);
+            assert_eq!(eob["patient"]["reference"], format!("Patient/{}", c.patient));
+            assert_eq!(eob["item"].as_array().unwrap().len(), c.claim.lines.len(), "{}", c.id);
+            let printed = uhc::fhir::explanation_of_benefit(c, "cov-synthetic", &[], None);
+            for field in ["total", "billablePeriod", "adjudication"] {
+                assert_eq!(eob[field], printed[field], "{} {field}", c.id);
+            }
+        }
+    }
 }

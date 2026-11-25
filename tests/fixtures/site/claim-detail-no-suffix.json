@@ -2,37 +2,37 @@
   "data": {
     "claimDetailsAggregate": {
       "healthCareClaimDetails": {
-        "claimId": "SYNC000000",
-        "claimIdSuffix": "12",
-        "claimKey": "SYNK-012",
+        "claimId": "SYNC55531742",
+        "claimIdSuffix": null,
+        "claimKey": "SYNK-029",
         "claimType": "MEDICAL",
         "claimStatus": "PROCESSED",
         "claimNetworkStatus": "IN_NETWORK",
-        "providerName": "EXAMPLE IMAGING AND LAB",
+        "providerName": "EXAMPLE SPEECH AND HEARING CENTER",
         "claimDates": {
-          "dateProcessed": "2026-09-14",
-          "serviceStartDate": "2026-09-09",
-          "lastServiceDate": "2026-09-09"
+          "dateProcessed": "2026-10-06",
+          "serviceStartDate": "2026-09-03",
+          "lastServiceDate": "2026-09-24"
         },
         "balance": {
           "totalBilledAmount": {
-            "value": "455.00",
+            "value": "695.00",
             "iso4217": "USD"
           },
           "healthPlanDiscount": {
-            "value": "225.00",
+            "value": "309.50",
             "iso4217": "USD"
           },
           "healthPlanPay": {
-            "value": "200.00",
+            "value": "110.05",
             "iso4217": "USD"
           },
           "deductible": {
-            "value": "0.00",
+            "value": "164.55",
             "iso4217": "USD"
           },
           "copay": {
-            "value": "30.00",
+            "value": "82.00",
             "iso4217": "USD"
           },
           "claimCoinsurance": {
@@ -40,56 +40,56 @@
             "iso4217": "USD"
           },
           "claimMemberNotCovered": {
-            "value": "0.00",
+            "value": "28.90",
             "iso4217": "USD"
           },
           "patientResponsibility": {
-            "value": "30.00",
+            "value": "275.45",
             "iso4217": "USD"
           }
         },
         "serviceLines": [
           {
-            "serviceDate": "2026-09-09",
-            "lastServiceDate": "2026-09-09",
+            "serviceDate": "2026-09-03",
+            "lastServiceDate": "2026-09-03",
             "procedures": [
               {
-                "code": "710467",
-                "description": "Chest x-ray, 2 views"
+                "code": "92523",
+                "description": "SPEECH SOUND AND LANGUAGE EVALUATION"
               }
             ],
             "revenues": [],
             "serviceInfo": {
-              "code": "710467",
-              "description": "Imaging/radiology"
+              "code": "92523",
+              "description": "SPEECH EVALUATION"
             },
             "providedServiceInfo": {
-              "code": "710467",
-              "description": "Xray chest 2 views"
+              "code": "92523",
+              "description": "SPEECH EVALUATION"
             },
             "serviceRemarks": [
               {
-                "code": "D1",
-                "description": "You have received a discount for using a health care professional in your plan's network."
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
               }
             ],
             "toothNumber": null,
             "serviceAdjudication": {
               "chargedAmount": {
-                "value": "120.00",
+                "value": "296.00",
                 "iso4217": "USD"
               },
               "allowedAmount": null,
               "providerWriteOff": {
-                "value": "70.00",
+                "value": "131.45",
                 "iso4217": "USD"
               },
               "planPaidAmount": {
-                "value": "50.00",
+                "value": "0.00",
                 "iso4217": "USD"
               },
               "deductible": {
-                "value": "0.00",
+                "value": "164.55",
                 "iso4217": "USD"
               },
               "copay": {
@@ -105,48 +105,52 @@
                 "iso4217": "USD"
               },
               "patientResponsibility": {
-                "value": "0.00",
+                "value": "164.55",
                 "iso4217": "USD"
               }
             }
           },
           {
-            "serviceDate": "2026-09-09",
-            "lastServiceDate": "2026-09-09",
+            "serviceDate": "2026-09-10",
+            "lastServiceDate": "2026-09-10",
             "procedures": [
               {
-                "code": "710468",
-                "description": "Chest x-ray, 2 views"
+                "code": "92507",
+                "description": "SPEECH THERAPY, INDIVIDUAL"
               }
             ],
             "revenues": [],
             "serviceInfo": {
-              "code": "710468",
-              "description": "Imaging/radiology"
+              "code": "92507",
+              "description": "SPEECH THERAPY"
             },
             "providedServiceInfo": {
-              "code": "710468",
-              "description": "Xray chest 2 views"
+              "code": "92507",
+              "description": "SPEECH THERAPY"
             },
             "serviceRemarks": [
               {
-                "code": "D1",
-                "description": "You have received a discount for using a health care professional in your plan's network."
+                "code": "M3",
+                "description": "YOUR PLAN COVERS A SET NUMBER OF THESE VISITS EACH YEAR."
+              },
+              {
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
               }
             ],
             "toothNumber": null,
             "serviceAdjudication": {
               "chargedAmount": {
-                "value": "80.00",
+                "value": "142.00",
                 "iso4217": "USD"
               },
               "allowedAmount": null,
               "providerWriteOff": {
-                "value": "40.00",
+                "value": "63.80",
                 "iso4217": "USD"
               },
               "planPaidAmount": {
-                "value": "40.00",
+                "value": "46.20",
                 "iso4217": "USD"
               },
               "deductible": {
@@ -154,7 +158,7 @@
                 "iso4217": "USD"
               },
               "copay": {
-                "value": "0.00",
+                "value": "32.00",
                 "iso4217": "USD"
               },
               "coinsurance": {
@@ -166,48 +170,52 @@
                 "iso4217": "USD"
               },
               "patientResponsibility": {
-                "value": "0.00",
+                "value": "32.00",
                 "iso4217": "USD"
               }
             }
           },
           {
-            "serviceDate": "2026-09-09",
-            "lastServiceDate": "2026-09-09",
+            "serviceDate": "2026-09-17",
+            "lastServiceDate": "2026-09-17",
             "procedures": [
               {
-                "code": "800618",
-                "description": "Lipid panel"
+                "code": "92507",
+                "description": "SPEECH THERAPY, INDIVIDUAL"
               }
             ],
             "revenues": [],
             "serviceInfo": {
-              "code": "800618",
-              "description": "Laboratory"
+              "code": "92507",
+              "description": "SPEECH THERAPY"
             },
             "providedServiceInfo": {
-              "code": "800618",
-              "description": "Lipid panel"
+              "code": "92507",
+              "description": "SPEECH THERAPY"
             },
             "serviceRemarks": [
               {
-                "code": "D1",
-                "description": "You have received a discount for using a health care professional in your plan's network."
+                "code": "M3",
+                "description": "YOUR PLAN COVERS A SET NUMBER OF THESE VISITS EACH YEAR."
+              },
+              {
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
               }
             ],
             "toothNumber": null,
             "serviceAdjudication": {
               "chargedAmount": {
-                "value": "45.00",
+                "value": "142.00",
                 "iso4217": "USD"
               },
               "allowedAmount": null,
               "providerWriteOff": {
-                "value": "30.00",
+                "value": "63.80",
                 "iso4217": "USD"
               },
               "planPaidAmount": {
-                "value": "15.00",
+                "value": "46.20",
                 "iso4217": "USD"
               },
               "deductible": {
@@ -215,7 +223,7 @@
                 "iso4217": "USD"
               },
               "copay": {
-                "value": "0.00",
+                "value": "32.00",
                 "iso4217": "USD"
               },
               "coinsurance": {
@@ -227,48 +235,52 @@
                 "iso4217": "USD"
               },
               "patientResponsibility": {
-                "value": "0.00",
+                "value": "32.00",
                 "iso4217": "USD"
               }
             }
           },
           {
-            "serviceDate": "2026-09-09",
-            "lastServiceDate": "2026-09-09",
+            "serviceDate": "2026-09-24",
+            "lastServiceDate": "2026-09-24",
             "procedures": [
               {
-                "code": "E0110N",
-                "description": "Crutches, forearm, pair"
+                "code": "92508",
+                "description": "SPEECH THERAPY, GROUP"
               }
             ],
             "revenues": [],
             "serviceInfo": {
-              "code": "E0110N",
-              "description": "Medical/professional services"
+              "code": "92508",
+              "description": "GROUP SPEECH THERAPY"
             },
             "providedServiceInfo": {
-              "code": "E0110N",
-              "description": "Crutch forearm pair"
+              "code": "92508",
+              "description": "GROUP SPEECH THERAPY"
             },
             "serviceRemarks": [
               {
-                "code": "D1",
-                "description": "You have received a discount for using a health care professional in your plan's network."
+                "code": "M3",
+                "description": "YOUR PLAN COVERS A SET NUMBER OF THESE VISITS EACH YEAR."
+              },
+              {
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
               }
             ],
             "toothNumber": null,
             "serviceAdjudication": {
               "chargedAmount": {
-                "value": "60.00",
+                "value": "64.00",
                 "iso4217": "USD"
               },
               "allowedAmount": null,
               "providerWriteOff": {
-                "value": "25.00",
+                "value": "28.35",
                 "iso4217": "USD"
               },
               "planPaidAmount": {
-                "value": "35.00",
+                "value": "17.65",
                 "iso4217": "USD"
               },
               "deductible": {
@@ -276,7 +288,7 @@
                 "iso4217": "USD"
               },
               "copay": {
-                "value": "0.00",
+                "value": "18.00",
                 "iso4217": "USD"
               },
               "coinsurance": {
@@ -288,48 +300,52 @@
                 "iso4217": "USD"
               },
               "patientResponsibility": {
-                "value": "0.00",
+                "value": "18.00",
                 "iso4217": "USD"
               }
             }
           },
           {
-            "serviceDate": "2026-09-09",
-            "lastServiceDate": "2026-09-09",
+            "serviceDate": "2026-09-24",
+            "lastServiceDate": "2026-09-24",
             "procedures": [
               {
-                "code": "99213",
-                "description": "Office or other outpatient visit, established patient"
+                "code": "V5362",
+                "description": "SPEECH SCREENING"
               }
             ],
             "revenues": [],
             "serviceInfo": {
-              "code": "99213",
-              "description": "Physician office visit"
+              "code": "V5362",
+              "description": "SPEECH SCREENING"
             },
             "providedServiceInfo": {
-              "code": "99213",
-              "description": "Office o/p est low 20 min"
+              "code": "V5362",
+              "description": "SPEECH SCREENING"
             },
             "serviceRemarks": [
               {
-                "code": "D1",
-                "description": "You have received a discount for using a health care professional in your plan's network."
+                "code": "H2",
+                "description": "YOUR PLAN DOES NOT COVER THIS SERVICE OR ITEM."
+              },
+              {
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
               }
             ],
             "toothNumber": null,
             "serviceAdjudication": {
               "chargedAmount": {
-                "value": "150.00",
+                "value": "51.00",
                 "iso4217": "USD"
               },
               "allowedAmount": null,
               "providerWriteOff": {
-                "value": "60.00",
+                "value": "22.10",
                 "iso4217": "USD"
               },
               "planPaidAmount": {
-                "value": "60.00",
+                "value": "0.00",
                 "iso4217": "USD"
               },
               "deductible": {
@@ -337,7 +353,7 @@
                 "iso4217": "USD"
               },
               "copay": {
-                "value": "30.00",
+                "value": "0.00",
                 "iso4217": "USD"
               },
               "coinsurance": {
@@ -345,11 +361,11 @@
                 "iso4217": "USD"
               },
               "memberNotCoveredAmount": {
-                "value": "0.00",
+                "value": "28.90",
                 "iso4217": "USD"
               },
               "patientResponsibility": {
-                "value": "30.00",
+                "value": "28.90",
                 "iso4217": "USD"
               }
             }

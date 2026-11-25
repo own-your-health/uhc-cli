@@ -1,0 +1,295 @@
+{
+  "data": {
+    "claimDetailsAggregate": {
+      "healthCareClaimDetails": {
+        "claimId": "SYNC555206-13",
+        "claimIdSuffix": "13",
+        "claimKey": "SYNK-013",
+        "claimType": "MEDICAL",
+        "claimStatus": "PROCESSED",
+        "claimNetworkStatus": "IN_NETWORK",
+        "providerName": "EXAMPLE PHYSICAL THERAPY GROUP",
+        "claimDates": {
+          "dateProcessed": "2026-05-04",
+          "serviceStartDate": "2026-04-07",
+          "lastServiceDate": "2026-04-21"
+        },
+        "balance": {
+          "totalBilledAmount": {
+            "value": "547.00",
+            "iso4217": "USD"
+          },
+          "healthPlanDiscount": {
+            "value": "337.90",
+            "iso4217": "USD"
+          },
+          "healthPlanPay": {
+            "value": "65.20",
+            "iso4217": "USD"
+          },
+          "deductible": {
+            "value": "127.60",
+            "iso4217": "USD"
+          },
+          "copay": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "claimCoinsurance": {
+            "value": "16.30",
+            "iso4217": "USD"
+          },
+          "claimMemberNotCovered": {
+            "value": "0.00",
+            "iso4217": "USD"
+          },
+          "patientResponsibility": {
+            "value": "143.90",
+            "iso4217": "USD"
+          }
+        },
+        "serviceLines": [
+          {
+            "serviceDate": "2026-04-07",
+            "lastServiceDate": "2026-04-07",
+            "procedures": [
+              {
+                "code": "97161",
+                "description": "PHYSICAL THERAPY EVALUATION"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "97161",
+              "description": "THERAPY EVALUATION"
+            },
+            "providedServiceInfo": {
+              "code": "97161",
+              "description": "THERAPY EVALUATION"
+            },
+            "serviceRemarks": [
+              {
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "215.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "121.75",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "93.25",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "93.25",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-04-14",
+            "lastServiceDate": "2026-04-14",
+            "procedures": [
+              {
+                "code": "97110",
+                "description": "THERAPEUTIC EXERCISE"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "97110",
+              "description": "THERAPY EXERCISE"
+            },
+            "providedServiceInfo": {
+              "code": "97110",
+              "description": "THERAPY EXERCISE"
+            },
+            "serviceRemarks": [
+              {
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "148.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "91.60",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "17.64",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "34.35",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "4.41",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "38.76",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-04-21",
+            "lastServiceDate": "2026-04-21",
+            "procedures": [
+              {
+                "code": "97140",
+                "description": "MANUAL THERAPY"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "97140",
+              "description": "HANDS-ON THERAPY"
+            },
+            "providedServiceInfo": {
+              "code": "97140",
+              "description": "HANDS-ON THERAPY"
+            },
+            "serviceRemarks": [
+              {
+                "code": "K4",
+                "description": "THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN."
+              }
+            ],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "126.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "80.90",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "36.08",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "9.02",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "9.02",
+                "iso4217": "USD"
+              }
+            }
+          },
+          {
+            "serviceDate": "2026-04-21",
+            "lastServiceDate": "2026-04-21",
+            "procedures": [
+              {
+                "code": "G02834",
+                "description": "ELECTRICAL STIMULATION, UNATTENDED"
+              }
+            ],
+            "revenues": [],
+            "serviceInfo": {
+              "code": "G02834",
+              "description": "ELECTRICAL STIMULATION"
+            },
+            "providedServiceInfo": {
+              "code": "G02834",
+              "description": "ELECTRICAL STIMULATION"
+            },
+            "serviceRemarks": [],
+            "toothNumber": null,
+            "serviceAdjudication": {
+              "chargedAmount": {
+                "value": "58.00",
+                "iso4217": "USD"
+              },
+              "allowedAmount": null,
+              "providerWriteOff": {
+                "value": "43.65",
+                "iso4217": "USD"
+              },
+              "planPaidAmount": {
+                "value": "11.48",
+                "iso4217": "USD"
+              },
+              "deductible": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "copay": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "coinsurance": {
+                "value": "2.87",
+                "iso4217": "USD"
+              },
+              "memberNotCoveredAmount": {
+                "value": "0.00",
+                "iso4217": "USD"
+              },
+              "patientResponsibility": {
+                "value": "2.87",
+                "iso4217": "USD"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,83 @@
+   SYNTHETIC TEST DATA - NOT A REAL STATEMENT
+   UnitedHealthcare                                                          Explanation of Benefits
+                                                                             Member/Patient:   SAM EXAMPLE
+                                                                             Member ID:        SYNM000001
+                                                                             Relationship:     SP
+                                                                             Group name:       EXAMPLE EMPLOYER
+                                                                             Group number:     SYNG0001
+
+   Hi, SAM.                                                                  Claim summary
+   THIS IS NOT A BILL. This Explanation of Benefits (EOB) is a summary of    Services in this statement occurred
+   services received and how plan benefits were applied.                     between Apr. 7, 2026 - Apr. 25, 2026
+                                                                             Provider billed             $1,129.00
+                                                                             Your total amount owed        $497.70
+   Plan balances
+                     As of 05/07/2026 for plan year 2026
+
+    Balances for SAM                                         Maximum         Progress so far        Remaining
+                                                              amount                                  amount
+         Network           Deductible                      $1,150.00            $171.35              $978.65
+                           Out-of-pocket limit             $5,200.00            $252.65            $4,947.35
+         Out-of-Network    Deductible                      $2,450.00            $110.80            $2,339.20
+                           Out-of-pocket limit             $9,750.00            $133.60            $9,616.40
+
+    Balances for FAMILY                                      Maximum         Progress so far        Remaining
+                                                              amount                                  amount
+         Network           Deductible                      $2,300.00          $1,083.65            $1,216.35
+                           Out-of-pocket limit            $10,400.00          $1,496.17            $8,903.83
+         Out-of-Network    Deductible                      $4,900.00            $110.80            $4,789.20
+                           Out-of-pocket limit            $19,500.00            $133.60           $19,366.40
+
+   STD-EOB
+   000000000000000-A-S-PS-E
+   Page 1 of 2
+
+   05/07/2026
+
+   Claim detail for SAM
+   Provider: EXAMPLE CHIROPRACTIC                                            Patient account number: SYNA0031
+   Status: Out-of-Network                                                    Claim number: SYNC55526407
+
+   LOWER BACK X-RAY                  J6       $173.00       $0.00     $173.00       $0.00     $110.80      $0.00      $0.00      $62.20     $173.00
+   04/16/2026
+   CHIROPRACTIC ADJUSTMENT           J6        $96.00       $0.00      $96.00      $34.20       $0.00      $0.00     $22.80      $39.00      $61.80
+   04/16/2026
+   TRACTION                          H2        $54.00       $0.00      $54.00       $0.00       $0.00      $0.00      $0.00      $54.00      $54.00
+   04/16/2026
+
+   Total amount                               $323.00       $0.00     $323.00      $34.20     $110.80      $0.00     $22.80     $155.20     $288.80
+
+   Provider: EXAMPLE URGENT CARE                                             Patient account number: SYNA0032
+   Status: Network                                                           Claim number: SYNC55527315
+
+   URGENT CARE VISIT                 K4       $218.00      $96.55     $121.45      $56.45       $0.00     $65.00      $0.00       $0.00      $65.00
+   04/25/2026
+   STREP TEST                        K4        $41.00      $27.25      $13.75      $13.75       $0.00      $0.00      $0.00       $0.00       $0.00
+   04/25/2026
+
+   Total amount                               $259.00     $123.80     $135.20      $70.20       $0.00     $65.00      $0.00       $0.00      $65.00
+
+   Provider: EXAMPLE PHYSICAL THERAPY GROUP                                  Patient account number: SYNA0033
+   Status: Network                                                           Claim number: SYNC55520613
+
+   THERAPY EVALUATION                K4       $215.00     $121.75      $93.25       $0.00      $93.25      $0.00      $0.00       $0.00      $93.25
+   04/07/2026
+   THERAPY EXERCISE                  K4       $148.00      $91.60      $56.40      $17.64      $34.35      $0.00      $4.41       $0.00      $38.76
+   04/14/2026
+   HANDS-ON THERAPY                  K4       $126.00      $80.90      $45.10      $36.08       $0.00      $0.00      $9.02       $0.00       $9.02
+   04/21/2026
+   ELECTRICAL STIMULATION                      $58.00      $43.65      $14.35      $11.48       $0.00      $0.00      $2.87       $0.00       $2.87
+   04/21/2026
+
+   Total amount                               $547.00     $337.90     $209.10      $65.20     $127.60      $0.00     $16.30       $0.00     $143.90
+
+   Explanation of your claim processing codes
+   H2 -- YOUR PLAN DOES NOT COVER THIS SERVICE OR ITEM.
+   J6 -- THIS PROVIDER IS NOT IN THE NETWORK AND MAY BILL MORE THAN THE PLAN ALLOWS.
+   K4 -- THE AMOUNT SAVED IS THE DISCOUNT THIS NETWORK PROVIDER GIVES YOUR PLAN.
+
+   STD-EOB
+   000000000000000-A-S-PS-E
+   Page 2 of 2
+
+   05/07/2026

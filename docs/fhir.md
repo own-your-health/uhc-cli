@@ -39,7 +39,7 @@ since) wins over the site's version.
 
 | Thing | Id | Why |
 | --- | --- | --- |
-| Member | `m` + 12 hex of SHA-256(member id \| first name) | one per person on the plan; the same across statements; no name in it. The member id is the site's form: statements into 2025 printed one letter before its digits (`A` + nine digits where the site and later statements have the nine digits), and that letter is dropped (`eob::canonical_member_id`) |
+| Member | `m` + 12 hex of SHA-256(member id \| first name) | one per person on the plan; the same across statements; no name in it. The member id is the site's form: older statements print one letter before its digits (`A` + nine digits where the site and current statements have the nine digits), and that letter is dropped (`eob::canonical_member_id`) |
 | Family | `family-` + 12 hex of SHA-256(member id \| "") | the family rows of the plan balances |
 | Coverage | `cov-` + 12 hex of SHA-256(member id \| member \| group) | one per member and group |
 | Claim | `c` + the claim number | stable across reprocessing |
@@ -101,19 +101,17 @@ amounts. Each is one record: the latest version's, and a reversal
 
 ### Where the sources still differ
 
-A statement and the site carry the same claim number and member for
-almost every claim. Three kinds of claim a statement cannot match to the
-site:
+A statement and the site carry the same claim number and member for a
+claim, except where:
 
 | Case | Why | What a store sees |
 | --- | --- | --- |
-| A newborn's claim on a statement printed before the child was named | the statement's patient is "Newborn", a first name of its own | a second patient id; medrec asks `--person` on its first import |
-| A pharmacy row whose "Patient account number" is 15 digits + `RV`, with $0.00 billed and a negative amount owed | it is not the 17-digit pharmacy number the `rx` rule reads, so it keeps its claim number. The site lists the same 15 digits + `99` as a processed pharmacy claim for that amount | two records for one fill: the statement's credit and the site's claim |
-| A claim the plan reprocessed under a new claim number | an older statement prints the old number; the site lists only the new one | the old claim beside the new |
+| A statement prints another first name for the member than the site's | the member id is built from the first name | a second patient id; medrec asks `--person` on its first import |
+| A pharmacy row's "Patient account number" is 15 digits + `RV` | it is not the 17-digit pharmacy number the `rx` rule reads, so it keeps its claim number. The site lists a pharmacy claim whose number starts with the same 15 digits and ends `99` | two records |
+| A statement prints a claim number the site no longer lists | the claim's id is its number | the statement's claim beside the site's |
 
-The `RV` rows look like reversals the site does not show, but that does
-not settle whether the credit and the site's claim are one
-record, so they are kept apart rather than merged on a guess.
+`RV` may mark a reversal, but UHC does not document it, so the two are
+kept apart rather than merged on a guess.
 
 ## Resources
 
@@ -155,12 +153,11 @@ description as `display` and `text`:
 | five digits, or four and `F`, `T` or `U` | CPT, `http://www.ama-assn.org/go/cpt` |
 | `D` and four digits | CDT, `http://ada.org/cdt` |
 | another letter and four digits | HCPCS Level II, `https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets` |
-| one of these and one more letter or digit (`710467`, `E0110N`) | the system of its first five characters, coded as those five; a second coding carries the site's whole code, system `https://github.com/own-your-health/uhc-cli/fhir/site-procedure-code` |
+| one of these and one more letter or digit (`71046R`) | the system of its first five characters, coded as those five; a second coding carries the site's whole code, system `https://github.com/own-your-health/uhc-cli/fhir/site-procedure-code` |
 | anything else | no coding; the code goes into `text` |
 
 The site appends that character to some lines' codes and does not say what
-it means; two lines of one code on a claim can differ only in it. `claims
-get` gives it as the procedure's `suffix`, beside `site_code`. The site-code system is an
+it means. `claims get` gives it as the procedure's `suffix`, beside `site_code`. The site-code system is an
 identifier like the tag and benefit-type systems; it was minted after the
 repository moved, so it carries the `own-your-health` owner.
 
@@ -182,10 +179,9 @@ code system's display text:
 | Not covered | `memberNotCoveredAmount`; `claimMemberNotCovered` | `noncovered` (CARIN) |
 | You owe | `patientResponsibility` | `memberliability` (CARIN) |
 
-A claim's totals can leave out a line the site keeps in the claim: a code
-it replaced with another (all of it not covered and owed), or a line the
-provider wrote off in full, whose write-off `healthPlanDiscount` still
-counts. uhc finds them from the amounts: the one set of lines the plan paid
+A claim's totals can leave out a line the site keeps in the claim, while
+`healthPlanDiscount` still counts the line's write-off. uhc finds such
+lines from the amounts: the one set of lines the plan paid
 nothing on whose charges and amounts owed are exactly what
 `totalBilledAmount` and `patientResponsibility` are short of all the lines'.
 None is marked when no set fits, when more than one does, when the lines'
