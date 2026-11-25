@@ -367,7 +367,7 @@ fn a_pharmacy_claim_is_named_by_its_17_digit_account_number() {
     // A number of another shape, or another provider's, names no pharmacy
     // claim: it keeps the statement's claim number.
     for other in [
-        text.replace("55500000000000237", "555000000000002RV"),
+        text.replace("55500000000000237", "5550000000000023"),
         text.replace("Provider: Pharmacy  ", "Provider: EXAMPLE DRUG STORE  "),
     ] {
         assert_ne!(other, text);

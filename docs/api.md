@@ -273,10 +273,10 @@ How the answers read:
   the maximums by `type` (`INDIVIDUAL_DEDUCTIBLE`, `INDIVIDUAL_OOP`,
   `FAMILY_DEDUCTIBLE`, `FAMILY_OOP`), `accumulators[].accumulatorSummaries`
   the progress by `accumulatorType` and `type`, both per `depSeqNbr`.
-  `benefitsPeriodIndicator` on each says how the plan counts: medical
-  `CALENDAR_YEAR`, the only value seen, and `null` for dental and
-  pharmacy (`RX`). Neither carries a period's dates. Dental has annual and lifetime maximums instead
-  (`uhc accumulators` reports medical only); `tier1` and pharmacy are null.
+  `benefitsPeriodIndicator` on each says how the plan counts
+  (`CALENDAR_YEAR`, the value uhc reads) or is `null`. Neither carries a
+  period's dates. `uhc accumulators` reports medical only. A network's rows
+  (`tier1` among them) can be null.
 - Documents: one member, class and creation date per `documentId`, and one
   row per claim it covers (`claimKey`). `memberName` is `FIRST LAST`. The
   plan's general forms ("Other Forms": proof of coverage and the like) have

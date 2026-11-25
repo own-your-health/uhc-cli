@@ -35,9 +35,10 @@ counts them); any other file here is a PDF that is not one.
 ## site/
 
 Answers of the member site (myuhc.com), as `uhc` receives them. The field
-names, types, codes and statuses follow the site's answers, with null where the
-site sends null and a key left out where the site leaves it out. Everything
-else is invented: every claim, date, amount and provider, and which of them go
+names, types, and type and status values (`MEDICAL`, `IN_PROCESS`) follow the
+site's, with null where the site sends null and a key left out where the site
+leaves it out. Everything else is invented: every claim, service, procedure,
+revenue and remark code, date, amount and provider, and which of them go
 together. The household is Alex (subscriber), Sam (spouse) and Jordan (child)
 Example. Amounts satisfy the equations in `docs/api.md`, except in the two
 `left-out` claims, whose totals leave lines out.
